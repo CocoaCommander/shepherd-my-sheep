@@ -22,5 +22,7 @@ These rules must be followed across the entire codebase:
 
 All secrets and connection parameters come from `.env` (gitignored). Never hardcode credentials.
 
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — database connection
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — database connection
 - `API_HOST`, `API_PORT` — server bind address (parameterized for deployment)
+
+**CRITICAL: No credential defaults anywhere.** Actual usernames, passwords, and database names must never appear as fallback/default values in source code, test fixtures, config files, or anywhere outside of `.env`. All code must read from environment variables and fail if they are missing.

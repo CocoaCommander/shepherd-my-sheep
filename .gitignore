@@ -17,6 +17,11 @@ local.properties
 .vscode/
 *.swp
 
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # OS
 .DS_Store
 .claude/worktrees/
