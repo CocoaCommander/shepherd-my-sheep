@@ -1,0 +1,182 @@
+# ============================================================
+# Shepherd My Sheep — GraphQL Schema
+# ============================================================
+#
+# Nullability rules (from business logic):
+#   - Lists ([Type!]!) are always non-null but may be EMPTY.
+#     A new user has no people. A new person has no milestones,
+#     no prayer burdens, and no comments.
+#   - Optional scalars (no !) may be null:
+#     Comment.prayerBurden, Person.age, Person.yearMet, etc.
+
+# ── Scalars ──────────────────────────────────────────────────
+scalar DateTime
+scalar Date
+scalar UUID
+
+# ── Core Types ───────────────────────────────────────────────
+
+type User {
+  id: UUID!
+  name: String!
+  username: String!
+  people: [Person!]!              # may be empty for a new user
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Person {
+  id: UUID!
+  name: String!
+  age: Int                        # nullable — may not be known
+  yearMet: Int                    # nullable
+  lastContactDate: Date           # nullable
+  isActive: Boolean!
+  status: Status!
+  shepherds: [User!]!             # who is caring for this person
+  milestones: [MilestonePerson!]! # may be empty for a new contact
+  prayerBurdens: [PrayerBurden!]! # may be empty
+  comments: [Comment!]!           # may be empty
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Status {
+  id: UUID!
+  name: String!
+}
+
+type Milestone {
+  id: UUID!
+  name: String!
+  description: String             # nullable
+}
+
+type MilestonePerson {
+  id: UUID!
+  milestone: Milestone!
+  person: Person!
+  dateAchieved: Date              # nullable — might not know exact date
+  notes: String                   # nullable
+  recordedBy: User                # nullable — user could be deleted
+  createdAt: DateTime!
+}
+
+type PrayerBurden {
+  id: UUID!
+  person: Person!
+  content: String!
+  releasedDate: DateTime          # null = still active
+  comments: [Comment!]!           # may be empty — burdens can exist without comments
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type Comment {
+  id: UUID!
+  author: User!
+  person: Person!
+  prayerBurden: PrayerBurden      # nullable — comment may be a standalone note
+  content: String!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# ── Auth ─────────────────────────────────────────────────────
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+# ── Queries ──────────────────────────────────────────────────
+
+type Query {
+  # Auth
+  me: User!
+
+  # People
+  person(id: UUID!): Person       # nullable — may not exist
+  myPeople: [Person!]!            # may be empty
+
+  # Lookups
+  statuses: [Status!]!
+  milestones: [Milestone!]!
+
+  # Prayer burdens — optionally filter by person
+  activePrayerBurdens(personId: UUID): [PrayerBurden!]!
+}
+
+# ── Mutations ────────────────────────────────────────────────
+
+type Mutation {
+  # Auth
+  register(input: RegisterInput!): AuthPayload!
+  login(input: LoginInput!): AuthPayload!
+
+  # People
+  createPerson(input: CreatePersonInput!): Person!
+  updatePerson(id: UUID!, input: UpdatePersonInput!): Person!
+  deletePerson(id: UUID!): Boolean!
+  assignPerson(personId: UUID!, userId: UUID!): Person!
+  unassignPerson(personId: UUID!, userId: UUID!): Person!
+
+  # Milestones
+  recordMilestone(input: RecordMilestoneInput!): MilestonePerson!
+  removeMilestone(personId: UUID!, milestoneId: UUID!): Boolean!
+
+  # Prayer Burdens
+  createPrayerBurden(input: CreatePrayerBurdenInput!): PrayerBurden!
+  releasePrayerBurden(id: UUID!): PrayerBurden!
+
+  # Comments
+  createComment(input: CreateCommentInput!): Comment!
+  deleteComment(id: UUID!): Boolean!
+}
+
+# ── Inputs ───────────────────────────────────────────────────
+
+input RegisterInput {
+  name: String!
+  username: String!
+  password: String!
+}
+
+input LoginInput {
+  username: String!
+  password: String!
+}
+
+input CreatePersonInput {
+  name: String!
+  age: Int                        # optional
+  yearMet: Int                    # optional
+  statusId: UUID!
+}
+
+input UpdatePersonInput {
+  name: String                    # all optional — only update what's provided
+  age: Int
+  yearMet: Int
+  lastContactDate: Date
+  isActive: Boolean
+  statusId: UUID
+}
+
+input RecordMilestoneInput {
+  personId: UUID!
+  milestoneId: UUID!
+  dateAchieved: Date              # optional
+  notes: String                   # optional
+}
+
+input CreatePrayerBurdenInput {
+  personId: UUID!
+  content: String!
+}
+
+input CreateCommentInput {
+  personId: UUID!
+  prayerBurdenId: UUID            # optional — null means standalone note
+  content: String!
+}
