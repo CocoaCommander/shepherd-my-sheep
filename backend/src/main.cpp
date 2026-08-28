@@ -4,6 +4,8 @@
 
 #include "AppComponent.hpp"
 #include "graphql/GraphQLController.hpp"
+#include "middleware/CorsMiddleware.hpp"
+#include "middleware/RequestLogger.hpp"
 
 #include <iostream>
 #include <cstdlib>
@@ -23,6 +25,17 @@ void run() {
     auto connectionHandler =
         oatpp::web::server::HttpConnectionHandler::createShared(router);
 
+    // Register middleware — order matters:
+    // 1. Request logger (logs incoming request)
+    // 2. CORS request interceptor (handles OPTIONS preflight)
+    // 3. ... handler runs ...
+    // 4. CORS response interceptor (adds headers to all responses)
+    // 5. Response logger (logs outgoing status)
+    connectionHandler->addRequestInterceptor(std::make_shared<RequestLoggerInterceptor>());
+    connectionHandler->addRequestInterceptor(std::make_shared<CorsRequestInterceptor>());
+    connectionHandler->addResponseInterceptor(std::make_shared<CorsResponseInterceptor>());
+    connectionHandler->addResponseInterceptor(std::make_shared<ResponseLoggerInterceptor>());
+
     const char* envHost = std::getenv("API_HOST");
     const char* envPort = std::getenv("API_PORT");
     std::string host = envHost ? envHost : "0.0.0.0";
@@ -35,8 +48,11 @@ void run() {
 
     oatpp::network::Server server(connectionProvider, connectionHandler);
 
+    // Log CORS config on startup
+    const char* corsOrigin = std::getenv("CORS_ORIGIN");
     std::cout << "Shepherd API running on http://" << host << ":" << port << std::endl;
     std::cout << "GraphQL endpoint: POST /graphql" << std::endl;
+    std::cout << "CORS allowed origin: " << (corsOrigin ? corsOrigin : "(none — browser requests will be blocked)") << std::endl;
 
     server.run();
 }

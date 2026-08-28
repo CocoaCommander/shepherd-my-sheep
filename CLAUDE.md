@@ -24,5 +24,6 @@ All secrets and connection parameters come from `.env` (gitignored). Never hardc
 
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — database connection
 - `API_HOST`, `API_PORT` — server bind address (parameterized for deployment)
+- `CORS_ORIGIN` — allowed origin for browser requests (e.g. `http://localhost:3000`). If unset, no origin is allowed (safe default).
 
 **CRITICAL: No credential defaults anywhere.** Actual usernames, passwords, and database names must never appear as fallback/default values in source code, test fixtures, config files, or anywhere outside of `.env`. All code must read from environment variables and fail if they are missing.
