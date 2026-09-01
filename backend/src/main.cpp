@@ -21,7 +21,7 @@ void run() {
         components.dbPool.getObject(),
         components.jwtService.getObject()
     );
-    graphqlController->addEndpointsToRouter(router);
+    router->addController(graphqlController);
 
     auto connectionHandler =
         oatpp::web::server::HttpConnectionHandler::createShared(router);
