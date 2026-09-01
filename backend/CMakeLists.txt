@@ -14,6 +14,7 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/oatpp/oatpp.git
     GIT_TAG        1.3.0
 )
+set(OATPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(oatpp)
 
 # libpqxx — PostgreSQL C++ client
@@ -30,7 +31,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    oatpp::oatpp
+    # Plain "oatpp", not "oatpp::oatpp" — oatpp 1.3.0 declares no namespaced
+    # ALIAS, so the :: form only resolves via find_package on an installed
+    # copy, never through FetchContent.
+    oatpp
     PkgConfig::LIBPQXX
 )
 
