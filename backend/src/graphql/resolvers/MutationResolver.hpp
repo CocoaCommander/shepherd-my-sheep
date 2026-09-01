@@ -191,13 +191,21 @@ private:
 
         // The plaintext is only in hand during login, so this is the one
         // chance to upgrade a hash stored under weaker cost parameters.
+        //
+        // Best-effort: the credentials are already verified, so a busy
+        // server must not turn a good login into a failure. We just skip
+        // the upgrade and try again on the next sign-in.
         if (PasswordHasher::needsRehash(storedHash)) {
-            pqxx::work rehashTxn(*conn);
-            rehashTxn.exec_params(
-                "UPDATE \"user\" SET password_hash = $1 WHERE id = $2",
-                PasswordHasher::hash(password), result[0]["id"].c_str()
-            );
-            rehashTxn.commit();
+            try {
+                pqxx::work rehashTxn(*conn);
+                rehashTxn.exec_params(
+                    "UPDATE \"user\" SET password_hash = $1 WHERE id = $2",
+                    PasswordHasher::hash(password), result[0]["id"].c_str()
+                );
+                rehashTxn.commit();
+            } catch (const PasswordHasher::Busy&) {
+                // No hash slot free — leave the old hash in place.
+            }
         }
 
         auto user = UserDto::createShared();
