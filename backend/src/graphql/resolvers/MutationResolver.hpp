@@ -2,6 +2,8 @@
 
 #include "../../db/DatabasePool.hpp"
 #include "../../models/DTOs.hpp"
+#include "../../auth/PasswordHasher.hpp"
+#include "../../auth/JWTService.hpp"
 
 #include <pqxx/pqxx>
 #include <memory>
@@ -11,12 +13,14 @@
  * Handles GraphQL mutation operations (writes).
  *
  * All writes go through PostgreSQL stored procedures so the app
- * and tests exercise the exact same code path.
+ * and tests exercise the exact same code path. Password hashing is the
+ * one thing deliberately kept out of the database — see PasswordHasher.
  */
 class MutationResolver {
 public:
-    explicit MutationResolver(std::shared_ptr<DatabasePool> dbPool)
-        : m_dbPool(dbPool) {}
+    MutationResolver(std::shared_ptr<DatabasePool> dbPool,
+                     std::shared_ptr<JWTService> jwtService)
+        : m_dbPool(dbPool), m_jwt(jwtService) {}
 
     oatpp::Any resolve(const std::string& query, const oatpp::Any& variables) {
         if (query.find("register") != std::string::npos) {
@@ -64,6 +68,7 @@ public:
 
 private:
     std::shared_ptr<DatabasePool> m_dbPool;
+    std::shared_ptr<JWTService> m_jwt;
 
     // ── Helpers ─────────────────────────────────────────────
 
@@ -129,8 +134,9 @@ private:
         auto username = inputField(input, "username");
         auto password = inputField(input, "password");
 
-        // TODO: hash password with bcrypt/argon2 — storing plaintext is not acceptable
-        std::string passwordHash = "HASH_" + password;  // placeholder until hashing lib is added
+        // Hashed here, never in the database: a pgcrypto crypt() call would
+        // put the plaintext on the wire and into pg_stat_statements.
+        std::string passwordHash = PasswordHasher::hash(password);
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
@@ -149,7 +155,7 @@ private:
         user->updatedAt = result[0]["updated_at"].c_str();
 
         auto payload = AuthPayloadDto::createShared();
-        payload->token = "jwt-placeholder";  // TODO: generate real JWT
+        payload->token = m_jwt->issue(result[0]["id"].c_str()).c_str();
         payload->user = user;
         return payload;
     }
@@ -169,11 +175,38 @@ private:
         txn.commit();
 
         if (result.empty()) {
+            // Spend the same time a real verify would before failing, so
+            // response latency does not reveal which usernames exist.
+            PasswordHasher::dummyVerify(password);
             throw std::runtime_error("Invalid username or password");
         }
 
-        // TODO: verify password hash with bcrypt/argon2
-        // std::string storedHash = result[0]["password_hash"].c_str();
+        std::string storedHash = result[0]["password_hash"].c_str();
+
+        if (!PasswordHasher::verify(storedHash, password)) {
+            // Identical message to the branch above — never distinguish
+            // "no such user" from "wrong password" to the caller.
+            throw std::runtime_error("Invalid username or password");
+        }
+
+        // The plaintext is only in hand during login, so this is the one
+        // chance to upgrade a hash stored under weaker cost parameters.
+        //
+        // Best-effort: the credentials are already verified, so a busy
+        // server must not turn a good login into a failure. We just skip
+        // the upgrade and try again on the next sign-in.
+        if (PasswordHasher::needsRehash(storedHash)) {
+            try {
+                pqxx::work rehashTxn(*conn);
+                rehashTxn.exec_params(
+                    "UPDATE \"user\" SET password_hash = $1 WHERE id = $2",
+                    PasswordHasher::hash(password), result[0]["id"].c_str()
+                );
+                rehashTxn.commit();
+            } catch (const PasswordHasher::Busy&) {
+                // No hash slot free — leave the old hash in place.
+            }
+        }
 
         auto user = UserDto::createShared();
         user->id        = result[0]["id"].c_str();
@@ -183,7 +216,7 @@ private:
         user->updatedAt = result[0]["updated_at"].c_str();
 
         auto payload = AuthPayloadDto::createShared();
-        payload->token = "jwt-placeholder";  // TODO: generate real JWT
+        payload->token = m_jwt->issue(result[0]["id"].c_str()).c_str();
         payload->user = user;
         return payload;
     }

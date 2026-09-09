@@ -7,6 +7,8 @@
 #include "middleware/CorsMiddleware.hpp"
 #include "middleware/RequestLogger.hpp"
 
+#include <sodium.h>
+
 #include <iostream>
 #include <cstdlib>
 #include <string>
@@ -18,9 +20,10 @@ void run() {
 
     auto graphqlController = std::make_shared<GraphQLController>(
         components.objectMapper.getObject(),
-        components.dbPool.getObject()
+        components.dbPool.getObject(),
+        components.jwtService.getObject()
     );
-    graphqlController->addEndpointsToRouter(router);
+    router->addController(graphqlController);
 
     auto connectionHandler =
         oatpp::web::server::HttpConnectionHandler::createShared(router);
@@ -58,6 +61,13 @@ void run() {
 }
 
 int main() {
+    // Must run before any hashing and before any threads are spawned.
+    // Returns 1 if already initialised, which is fine; only < 0 is a failure.
+    if (sodium_init() < 0) {
+        std::cerr << "[FATAL] libsodium failed to initialise" << std::endl;
+        return 1;
+    }
+
     oatpp::base::Environment::init();
     run();
     oatpp::base::Environment::destroy();

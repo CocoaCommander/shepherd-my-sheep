@@ -14,11 +14,28 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/oatpp/oatpp.git
     GIT_TAG        1.3.0
 )
+set(OATPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(oatpp)
+
+# jwt-cpp — header-only JWT (HS256). Used by oatpp's own example-jwt.
+FetchContent_Declare(
+    jwt-cpp
+    GIT_REPOSITORY https://github.com/Thalhammer/jwt-cpp.git
+    GIT_TAG        v0.7.2
+)
+set(JWT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(JWT_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(jwt-cpp)
 
 # libpqxx — PostgreSQL C++ client
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBPQXX REQUIRED IMPORTED_TARGET libpqxx)
+
+# libsodium — argon2id password hashing
+pkg_check_modules(SODIUM REQUIRED IMPORTED_TARGET libsodium)
+
+# OpenSSL — jwt-cpp's crypto backend
+find_package(OpenSSL REQUIRED)
 
 # ── Source files ─────────────────────────────────────────────
 file(GLOB_RECURSE SOURCES src/*.cpp)
@@ -30,8 +47,15 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    oatpp::oatpp
+    # Plain "oatpp", not "oatpp::oatpp" — oatpp 1.3.0 declares no namespaced
+    # ALIAS, so the :: form only resolves via find_package on an installed
+    # copy, never through FetchContent.
+    oatpp
     PkgConfig::LIBPQXX
+    PkgConfig::SODIUM
+    jwt-cpp::jwt-cpp
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 # ── Tests ────────────────────────────────────────────────────

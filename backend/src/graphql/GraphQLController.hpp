@@ -7,6 +7,7 @@
 
 #include "../models/DTOs.hpp"
 #include "../db/DatabasePool.hpp"
+#include "../auth/JWTService.hpp"
 #include "resolvers/QueryResolver.hpp"
 #include "resolvers/MutationResolver.hpp"
 
@@ -29,12 +30,13 @@ class GraphQLController : public oatpp::web::server::api::ApiController {
 public:
     GraphQLController(
         const std::shared_ptr<ObjectMapper>& objectMapper,
-        const std::shared_ptr<DatabasePool>& dbPool
+        const std::shared_ptr<DatabasePool>& dbPool,
+        const std::shared_ptr<JWTService>& jwtService
     )
         : oatpp::web::server::api::ApiController(objectMapper)
         , m_dbPool(dbPool)
         , m_queryResolver(std::make_shared<QueryResolver>(dbPool))
-        , m_mutationResolver(std::make_shared<MutationResolver>(dbPool))
+        , m_mutationResolver(std::make_shared<MutationResolver>(dbPool, jwtService))
     {}
 
     ENDPOINT("POST", "/graphql", handleGraphQL,
