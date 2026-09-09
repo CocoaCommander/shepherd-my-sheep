@@ -1,0 +1,10 @@
+# Keep host build output and editor cruft out of the build context, so a
+# local cmake run can't leak stale artifacts into the image.
+build/
+cmake-build-*/
+compile_commands.json
+.DS_Store
+*.swp
+
+# Secrets must arrive via env_file at run time, never baked into a layer.
+.env
