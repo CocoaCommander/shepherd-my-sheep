@@ -17,6 +17,10 @@ local.properties
 .vscode/
 *.swp
 
+# Web (React / Vite)
+node_modules/
+web/dist/
+
 # Python
 __pycache__/
 *.pyc
