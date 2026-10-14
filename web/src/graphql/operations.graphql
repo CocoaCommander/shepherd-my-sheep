@@ -145,3 +145,11 @@ mutation CreateComment($input: CreateCommentInput!) {
 mutation DeleteComment($id: UUID!) {
   deleteComment(id: $id)
 }
+
+# Selects PersonSummary so the cache updates the person, and any MyPeople
+# entry for them, without a refetch.
+mutation UpdatePerson($id: UUID!, $input: UpdatePersonInput!) {
+  updatePerson(id: $id, input: $input) {
+    ...PersonSummary
+  }
+}

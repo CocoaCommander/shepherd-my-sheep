@@ -15,7 +15,9 @@ import {
   useRemoveMilestoneMutation,
   type PersonQuery,
 } from '../generated/graphql'
+import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
+import { PersonDetailsCard } from './PersonDetailsCard'
 
 export function PersonPage() {
   const { id = '' } = useParams()
@@ -66,24 +68,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
 
   return (
     <>
-      <section className="card">
-        <div className="title-row">
-          <h1>{person.name}</h1>
-          <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
-            {person.status.name}
-          </span>
-        </div>
-        <dl className="facts">
-          <Fact label="Age" value={person.age} />
-          <Fact label="Year met" value={person.yearMet} />
-          <Fact
-            label="Last contact"
-            value={person.lastContactDate && formatDate(person.lastContactDate)}
-          />
-          <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
-          <Fact label="Shepherds" value={person.shepherds.map((s) => s.name).join(', ')} />
-        </dl>
-      </section>
+      <PersonDetailsCard person={person} />
 
       <section className="card stack">
         <h2>Milestones</h2>
@@ -188,21 +173,6 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
         />
       </section>
     </>
-  )
-}
-
-function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>
-        {value === null || value === undefined || value === '' ? (
-          <span className="muted">—</span>
-        ) : (
-          value
-        )}
-      </dd>
-    </div>
   )
 }
 
@@ -550,14 +520,5 @@ function ActionButton({
       )}
       <ErrorMessage error={error} />
     </span>
-  )
-}
-
-function ErrorMessage({ error }: { error: ApolloError | undefined }) {
-  if (!error) return null
-  return (
-    <p className="error small" role="alert">
-      {error.message}
-    </p>
   )
 }
