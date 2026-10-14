@@ -54,5 +54,11 @@ apollo {
     service("shepherd") {
         packageName.set("com.shepherdmysheep.graphql")
         schemaFile.set(file("../backend/graphql/schema.graphql"))
+
+        // Unmapped custom scalars would be generated as Any. The domain
+        // models carry all three as strings.
+        mapScalarToKotlinString("UUID")
+        mapScalarToKotlinString("Date")
+        mapScalarToKotlinString("DateTime")
     }
 }

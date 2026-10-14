@@ -8,14 +8,21 @@ import com.shepherdmysheep.models.*
  * Android and iOS both depend on this interface. The implementation
  * uses Apollo Kotlin to call the GraphQL backend. This abstraction
  * makes it possible to swap in a fake for testing.
+ *
+ * Every method throws ShepherdException on failure. NotAuthenticated
+ * means the session has ended and the UI should return to login.
  */
 interface ShepherdRepository {
 
-    // Auth
+    // Auth — register and login store the token for later calls.
     suspend fun register(name: String, username: String, password: String): AuthPayload
     suspend fun login(username: String, password: String): AuthPayload
+    suspend fun getMe(): User
+    fun logout()
 
-    // People
+    // People — only people assigned to the signed-in user are visible.
+    // getMyPeople returns summaries (nested lists empty); getPerson and
+    // the single-person mutations return full detail.
     suspend fun getMyPeople(): List<Person>
     suspend fun getPerson(id: String): Person?
     suspend fun createPerson(name: String, statusId: String, age: Int? = null, yearMet: Int? = null): Person

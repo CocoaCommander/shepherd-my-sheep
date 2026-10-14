@@ -1,0 +1,41 @@
+# The backend reads arguments from variables of the same name, so each
+# argument is passed as $<argumentName>.
+
+query Me {
+  me {
+    ...UserFields
+  }
+}
+
+query MyPeople {
+  myPeople {
+    ...PersonSummary
+  }
+}
+
+query Person($id: UUID!) {
+  person(id: $id) {
+    ...PersonDetail
+  }
+}
+
+query Statuses {
+  statuses {
+    id
+    name
+  }
+}
+
+query Milestones {
+  milestones {
+    id
+    name
+    description
+  }
+}
+
+query ActivePrayerBurdens($personId: UUID) {
+  activePrayerBurdens(personId: $personId) {
+    ...PrayerBurdenFields
+  }
+}
