@@ -24,4 +24,6 @@ pre-commit install
 
 Run everything with `pre-commit run --all-files`. CI runs the same hooks, plus a full-history gitleaks scan and clang-tidy.
 
+Web component tests (vitest + Testing Library): `cd web && npm test`.
+
 Applied migrations (`V001`, `V002`) are excluded from SQL formatting, because changing them breaks migration checksums. Add each new migration to `.sqlfluffignore` and the `exclude` pattern in `.pre-commit-config.yaml` once it has been applied anywhere shared.
