@@ -293,6 +293,83 @@ class TestPeople:
         assert other_id not in [s["id"] for s in unassigned["shepherds"]]
 
 
+UNASSIGN = """
+mutation UnassignPerson($personId: UUID!, $userId: UUID!) {
+  unassignPerson(personId: $personId, userId: $userId) { id shepherds { id } }
+}"""
+
+ASSIGN = """
+mutation AssignPerson($personId: UUID!, $userId: UUID!) {
+  assignPerson(personId: $personId, userId: $userId) { id }
+}"""
+
+DELETE_PERSON = "mutation D($id: UUID!) { deletePerson(id: $id) }"
+
+LAST_SHEPHERD = "A person needs at least one shepherd. Delete them instead."
+
+
+class TestUnassignAndDelete:
+    @pytest.fixture()
+    def pair(self, make_user, status_id):
+        """Two shepherds (a, b) of one person."""
+        a_token, a_id, _ = make_user()
+        b_token, b_id, _ = make_user()
+        person_id = create_person(a_token, status_id)
+        gql(ASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        return a_token, a_id, b_token, b_id, person_id
+
+    def test_sole_shepherd_cannot_remove_themselves(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(UNASSIGN, {"personId": person_id, "userId": user_id}, token)
+        assert error["message"] == LAST_SHEPHERD
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert gql(PERSON, {"id": person_id}, token)["person"] is not None
+
+    def test_removed_shepherd_loses_access_and_last_one_is_protected(self, pair):
+        a_token, a_id, b_token, b_id, person_id = pair
+        result = gql(UNASSIGN, {"personId": person_id, "userId": b_id}, a_token)["unassignPerson"]
+        assert [s["id"] for s in result["shepherds"]] == [a_id]
+        assert gql(PERSON, {"id": person_id}, b_token)["person"] is None
+        error = gql_error_full(UNASSIGN, {"personId": person_id, "userId": a_id}, a_token)
+        assert error["message"] == LAST_SHEPHERD
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+
+    def test_shepherd_can_remove_themselves_when_others_remain(self, pair):
+        a_token, a_id, b_token, b_id, person_id = pair
+        gql(UNASSIGN, {"personId": person_id, "userId": a_id}, a_token)
+        assert person_id not in [p["id"] for p in gql(MY_PEOPLE, token=a_token)["myPeople"]]
+        assert person_id in [p["id"] for p in gql(MY_PEOPLE, token=b_token)["myPeople"]]
+        assert [s["id"] for s in gql(PERSON, {"id": person_id}, b_token)["person"]["shepherds"]] == [b_id]
+
+    def test_removing_a_non_shepherd_is_not_found(self, pair, make_user):
+        a_token, _, _, _, person_id = pair
+        _, outsider_id, _ = make_user()
+        error = gql_error_full(UNASSIGN, {"personId": person_id, "userId": outsider_id}, a_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+
+    def test_stranger_cannot_unassign(self, pair, make_user):
+        _, a_id, _, _, person_id = pair
+        stranger_token, _, _ = make_user()
+        error = gql_error_full(UNASSIGN, {"personId": person_id, "userId": a_id}, stranger_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Person not found"
+
+    def test_delete_removes_person_for_every_shepherd(self, pair):
+        a_token, _, b_token, _, person_id = pair
+        assert gql(DELETE_PERSON, {"id": person_id}, a_token)["deletePerson"] is True
+        assert gql(PERSON, {"id": person_id}, b_token)["person"] is None
+        assert gql(MY_PEOPLE, token=a_token)["myPeople"] == []
+        assert gql(MY_PEOPLE, token=b_token)["myPeople"] == []
+
+    def test_stranger_cannot_delete(self, pair, make_user):
+        a_token, _, _, _, person_id = pair
+        stranger_token, _, _ = make_user()
+        error = gql_error_full(DELETE_PERSON, {"id": person_id}, stranger_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert gql(PERSON, {"id": person_id}, a_token)["person"] is not None
+
+
 # ── Authorization: you only see and change your own people ───
 
 
