@@ -1,0 +1,29 @@
+# Shared by IDEs, ktlint and Prettier. clang-format reads .clang-format and
+# SwiftLint reads .swiftlint.yml; keep their indent settings in step with this.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{ts,tsx,js,mjs,cjs,json,yml,yaml,graphql,css,html}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.pbxproj]
+indent_style = tab
+
+[*.{kt,kts}]
+max_line_length = 120
+# Matches kotlin.code.style=official in gradle.properties.
+ktlint_code_style = intellij_idea
+# Composables are PascalCase by convention.
+ktlint_function_naming_ignore_when_annotated_with = Composable
+# The codebase uses wildcard imports for generated Apollo types and Compose.
+ktlint_standard_no-wildcard-imports = disabled

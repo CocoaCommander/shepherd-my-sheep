@@ -1,0 +1,25 @@
+---
+# Tuned to the existing backend style: 4-space indent, attached braces,
+# aligned assignments and declarations, operators leading continuation lines.
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4
+EmptyLineAfterAccessModifier: Leave
+EmptyLineBeforeAccessModifier: Leave
+PointerAlignment: Left
+ReferenceAlignment: Left
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: Consecutive
+AlignConsecutiveMacros: Consecutive
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 2
+BreakBeforeBinaryOperators: NonAssignment
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortLambdasOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AlwaysBreakTemplateDeclarations: Yes
+# oatpp's OATPP_CODEGEN_BEGIN/END includes are order-sensitive.
+SortIncludes: Never

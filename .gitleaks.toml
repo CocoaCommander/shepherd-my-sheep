@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Lockfile integrity hashes and the empty .env template"
+paths = [
+  '''(^|/)package-lock\.json$''',
+  '''^\.env\.example$''',
+]

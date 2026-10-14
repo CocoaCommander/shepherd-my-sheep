@@ -1,0 +1,5 @@
+ignored:
+  # Pinning Debian package versions breaks the build whenever bookworm
+  # publishes a security update; the base image tag is the pin instead.
+  - DL3008
+failure-threshold: warning

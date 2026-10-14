@@ -1,0 +1,5 @@
+# Migrations that have already been applied are frozen: reformatting them
+# changes their checksum and migration tools refuse to run. Add each new
+# migration here once it has been applied anywhere shared.
+db/migrations/V001__initial_schema.sql
+db/migrations/V002__stored_procedures.sql

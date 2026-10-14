@@ -1,0 +1,11 @@
+# Read by graphql-eslint (and GraphQL IDE plugins). Each client is its own
+# project so web fragments don't satisfy shared operations or vice versa.
+projects:
+  web:
+    schema: backend/graphql/schema.graphql
+    documents: web/src/**/*.graphql
+  shared:
+    schema: backend/graphql/schema.graphql
+    documents: shared/src/commonMain/graphql/**/*.graphql
+  schema:
+    schema: backend/graphql/schema.graphql

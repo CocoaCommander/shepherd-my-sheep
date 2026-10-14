@@ -1,0 +1,58 @@
+# Overrides on top of detekt's default config (buildUponDefaultConfig).
+
+naming:
+  FunctionNaming:
+    # Composables are PascalCase by convention.
+    ignoreAnnotated: ['Composable']
+
+complexity:
+  LongParameterList:
+    # Composables routinely take many optional parameters.
+    ignoreAnnotated: ['Composable']
+
+style:
+  MagicNumber:
+    # Layout values like 24.dp are fine inline.
+    ignoreAnnotated: ['Composable']
+  WildcardImport:
+    # Generated Apollo types and Compose are imported with wildcards; ktlint
+    # has the same rule disabled in .editorconfig.
+    active: false
+
+Compose:
+  ComposableAnnotationNaming:
+    active: true
+  CompositionLocalAllowlist:
+    active: true
+  ContentEmitterReturningValues:
+    active: true
+  ModifierComposable:
+    active: true
+  ModifierMissing:
+    active: true
+  ModifierNaming:
+    active: true
+  ModifierNotUsedAtRoot:
+    active: true
+  ModifierReused:
+    active: true
+  ModifierWithoutDefault:
+    active: true
+  MultipleEmitters:
+    active: true
+  MutableParams:
+    active: true
+  MutableStateParam:
+    active: true
+  ParameterNaming:
+    active: true
+  PreviewPublic:
+    active: true
+  RememberMissing:
+    active: true
+  UnstableCollections:
+    active: true
+  ViewModelForwarding:
+    active: true
+  ViewModelInjection:
+    active: true
