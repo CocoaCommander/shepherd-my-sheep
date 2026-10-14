@@ -77,6 +77,14 @@ query Statuses {
   }
 }
 
+query Milestones {
+  milestones {
+    id
+    name
+    description
+  }
+}
+
 mutation Login($input: LoginInput!) {
   login(input: $input) {
     token
@@ -103,4 +111,37 @@ mutation CreatePerson($input: CreatePersonInput!) {
   createPerson(input: $input) {
     ...PersonSummary
   }
+}
+
+mutation RecordMilestone($input: RecordMilestoneInput!) {
+  recordMilestone(input: $input) {
+    id
+  }
+}
+
+# milestoneId is the milestone type's id, not the MilestonePerson row's.
+mutation RemoveMilestone($personId: UUID!, $milestoneId: UUID!) {
+  removeMilestone(personId: $personId, milestoneId: $milestoneId)
+}
+
+mutation CreatePrayerBurden($input: CreatePrayerBurdenInput!) {
+  createPrayerBurden(input: $input) {
+    id
+  }
+}
+
+mutation ReleasePrayerBurden($id: UUID!) {
+  releasePrayerBurden(id: $id) {
+    id
+  }
+}
+
+mutation CreateComment($input: CreateCommentInput!) {
+  createComment(input: $input) {
+    id
+  }
+}
+
+mutation DeleteComment($id: UUID!) {
+  deleteComment(id: $id)
 }

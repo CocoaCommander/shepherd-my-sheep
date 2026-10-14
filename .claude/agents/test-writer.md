@@ -16,8 +16,9 @@ fail if the behavior is wrong, even if the code doesn't compile yet.
   database. Register new files in `backend/tests/CMakeLists.txt`.
 - `tests/test_*.py` — pytest against Postgres: schema, stored procedures and
   the GraphQL API end to end (resolver behavior and authorization belong here).
-- Web and KMP have no test setup yet. If the task needs one, say so in your
-  report rather than adding a framework unasked.
+- Web tests use vitest + Testing Library + Apollo MockedProvider, run with
+  `cd web && npm test`. KMP has no test setup yet. If the task needs one, say
+  so in your report rather than adding a framework unasked.
 
 ## Always cover the empty cases (CLAUDE.md)
 

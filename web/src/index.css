@@ -129,7 +129,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   font: inherit;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -139,7 +140,8 @@ select {
   width: 100%;
 }
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
@@ -198,6 +200,43 @@ button.link {
 .list-item p + p {
   margin-top: 2px;
 }
+/* Content on the left, a small action (Remove, Release, Delete) on the right. */
+.item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.action {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* An add form inside a card, set off from the list above it. */
+.subform {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.subform h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.subform button[type='submit'] {
+  align-self: flex-start;
+}
+.subform.compact {
+  margin-top: 8px;
+  padding-top: 0;
+  border-top: none;
+  gap: 6px;
+}
+textarea {
+  resize: vertical;
+}
+
 .released {
   opacity: 0.7;
 }
