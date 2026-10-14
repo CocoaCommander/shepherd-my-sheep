@@ -65,7 +65,8 @@ private:
  */
 class PooledConnection {
 public:
-    explicit PooledConnection(std::shared_ptr<DatabasePool> pool) : m_pool(pool), m_conn(pool->acquire()) {}
+    explicit PooledConnection(std::shared_ptr<DatabasePool> pool)
+        : m_pool(std::move(pool)), m_conn(m_pool->acquire()) {}
 
     ~PooledConnection() {
         m_pool->release(m_conn);
