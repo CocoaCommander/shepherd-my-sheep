@@ -61,7 +61,7 @@ type Milestone {
 type MilestonePerson {
   id: UUID!
   milestone: Milestone!
-  person: Person!                 # only activePrayerBurdens populates this for now; elsewhere, select it from the parent person
+  person: Person!
   dateAchieved: Date              # nullable — might not know exact date
   notes: String                   # nullable
   recordedBy: User                # nullable — user could be deleted
@@ -81,7 +81,7 @@ type PrayerBurden {
 type Comment {
   id: UUID!
   author: User!
-  person: Person!                 # only activePrayerBurdens populates this for now; elsewhere, select it from the parent person
+  person: Person!
   prayerBurden: PrayerBurden      # nullable — comment may be a standalone note
   content: String!
   createdAt: DateTime!
