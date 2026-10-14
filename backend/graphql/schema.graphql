@@ -109,6 +109,11 @@ type Query {
   statuses: [Status!]!
   milestones: [Milestone!]!
 
+  # Other users whose name or username contains `query` (case-insensitive),
+  # for adding a shepherd. Excludes the caller; at most 10; a query under
+  # 2 characters returns [] — may be empty.
+  searchUsers(query: String!): [User!]!
+
   # Prayer burdens — optionally filter by person
   activePrayerBurdens(personId: UUID): [PrayerBurden!]!
 }

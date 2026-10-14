@@ -12,6 +12,7 @@ import {
   type UpdatePersonInput,
 } from '../generated/graphql'
 import { ActionButton } from './ActionButton'
+import { AddShepherd } from './AddShepherd'
 import { ErrorMessage } from './ErrorMessage'
 
 type Person = NonNullable<PersonQuery['person']>
@@ -116,6 +117,7 @@ function Shepherds({ person, meId }: { person: Person; meId: string | undefined 
           </li>
         ))}
       </ul>
+      <AddShepherd personId={person.id} shepherdIds={person.shepherds.map((s) => s.id)} />
     </div>
   )
 }
