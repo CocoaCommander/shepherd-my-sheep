@@ -91,7 +91,7 @@ function AddPersonForm() {
       <h2>Add a person</h2>
       <label>
         Name
-        <input value={name} onChange={(e) => setName(e.target.value)} required />
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
       </label>
       <label>
         Status

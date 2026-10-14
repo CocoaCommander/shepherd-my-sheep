@@ -58,6 +58,7 @@ export function LoginPage() {
             Name
             <input
               value={name}
+              maxLength={100}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
               required
@@ -68,6 +69,7 @@ export function LoginPage() {
           Username
           <input
             value={username}
+            maxLength={50}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
             autoCapitalize="none"

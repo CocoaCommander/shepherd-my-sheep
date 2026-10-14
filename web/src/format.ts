@@ -24,3 +24,9 @@ export function formatDate(value: string): string {
     day: 'numeric',
   })
 }
+
+/** Today in the user's time zone as "YYYY-MM-DD", the API's Date format. */
+export function todayIsoDate(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
