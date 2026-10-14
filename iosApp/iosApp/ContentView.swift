@@ -8,7 +8,7 @@ struct ContentView: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Running on \(PlatformKt.getPlatform().name)")
+            Text("Running on \(Platform_iosKt.getPlatform().name)")
                 .font(.body)
                 .foregroundColor(.secondary)
         }
