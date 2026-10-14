@@ -132,9 +132,9 @@ def make_user(db_connection):
     """Registers throwaway users; returns (token, user_id) for each."""
     created = []
 
-    def _make(password="correct-horse"):
+    def _make(password="correct-horse", name="API Test"):
         username = f"apitest_{uuid.uuid4().hex[:12]}"
-        data = gql(REGISTER, {"input": {"name": "API Test", "username": username, "password": password}})
+        data = gql(REGISTER, {"input": {"name": name, "username": username, "password": password}})
         created.append(data["register"]["user"]["id"])
         return data["register"]["token"], data["register"]["user"]["id"], username
 
@@ -715,3 +715,145 @@ class TestPrayerList:
         person_id = create_person(token, status_id)
         assert gql(PRAYER_LIST, {}, token)["activePrayerBurdens"] == []
         assert gql(PRAYER_LIST, {"personId": person_id}, token)["activePrayerBurdens"] == []
+
+
+SEARCH_USERS = """
+query SearchUsers($query: String!) {
+  searchUsers(query: $query) { id name username }
+}"""
+
+ASSIGN_PERSON = """
+mutation AssignPerson($personId: UUID!, $userId: UUID!) {
+  assignPerson(personId: $personId, userId: $userId) { id shepherds { id name } }
+}"""
+
+
+class TestSearchUsers:
+    def search(self, token, query):
+        return gql(SEARCH_USERS, {"query": query}, token)["searchUsers"]
+
+    def test_requires_authentication(self):
+        status, _ = post(SEARCH_USERS, {"query": "anything"})
+        assert status == 401
+
+    def test_finds_by_part_of_name_case_insensitively(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        _, target_id, target_username = make_user(name=f"Mary {tag} Smith")
+
+        for query in (tag, tag.upper(), f"mary {tag}", f"  {tag.upper()}  "):
+            rows = self.search(token, query)
+            assert [{k: r[k] for k in ("id", "name", "username")} for r in rows] == [
+                {"id": target_id, "name": f"Mary {tag} Smith", "username": target_username}
+            ]
+
+    def test_finds_by_part_of_username(self, make_user):
+        token, _, _ = make_user()
+        _, target_id, target_username = make_user()
+        part = target_username[-8:]
+
+        rows = self.search(token, part)
+        assert [r["id"] for r in rows] == [target_id]
+        assert rows[0]["username"] == target_username
+        assert [r["id"] for r in self.search(token, part.upper())] == [target_id]
+
+    def test_excludes_the_caller(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user(name=f"Self {tag}")
+        _, other_id, _ = make_user(name=f"Other {tag}")
+
+        assert [r["id"] for r in self.search(token, tag)] == [other_id]
+
+    def test_caller_alone_matching_gives_empty_list(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user(name=f"Only {tag}")
+        assert self.search(token, tag) == []
+
+    def test_no_match_gives_empty_list(self, make_user):
+        token, _, _ = make_user()
+        assert self.search(token, f"nomatch{uuid.uuid4().hex}") == []
+
+    def test_fewer_than_two_characters_after_trim_gives_empty_list(self, make_user):
+        token, _, _ = make_user()
+        make_user(name="Aaa Searchable")
+        for query in (" a ", "a", "", "   "):
+            assert self.search(token, query) == []
+
+    def test_two_characters_after_trim_searches(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        _, target_id, _ = make_user(name=f"{tag}zq")
+        assert [r["id"] for r in self.search(token, f" {tag}zq ")] == [target_id]
+
+    @pytest.mark.parametrize(
+        "wild,literal",
+        [("%", "%"), ("_", "_"), ("\\", "\\")],
+    )
+    def test_special_characters_match_literally(self, make_user, wild, literal):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        _, plain_id, _ = make_user(name=f"{tag}ab")
+        _, special_id, _ = make_user(name=f"{tag}{literal}ab")
+
+        # As a wildcard, the query would match the plain user too.
+        rows = self.search(token, f"{tag}{wild}")
+        assert [r["id"] for r in rows] == [special_id]
+        assert plain_id not in [r["id"] for r in rows]
+
+    @pytest.mark.parametrize("char", ["%", "_"])
+    def test_lone_special_character_does_not_match_everyone(self, make_user, char):
+        token, _, _ = make_user()
+        _, plain_id, _ = make_user(name="Plain Person")
+        rows = self.search(token, char)
+        assert plain_id not in [r["id"] for r in rows]
+        assert all(char in r["name"] + r["username"] for r in rows)
+
+    def test_query_of_100_characters_is_allowed(self, make_user):
+        token, _, _ = make_user()
+        assert self.search(token, "q" * 100) == []
+
+    def test_query_over_100_characters_is_bad_user_input(self, make_user):
+        token, _, _ = make_user()
+        error = gql_error_full(SEARCH_USERS, {"query": "a" * 101}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Search is too long"
+
+    def test_limited_to_ten_ordered_by_name_then_username(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        for i in range(11):
+            make_user(name=f"{tag} user {i:02d}")
+
+        rows = self.search(token, tag)
+        assert [r["name"] for r in rows] == [f"{tag} user {i:02d}" for i in range(10)]
+
+    def test_same_name_is_ordered_by_username(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        for _ in range(3):
+            make_user(name=f"Twin {tag}")
+
+        rows = self.search(token, tag)
+        assert len(rows) == 3
+        assert [r["username"] for r in rows] == sorted(r["username"] for r in rows)
+
+    def test_search_then_assign_gives_access(self, make_user, status_id):
+        tag = uuid.uuid4().hex[:10]
+        owner, owner_id, _ = make_user()
+        friend, friend_id, _ = make_user(name=f"Friend {tag}")
+        person_id = create_person(owner, status_id)
+
+        # Not a shepherd yet, so they cannot read the person.
+        assert gql(PERSON, {"id": person_id}, friend)["person"] is None
+
+        found = self.search(owner, tag)
+        assert [r["id"] for r in found] == [friend_id]
+
+        assigned = gql(ASSIGN_PERSON, {"personId": person_id, "userId": found[0]["id"]}, owner)["assignPerson"]
+        assert assigned["id"] == person_id
+        assert {s["id"] for s in assigned["shepherds"]} == {owner_id, friend_id}
+
+        person = gql(PERSON, {"id": person_id}, friend)["person"]
+        assert person["id"] == person_id
+        assert {s["id"] for s in person["shepherds"]} == {owner_id, friend_id}
+        assert person_id in [p["id"] for p in gql(MY_PEOPLE, {}, friend)["myPeople"]]

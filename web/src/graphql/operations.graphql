@@ -182,3 +182,21 @@ query ActivePrayerBurdens {
     }
   }
 }
+
+query SearchUsers($query: String!) {
+  searchUsers(query: $query) {
+    id
+    name
+    username
+  }
+}
+
+mutation AssignPerson($personId: UUID!, $userId: UUID!) {
+  assignPerson(personId: $personId, userId: $userId) {
+    id
+    shepherds {
+      id
+      name
+    }
+  }
+}

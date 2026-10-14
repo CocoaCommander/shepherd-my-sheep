@@ -29,6 +29,7 @@ public:
         if (field == "statuses") return resolveStatuses();
         if (field == "milestones") return resolveMilestones();
         if (field == "activePrayerBurdens") return resolveActivePrayerBurdens(args, userId);
+        if (field == "searchUsers") return resolveSearchUsers(args, userId);
 
         throw BadInput("Unknown query: " + field);
     }
@@ -115,6 +116,67 @@ private:
         auto list = oatpp::Vector<oatpp::Object<PersonDto>>::createShared();
         for (const auto& row : result) {
             list->push_back(rowToPerson(row));
+        }
+        return list;
+    }
+
+    static constexpr size_t MIN_SEARCH_LENGTH  = 2;
+    static constexpr size_t MAX_SEARCH_LENGTH  = 100;
+    static constexpr int    MAX_SEARCH_RESULTS = 10;
+
+    /** UTF-8 characters, not bytes, so names in any script count the same. */
+    static size_t characterCount(const std::string& text) {
+        size_t count = 0;
+        for (unsigned char c : text) {
+            if ((c & 0xC0) != 0x80) ++count;
+        }
+        return count;
+    }
+
+    /** Makes LIKE's wildcards (and its escape character) match literally. */
+    static std::string escapeLike(const std::string& text) {
+        std::string out;
+        for (char c : text) {
+            if (c == '\\' || c == '%' || c == '_') out.push_back('\\');
+            out.push_back(c);
+        }
+        return out;
+    }
+
+    /**
+     * Finds other users by part of their name or username, for adding a
+     * shepherd. Any signed-in user may search everyone; results are capped
+     * and very short queries return nothing, so it can't list all users at
+     * once.
+     */
+    oatpp::Any resolveSearchUsers(const Args& args, const std::string& userId) {
+        auto       raw   = args.req("query");
+        const auto first = raw.find_first_not_of(" \t\n\r");
+        const auto query =
+            first == std::string::npos ? "" : raw.substr(first, raw.find_last_not_of(" \t\n\r") - first + 1);
+
+        auto list = oatpp::Vector<oatpp::Object<UserDto>>::createShared();
+        if (characterCount(query) > MAX_SEARCH_LENGTH) {
+            throw BadInput("Search is too long");
+        }
+        if (characterCount(query) < MIN_SEARCH_LENGTH) {
+            return list;
+        }
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto pattern = "%" + escapeLike(query) + "%";
+        auto result  = txn.exec_params(std::string(USER_SELECT)
+                                           + "WHERE u.id <> $1 "
+                                              "  AND (u.name ILIKE $2 ESCAPE '\\' OR u.username ILIKE $2 ESCAPE '\\') "
+                                              "ORDER BY u.name, u.username "
+                                              "LIMIT $3",
+                                       userId, pattern, MAX_SEARCH_RESULTS);
+        txn.commit();
+
+        for (const auto& row : result) {
+            list->push_back(rowToUser(row));
         }
         return list;
     }
