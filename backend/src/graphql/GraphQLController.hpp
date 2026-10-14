@@ -9,10 +9,12 @@
 #include "../db/DatabasePool.hpp"
 #include "../auth/Authenticator.hpp"
 #include "../auth/JWTService.hpp"
+#include "ErrorMapping.hpp"
 #include "Operation.hpp"
 #include "resolvers/QueryResolver.hpp"
 #include "resolvers/MutationResolver.hpp"
 
+#include <iostream>
 #include <string>
 
 #include OATPP_CODEGEN_BEGIN(ApiController)
@@ -36,6 +38,12 @@
  * "Authorization: Bearer <token>"; without a valid one the response is
  * HTTP 401 with code UNAUTHENTICATED, so clients can send the user back
  * to the login screen.
+ *
+ * Every other error carries a code in `extensions.code` (see
+ * ErrorMapping.hpp). Messages written by the resolvers are meant for users
+ * and pass through; database and unexpected errors are logged here and
+ * replaced with a generic message, so table names, constraints and ids
+ * never reach the client.
  */
 class GraphQLController : public oatpp::web::server::api::ApiController {
 public:
@@ -53,7 +61,7 @@ public:
         try {
             auto query = request->query;
             if (!query || query->empty()) {
-                return createErrorResponse("Query string is required");
+                return createErrorResponse({"BAD_USER_INPUT", "Query string is required"});
             }
 
             auto op         = OperationParser::parse(query->c_str());
@@ -79,10 +87,20 @@ public:
 
         } catch (const Unauthenticated&) {
             return createUnauthenticatedResponse();
+        } catch (const NotFound& e) {
+            return createErrorResponse({"NOT_FOUND", e.what()});
+        } catch (const Conflict& e) {
+            return createErrorResponse({"CONFLICT", e.what()});
+        } catch (const PasswordHasher::Busy& e) {
+            return createErrorResponse({"UNAVAILABLE", e.what()});
+        } catch (const BadInput& e) {
+            return createErrorResponse({"BAD_USER_INPUT", e.what()});
         } catch (const pqxx::sql_error& e) {
-            return createErrorResponse(std::string("Database error: ") + e.what());
+            std::cerr << "[ERROR] SQLSTATE " << e.sqlstate() << ": " << forLog(e.what()) << std::endl;
+            return createErrorResponse(classifySqlState(e.sqlstate()));
         } catch (const std::exception& e) {
-            return createErrorResponse(e.what());
+            std::cerr << "[ERROR] " << forLog(e.what()) << std::endl;
+            return createErrorResponse({"INTERNAL", INTERNAL_MESSAGE});
         }
 
         return createDtoResponse(Status::CODE_200, response);
@@ -114,8 +132,8 @@ private:
         return response;
     }
 
-    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> createErrorResponse(const std::string& message) {
-        return createDtoResponse(Status::CODE_200, errorBody(message));
+    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> createErrorResponse(const ClientError& error) {
+        return createDtoResponse(Status::CODE_200, errorBody(error.message, error.code.c_str()));
     }
 
     // Same body whether the token was missing, expired or forged.

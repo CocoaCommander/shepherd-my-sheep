@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
+import { friendlyMessage } from '../errors'
 import { useLoginMutation, useRegisterMutation } from '../generated/graphql'
 
 type Mode = 'login' | 'register'
@@ -90,7 +91,7 @@ export function LoginPage() {
 
         {error && (
           <p className="error" role="alert">
-            {error.message}
+            {friendlyMessage(error)}
           </p>
         )}
 

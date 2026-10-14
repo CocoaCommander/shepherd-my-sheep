@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import type { ApolloError } from '@apollo/client'
+import { errorCode, friendlyMessage } from '../errors'
 import { formatDate, formatDateTime } from '../format'
 import {
   PersonDocument,
@@ -23,6 +24,10 @@ export function PersonPage() {
   const { id = '' } = useParams()
   const { data, loading, error } = usePersonQuery({ variables: { id } })
   const { data: meData } = useMeQuery()
+  // A malformed id in the URL is rejected as bad input; to the user it's
+  // the same as someone who doesn't exist.
+  const notFound =
+    (data && !data.person) || ['BAD_USER_INPUT', 'NOT_FOUND'].includes(errorCode(error) ?? '')
 
   return (
     <>
@@ -33,14 +38,14 @@ export function PersonPage() {
         </Link>
 
         {loading && <p className="muted">Loading…</p>}
-        {error && (
+        {error && !notFound && (
           <p className="error" role="alert">
-            {error.message}
+            {friendlyMessage(error)}
           </p>
         )}
 
         {/* null for someone who doesn't exist or isn't assigned to you */}
-        {data && !data.person && <p className="empty">This person was not found.</p>}
+        {notFound && <p className="empty">This person was not found.</p>}
 
         {data?.person && <PersonDetail person={data.person} meId={meData?.me.id} />}
       </main>

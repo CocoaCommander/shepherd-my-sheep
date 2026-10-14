@@ -17,6 +17,7 @@ add_executable(unit_tests
     AuthenticatorTest.cpp
     JWTServiceTest.cpp
     PasswordHasherTest.cpp
+    ErrorMappingTest.cpp
 )
 
 target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
