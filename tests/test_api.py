@@ -645,3 +645,73 @@ class TestErrorCodes:
         status, body = post(MY_PEOPLE)
         assert status == 401
         assert body["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+
+PRAYER_LIST = """
+query Q($personId: UUID) {
+  activePrayerBurdens(personId: $personId) { id content person { id name } }
+}"""
+
+
+class TestPrayerList:
+    def burden(self, token, person_id, content):
+        return gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": content}}, token)["createPrayerBurden"][
+            "id"
+        ]
+
+    def test_all_people_include_whose_burden_it_is(self, make_user, status_id):
+        token, _, _ = make_user()
+        alice = create_person(token, status_id, name="Alice")
+        bob = create_person(token, status_id, name="Bob")
+        a_burden = self.burden(token, alice, "for alice")
+        b_burden = self.burden(token, bob, "for bob")
+
+        rows = gql(PRAYER_LIST, {}, token)["activePrayerBurdens"]
+        by_id = {r["id"]: r for r in rows}
+        assert set(by_id) == {a_burden, b_burden}
+        assert len(rows) == 2
+        assert by_id[a_burden]["person"] == {"__typename": "Person", "id": alice, "name": "Alice"}
+        assert by_id[b_burden]["person"] == {"__typename": "Person", "id": bob, "name": "Bob"}
+
+    def test_person_filter_returns_only_that_persons_burdens(self, make_user, status_id):
+        token, _, _ = make_user()
+        alice = create_person(token, status_id, name="Alice")
+        bob = create_person(token, status_id, name="Bob")
+        a_burden = self.burden(token, alice, "for alice")
+        self.burden(token, bob, "for bob")
+
+        rows = gql(PRAYER_LIST, {"personId": alice}, token)["activePrayerBurdens"]
+        assert [r["id"] for r in rows] == [a_burden]
+        assert rows[0]["person"] == {"__typename": "Person", "id": alice, "name": "Alice"}
+
+    def test_released_burdens_are_excluded(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        kept = self.burden(token, person_id, "keep")
+        released = self.burden(token, person_id, "release")
+        gql("mutation R($id: UUID!) { releasePrayerBurden(id: $id) { id } }", {"id": released}, token)
+
+        assert [r["id"] for r in gql(PRAYER_LIST, {}, token)["activePrayerBurdens"]] == [kept]
+        assert [r["id"] for r in gql(PRAYER_LIST, {"personId": person_id}, token)["activePrayerBurdens"]] == [kept]
+
+    def test_another_users_burdens_never_appear(self, make_user, status_id):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        owners_person = create_person(owner, status_id, name="Alice")
+        self.burden(owner, owners_person, "private")
+        mine = create_person(stranger, status_id, name="Bob")
+        my_burden = self.burden(stranger, mine, "mine")
+
+        rows = gql(PRAYER_LIST, {}, stranger)["activePrayerBurdens"]
+        assert [r["id"] for r in rows] == [my_burden]
+        assert gql(PRAYER_LIST, {"personId": owners_person}, stranger)["activePrayerBurdens"] == []
+
+    def test_user_with_no_people_gets_empty_list(self, make_user):
+        token, _, _ = make_user()
+        assert gql(PRAYER_LIST, {}, token)["activePrayerBurdens"] == []
+
+    def test_people_without_burdens_get_empty_list(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        assert gql(PRAYER_LIST, {}, token)["activePrayerBurdens"] == []
+        assert gql(PRAYER_LIST, {"personId": person_id}, token)["activePrayerBurdens"] == []

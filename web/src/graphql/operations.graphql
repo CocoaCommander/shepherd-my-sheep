@@ -169,3 +169,16 @@ mutation UnassignPerson($personId: UUID!, $userId: UUID!) {
     }
   }
 }
+
+# Every active burden across the user's people, newest first, with whose it is.
+query ActivePrayerBurdens {
+  activePrayerBurdens {
+    id
+    content
+    createdAt
+    person {
+      id
+      name
+    }
+  }
+}

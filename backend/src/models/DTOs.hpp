@@ -76,11 +76,25 @@ class UserDto : public oatpp::DTO {
     DTO_FIELD(String, updatedAt);
 };
 
+/**
+ * A Person with only id and name, for places that point at a person without
+ * loading them (PersonDto is declared later and embeds burdens itself). The
+ * typename and id let clients' caches merge it with the full person.
+ */
+class PersonRefDto : public oatpp::DTO {
+    DTO_INIT(PersonRefDto, DTO)
+
+    DTO_FIELD(String, typename_, "__typename") = "Person";
+    DTO_FIELD(String, id);
+    DTO_FIELD(String, name);
+};
+
 class PrayerBurdenDto : public oatpp::DTO {
     DTO_INIT(PrayerBurdenDto, DTO)
 
     DTO_FIELD(String, typename_, "__typename") = "PrayerBurden";
     DTO_FIELD(String, id);
+    DTO_FIELD(oatpp::Object<PersonRefDto>, person);  // only set by activePrayerBurdens
     DTO_FIELD(String, content);
     DTO_FIELD(String, releasedDate);  // nullable — null means still active
     DTO_FIELD(String, createdAt);

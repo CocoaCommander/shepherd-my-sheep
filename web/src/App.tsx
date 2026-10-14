@@ -3,6 +3,7 @@ import { RequireAuth } from './auth/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PersonPage } from './pages/PersonPage'
+import { PrayerListPage } from './pages/PrayerListPage'
 
 export default function App() {
   return (
@@ -21,6 +22,14 @@ export default function App() {
         element={
           <RequireAuth>
             <PersonPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/prayer"
+        element={
+          <RequireAuth>
+            <PrayerListPage />
           </RequireAuth>
         }
       />
