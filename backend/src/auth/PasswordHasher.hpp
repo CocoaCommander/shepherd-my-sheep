@@ -86,8 +86,7 @@ public:
             return true;
         }
 
-        return crypto_pwhash_str_needs_rehash(
-                   encoded.c_str(), OPSLIMIT, MEMLIMIT) != 0;
+        return crypto_pwhash_str_needs_rehash(encoded.c_str(), OPSLIMIT, MEMLIMIT) != 0;
     }
 
     /**
@@ -103,7 +102,7 @@ public:
      */
     static void dummyVerify(const std::string& password) {
         Slot slot;
-        (void) verifyUnchecked(decoyHash(), password);
+        (void)verifyUnchecked(decoyHash(), password);
     }
 
 private:
@@ -119,15 +118,16 @@ private:
                 throw Busy();
             }
         }
-        ~Slot() { pool().release(); }
+        ~Slot() {
+            pool().release();
+        }
 
-        Slot(const Slot&) = delete;
+        Slot(const Slot&)            = delete;
         Slot& operator=(const Slot&) = delete;
     };
 
     static std::counting_semaphore<MAX_CONCURRENT_HASHES>& pool() {
-        static std::counting_semaphore<MAX_CONCURRENT_HASHES>
-            instance{MAX_CONCURRENT_HASHES};
+        static std::counting_semaphore<MAX_CONCURRENT_HASHES> instance{MAX_CONCURRENT_HASHES};
         return instance;
     }
 
@@ -139,11 +139,9 @@ private:
     static std::string hashUnchecked(const std::string& password) {
         char encoded[crypto_pwhash_STRBYTES];
 
-        if (crypto_pwhash_str_alg(
-                encoded,
-                password.c_str(), password.size(),
-                OPSLIMIT, MEMLIMIT,
-                crypto_pwhash_ALG_ARGON2ID13) != 0) {
+        if (crypto_pwhash_str_alg(encoded, password.c_str(), password.size(), OPSLIMIT, MEMLIMIT,
+                                  crypto_pwhash_ALG_ARGON2ID13)
+            != 0) {
             // The only documented failure mode is failing to allocate MEMLIMIT.
             throw std::runtime_error("Password hashing failed (out of memory)");
         }
@@ -156,9 +154,7 @@ private:
             return false;
         }
 
-        return crypto_pwhash_str_verify(
-                   encoded.c_str(),
-                   password.c_str(), password.size()) == 0;
+        return crypto_pwhash_str_verify(encoded.c_str(), password.c_str(), password.size()) == 0;
     }
 
     /**
@@ -167,8 +163,7 @@ private:
      * by the caller that already holds a Slot.
      */
     static const std::string& decoyHash() {
-        static const std::string decoy =
-            hashUnchecked(std::string("\x01", 1) + "no-such-account");
+        static const std::string decoy = hashUnchecked(std::string("\x01", 1) + "no-such-account");
         return decoy;
     }
 };

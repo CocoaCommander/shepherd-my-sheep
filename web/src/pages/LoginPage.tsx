@@ -30,7 +30,8 @@ export function LoginPage() {
       const token =
         mode === 'login'
           ? (await login({ variables: { input: { username, password } } })).data?.login.token
-          : (await register({ variables: { input: { name, username, password } } })).data?.register.token
+          : (await register({ variables: { input: { name, username, password } } })).data?.register
+              .token
       if (token) {
         signIn(token)
         navigate(returnTo, { replace: true })
@@ -55,7 +56,12 @@ export function LoginPage() {
         {mode === 'register' && (
           <label>
             Name
-            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              required
+            />
           </label>
         )}
         <label>
@@ -80,7 +86,11 @@ export function LoginPage() {
           />
         </label>
 
-        {error && <p className="error" role="alert">{error.message}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error.message}
+          </p>
+        )}
 
         <button type="submit" disabled={loading}>
           {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}

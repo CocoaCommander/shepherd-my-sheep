@@ -1,0 +1,18 @@
+# Prettier only formats the web app, root JS/JSON tooling config and client GraphQL
+# operations. Everything else has its own formatter (or none, on purpose).
+*
+
+!*/
+!web/**
+!shared/src/**/*.graphql
+# backend/graphql/schema.graphql is left out: its aligned field comments are
+# its documentation, and Prettier collapses them. graphql-eslint still checks it.
+!*.{js,json,yml}
+!.prettierrc.json
+
+**/node_modules/**
+**/dist/**
+web/src/generated/**
+package-lock.json
+web/package-lock.json
+.claude/**

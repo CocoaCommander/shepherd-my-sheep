@@ -39,7 +39,26 @@ COPY tests ./tests
 RUN --mount=type=cache,target=/build-tests/_deps \
     cmake -S /src -B /build-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
     && cmake --build /build-tests --target unit_tests -j"$(nproc)" \
-    && cd /build-tests && ctest --output-on-failure
+    && ctest --test-dir /build-tests --output-on-failure
+
+# ── Static analysis ──────────────────────────────────────────
+# `docker build --target lint backend` — clang-tidy against the same
+# compile commands as the real build. Never part of the shipped image.
+FROM builder AS lint
+
+RUN apt-get update && apt-get install -y --no-install-recommends clang-tidy \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY .clang-tidy ./
+COPY tests ./tests
+
+# Configure only: clang-tidy needs compile_commands.json, not binaries.
+# FetchContent headers are rewritten to -isystem so the analyzer reports
+# problems in our code, not in oatpp or jwt-cpp.
+RUN --mount=type=cache,target=/build-lint/_deps \
+    cmake -S /src -B /build-lint -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
+    && sed -i 's#-I/build-lint/_deps#-isystem /build-lint/_deps#g' /build-lint/compile_commands.json \
+    && run-clang-tidy -p /build-lint -quiet '^/src/(src|tests)/'
 
 # ── Runtime ──────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime

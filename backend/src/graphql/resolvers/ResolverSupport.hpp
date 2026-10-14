@@ -138,7 +138,7 @@ inline oatpp::String textOrNull(const pqxx::field& field) {
 // hold several objects. Each *_SELECT below names its prefixes.
 
 inline UserDto::Wrapper rowToUser(const pqxx::row& row, const std::string& prefix = "") {
-    auto dto = UserDto::createShared();
+    auto dto       = UserDto::createShared();
     dto->id        = row[prefix + "id"].c_str();
     dto->name      = row[prefix + "name"].c_str();
     dto->username  = row[prefix + "username"].c_str();
@@ -148,7 +148,7 @@ inline UserDto::Wrapper rowToUser(const pqxx::row& row, const std::string& prefi
 }
 
 inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const std::string& prefix = "") {
-    auto dto = PrayerBurdenDto::createShared();
+    auto dto          = PrayerBurdenDto::createShared();
     dto->id           = row[prefix + "id"].c_str();
     dto->content      = row[prefix + "content"].c_str();
     dto->releasedDate = textOrNull(row[prefix + "released_date"]);
@@ -157,32 +157,30 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
     return dto;
 }
 
-inline const char* PERSON_SELECT =
-    "SELECT p.id, p.name, p.age, p.year_met, p.last_contact_date, p.is_active, "
-    "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name "
-    "FROM person p JOIN status s ON s.id = p.status_id ";
+inline const char* PERSON_SELECT = "SELECT p.id, p.name, p.age, p.year_met, p.last_contact_date, p.is_active, "
+                                   "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name "
+                                   "FROM person p JOIN status s ON s.id = p.status_id ";
 
 inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
-    auto dto = PersonDto::createShared();
+    auto dto             = PersonDto::createShared();
     dto->id              = row["id"].c_str();
     dto->name            = row["name"].c_str();
     dto->lastContactDate = textOrNull(row["last_contact_date"]);
     dto->isActive        = row["is_active"].as<bool>();
     dto->createdAt       = row["created_at"].c_str();
     dto->updatedAt       = row["updated_at"].c_str();
-    if (!row["age"].is_null())      dto->age     = row["age"].as<int>();
+    if (!row["age"].is_null()) dto->age = row["age"].as<int>();
     if (!row["year_met"].is_null()) dto->yearMet = row["year_met"].as<int>();
 
-    auto status = StatusDto::createShared();
+    auto status  = StatusDto::createShared();
     status->id   = row["status_id"].c_str();
     status->name = row["status_name"].c_str();
-    dto->status = status;
+    dto->status  = status;
 
     return dto;
 }
 
-inline const char* USER_SELECT =
-    "SELECT u.id, u.name, u.username, u.created_at, u.updated_at FROM \"user\" u ";
+inline const char* USER_SELECT = "SELECT u.id, u.name, u.username, u.created_at, u.updated_at FROM \"user\" u ";
 
 inline const char* PRAYER_BURDEN_SELECT =
     "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at "
@@ -199,17 +197,17 @@ inline const char* MILESTONE_PERSON_SELECT =
     "LEFT JOIN \"user\" u ON u.id = mp.recorded_by ";
 
 inline MilestonePersonDto::Wrapper rowToMilestonePerson(const pqxx::row& row) {
-    auto dto = MilestonePersonDto::createShared();
+    auto dto          = MilestonePersonDto::createShared();
     dto->id           = row["id"].c_str();
     dto->dateAchieved = textOrNull(row["date_achieved"]);
     dto->notes        = textOrNull(row["notes"]);
     dto->createdAt    = row["created_at"].c_str();
 
-    auto milestone = MilestoneDto::createShared();
+    auto milestone         = MilestoneDto::createShared();
     milestone->id          = row["milestone_id"].c_str();
     milestone->name        = row["milestone_name"].c_str();
     milestone->description = textOrNull(row["milestone_description"]);
-    dto->milestone = milestone;
+    dto->milestone         = milestone;
 
     if (!row["recorder_id"].is_null()) {
         dto->recordedBy = rowToUser(row, "recorder_");
@@ -229,7 +227,7 @@ inline const char* COMMENT_SELECT =
     "LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id ";
 
 inline CommentDto::Wrapper rowToComment(const pqxx::row& row) {
-    auto dto = CommentDto::createShared();
+    auto dto       = CommentDto::createShared();
     dto->id        = row["id"].c_str();
     dto->content   = row["content"].c_str();
     dto->createdAt = row["created_at"].c_str();
@@ -255,34 +253,33 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     auto person = rowToPerson(rows[0]);
 
     person->shepherds = oatpp::Vector<oatpp::Object<UserDto>>::createShared();
-    for (const auto& row : txn.exec_params(
-             std::string(USER_SELECT)
-             + "JOIN user_person up ON up.user_id = u.id WHERE up.person_id = $1 ORDER BY u.name",
-             personId)) {
+    for (const auto& row :
+         txn.exec_params(std::string(USER_SELECT)
+                             + "JOIN user_person up ON up.user_id = u.id WHERE up.person_id = $1 ORDER BY u.name",
+                         personId)) {
         person->shepherds->push_back(rowToUser(row));
     }
 
     person->milestones = oatpp::Vector<oatpp::Object<MilestonePersonDto>>::createShared();
-    for (const auto& row : txn.exec_params(
-             std::string(MILESTONE_PERSON_SELECT)
-             + "WHERE mp.person_id = $1 ORDER BY mp.date_achieved NULLS LAST, mp.created_at",
-             personId)) {
+    for (const auto& row :
+         txn.exec_params(std::string(MILESTONE_PERSON_SELECT)
+                             + "WHERE mp.person_id = $1 ORDER BY mp.date_achieved NULLS LAST, mp.created_at",
+                         personId)) {
         person->milestones->push_back(rowToMilestonePerson(row));
     }
 
     // Active burdens first, newest first within each group.
     person->prayerBurdens = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
-    for (const auto& row : txn.exec_params(
-             std::string(PRAYER_BURDEN_SELECT)
-             + "WHERE pb.person_id = $1 ORDER BY pb.released_date IS NOT NULL, pb.created_at DESC",
-             personId)) {
+    for (const auto& row :
+         txn.exec_params(std::string(PRAYER_BURDEN_SELECT)
+                             + "WHERE pb.person_id = $1 ORDER BY pb.released_date IS NOT NULL, pb.created_at DESC",
+                         personId)) {
         person->prayerBurdens->push_back(rowToPrayerBurden(row));
     }
 
     person->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
-    for (const auto& row : txn.exec_params(
-             std::string(COMMENT_SELECT) + "WHERE c.person_id = $1 ORDER BY c.created_at DESC",
-             personId)) {
+    for (const auto& row :
+         txn.exec_params(std::string(COMMENT_SELECT) + "WHERE c.person_id = $1 ORDER BY c.created_at DESC", personId)) {
         person->comments->push_back(rowToComment(row));
     }
 
@@ -293,9 +290,7 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
 
 /** True if `userId` is one of the person's shepherds. */
 inline bool isShepherd(pqxx::work& txn, const std::string& userId, const std::string& personId) {
-    auto rows = txn.exec_params(
-        "SELECT 1 FROM user_person WHERE user_id = $1 AND person_id = $2",
-        userId, personId);
+    auto rows = txn.exec_params("SELECT 1 FROM user_person WHERE user_id = $1 AND person_id = $2", userId, personId);
     return !rows.empty();
 }
 

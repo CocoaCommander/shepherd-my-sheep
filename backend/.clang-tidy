@@ -1,0 +1,17 @@
+---
+# Bug-finding checks only; formatting belongs to .clang-format. Runs in the
+# Docker `lint` stage (`docker build --target lint backend`), where the
+# compile commands match the real build. If you run it with --fix, run
+# clang-format afterwards (pre-commit does this on commit).
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  performance-*,
+  modernize-use-override,
+  modernize-use-nullptr,
+  misc-redundant-expression,
+  readability-misleading-indentation
+WarningsAsErrors: '*'
+HeaderFilterRegex: '^/src/(src|tests)/'

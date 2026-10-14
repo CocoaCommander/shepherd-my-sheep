@@ -1,0 +1,95 @@
+# One-time setup:  npm ci && pre-commit install
+# Run everything:  pre-commit run --all-files
+#
+# Tools that already have a version in this repo (ESLint, Prettier, squawk
+# in package.json; detekt in Gradle) run from there as `language: system`
+# hooks, so pre-commit, editors and CI never disagree about versions.
+# Everything else is pinned here. Docker must be running for hadolint and
+# SwiftLint.
+#
+# Fixers run before formatters so a formatter always has the last word.
+
+# Applied migrations are frozen; see .sqlfluffignore.
+exclude: ^(db/migrations/V00[12]__.*\.sql|web/src/generated/.*|.*package-lock\.json)$
+
+repos:
+  # ── Secrets ────────────────────────────────────────────────
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # ── C++ ────────────────────────────────────────────────────
+  # clang-tidy runs in Docker (docker build --target lint backend), not here:
+  # it needs the compile commands from the real build.
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v21.1.0
+    hooks:
+      - id: clang-format
+        types_or: [c++]
+
+  # ── Web / GraphQL ──────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: npx --no-install eslint --fix --no-warn-ignored
+        language: system
+        files: \.(js|ts|tsx|graphql)$
+      - id: prettier
+        name: prettier
+        entry: npx --no-install prettier --write --ignore-unknown
+        language: system
+        types_or: [javascript, ts, tsx, json, css, html, yaml, graphql]
+
+  # ── Kotlin ─────────────────────────────────────────────────
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: v2.16.0
+    hooks:
+      - id: pretty-format-kotlin
+        name: ktlint
+        args: [--autofix, --ktlint-version=1.8.0]
+  - repo: local
+    hooks:
+      - id: detekt
+        name: detekt
+        entry: gradle detekt --quiet
+        language: system
+        files: \.kts?$
+        pass_filenames: false
+
+  # ── SQL ────────────────────────────────────────────────────
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 4.4.0
+    hooks:
+      - id: sqlfluff-fix
+        files: ^db/
+  - repo: local
+    hooks:
+      - id: squawk
+        name: squawk (migration safety)
+        entry: npx --no-install squawk
+        language: system
+        files: ^db/migrations/.*\.sql$
+
+  # ── Python ─────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  # ── Docker / Swift (pinned images) ─────────────────────────
+  - repo: local
+    hooks:
+      - id: hadolint
+        name: hadolint
+        entry: ghcr.io/hadolint/hadolint:v2.15.1 hadolint
+        language: docker_image
+        types: [dockerfile]
+      - id: swiftlint
+        name: swiftlint
+        entry: ghcr.io/realm/swiftlint:0.65.1 swiftlint lint --quiet --strict --no-cache
+        language: docker_image
+        types: [swift]

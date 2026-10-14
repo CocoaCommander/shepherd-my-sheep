@@ -7,8 +7,7 @@ import com.apollographql.apollo.ApolloClient
  * endpoint, e.g. "http://10.0.2.2:8080/graphql" from the Android
  * emulator.
  */
-fun createApolloClient(serverUrl: String, tokenStore: TokenStore): ApolloClient =
-    ApolloClient.Builder()
-        .serverUrl(serverUrl)
-        .addHttpInterceptor(AuthorizationInterceptor(tokenStore))
-        .build()
+fun createApolloClient(serverUrl: String, tokenStore: TokenStore): ApolloClient = ApolloClient.Builder()
+    .serverUrl(serverUrl)
+    .addHttpInterceptor(AuthorizationInterceptor(tokenStore))
+    .build()

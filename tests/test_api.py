@@ -134,8 +134,7 @@ def make_user(db_connection):
 
     with db_connection.cursor() as cur:
         cur.execute(
-            "DELETE FROM person WHERE id IN "
-            "(SELECT person_id FROM user_person WHERE user_id = ANY(%s::uuid[]))",
+            "DELETE FROM person WHERE id IN (SELECT person_id FROM user_person WHERE user_id = ANY(%s::uuid[]))",
             (created,),
         )
         cur.execute('DELETE FROM "user" WHERE id = ANY(%s::uuid[])', (created,))
@@ -255,7 +254,11 @@ class TestPeople:
             token,
         )["updatePerson"]
         assert pick(updated, {"age": 0, "yearMet": 0, "isActive": 0, "name": 0}) == {
-            "age": 34, "yearMet": 2024, "isActive": False, "name": "Alice"}
+            "age": 34,
+            "yearMet": 2024,
+            "isActive": False,
+            "name": "Alice",
+        }
 
     # Regression: "unassignPerson" used to route to assignPerson.
     def test_unassign_removes_shepherd(self, make_user, status_id):
@@ -267,7 +270,8 @@ class TestPeople:
             """mutation AssignPerson($personId: UUID!, $userId: UUID!) {
                  assignPerson(personId: $personId, userId: $userId) { shepherds { id } }
                }""",
-            {"personId": person_id, "userId": other_id}, token,
+            {"personId": person_id, "userId": other_id},
+            token,
         )["assignPerson"]
         assert other_id in [s["id"] for s in assigned["shepherds"]]
 
@@ -275,7 +279,8 @@ class TestPeople:
             """mutation UnassignPerson($personId: UUID!, $userId: UUID!) {
                  unassignPerson(personId: $personId, userId: $userId) { shepherds { id } }
                }""",
-            {"personId": person_id, "userId": other_id}, token,
+            {"personId": person_id, "userId": other_id},
+            token,
         )["unassignPerson"]
         assert other_id not in [s["id"] for s in unassigned["shepherds"]]
 
@@ -301,63 +306,86 @@ class TestAuthorization:
 
     def test_stranger_cannot_update_or_delete(self, two_users, status_id):
         _, _, stranger, person_id = two_users
-        assert gql_error(
-            "mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }",
-            {"id": person_id, "input": {"name": "Hijacked"}}, stranger,
-        ) == "Person not found"
-        assert gql_error(
-            "mutation D($id: UUID!) { deletePerson(id: $id) }", {"id": person_id}, stranger,
-        ) == "Person not found"
+        assert (
+            gql_error(
+                "mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }",
+                {"id": person_id, "input": {"name": "Hijacked"}},
+                stranger,
+            )
+            == "Person not found"
+        )
+        assert (
+            gql_error(
+                "mutation D($id: UUID!) { deletePerson(id: $id) }",
+                {"id": person_id},
+                stranger,
+            )
+            == "Person not found"
+        )
 
     def test_stranger_cannot_assign_themselves(self, two_users, make_user):
         _, _, stranger, person_id = two_users
         stranger_id = gql("query { me { id } }", token=stranger)["me"]["id"]
-        assert gql_error(
-            "mutation A($personId: UUID!, $userId: UUID!) { assignPerson(personId: $personId, userId: $userId) { id } }",
-            {"personId": person_id, "userId": stranger_id}, stranger,
-        ) == "Person not found"
+        assert (
+            gql_error(
+                "mutation A($personId: UUID!, $userId: UUID!) { assignPerson(personId: $personId, userId: $userId) { id } }",
+                {"personId": person_id, "userId": stranger_id},
+                stranger,
+            )
+            == "Person not found"
+        )
 
     def test_stranger_cannot_add_burdens_or_comments(self, two_users):
         _, _, stranger, person_id = two_users
-        assert gql_error(
-            CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, stranger
-        ) == "Person not found"
-        assert gql_error(
-            CREATE_COMMENT, {"input": {"personId": person_id, "content": "x"}}, stranger
-        ) == "Person not found"
+        assert (
+            gql_error(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, stranger) == "Person not found"
+        )
+        assert (
+            gql_error(CREATE_COMMENT, {"input": {"personId": person_id, "content": "x"}}, stranger)
+            == "Person not found"
+        )
 
     def test_stranger_cannot_see_or_release_burdens(self, two_users):
         owner, _, stranger, person_id = two_users
-        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, owner)[
-            "createPrayerBurden"]["id"]
+        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, owner)["createPrayerBurden"][
+            "id"
+        ]
 
         assert gql(ACTIVE_BURDENS, {"personId": person_id}, stranger)["activePrayerBurdens"] == []
         assert gql(ACTIVE_BURDENS, {}, stranger)["activePrayerBurdens"] == []
-        assert gql_error(
-            "mutation R($id: UUID!) { releasePrayerBurden(id: $id) { id } }", {"id": burden_id}, stranger
-        ) == "Prayer burden not found"
+        assert (
+            gql_error("mutation R($id: UUID!) { releasePrayerBurden(id: $id) { id } }", {"id": burden_id}, stranger)
+            == "Prayer burden not found"
+        )
 
     def test_comment_cannot_link_another_persons_burden(self, two_users, make_user, status_id):
         owner, _, stranger, person_id = two_users
-        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, owner)[
-            "createPrayerBurden"]["id"]
+        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, owner)["createPrayerBurden"][
+            "id"
+        ]
         strangers_person = create_person(stranger, status_id, name="Bob")
 
-        assert gql_error(
-            CREATE_COMMENT,
-            {"input": {"personId": strangers_person, "prayerBurdenId": burden_id, "content": "x"}},
-            stranger,
-        ) == "Prayer burden not found"
+        assert (
+            gql_error(
+                CREATE_COMMENT,
+                {"input": {"personId": strangers_person, "prayerBurdenId": burden_id, "content": "x"}},
+                stranger,
+            )
+            == "Prayer burden not found"
+        )
 
     def test_only_author_can_delete_comment(self, two_users):
         owner, _, stranger, person_id = two_users
-        comment_id = gql(CREATE_COMMENT, {"input": {"personId": person_id, "content": "x"}}, owner)[
-            "createComment"]["id"]
-        assert gql_error(
-            "mutation D($id: UUID!) { deleteComment(id: $id) }", {"id": comment_id}, stranger
-        ) == "Comment not found"
+        comment_id = gql(CREATE_COMMENT, {"input": {"personId": person_id, "content": "x"}}, owner)["createComment"][
+            "id"
+        ]
+        assert (
+            gql_error("mutation D($id: UUID!) { deleteComment(id: $id) }", {"id": comment_id}, stranger)
+            == "Comment not found"
+        )
         assert gql("mutation D($id: UUID!) { deleteComment(id: $id) }", {"id": comment_id}, owner) == {
-            "deleteComment": True}
+            "deleteComment": True
+        }
 
 
 # ── Burdens, comments, milestones ────────────────────────────
@@ -382,7 +410,8 @@ class TestPersonActivity:
         person_id = create_person(token, status_id)
 
         burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "New job"}}, token)[
-            "createPrayerBurden"]["id"]
+            "createPrayerBurden"
+        ]["id"]
         comment = gql(
             CREATE_COMMENT,
             {"input": {"personId": person_id, "prayerBurdenId": burden_id, "content": "Interview Friday"}},

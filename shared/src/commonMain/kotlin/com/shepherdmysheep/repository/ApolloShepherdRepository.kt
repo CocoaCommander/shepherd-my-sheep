@@ -29,18 +29,16 @@ import com.shepherdmysheep.network.TokenStore
  * `apolloClient` must send the token from `tokenStore` — build it with
  * createApolloClient().
  */
-class ApolloShepherdRepository(
-    private val apolloClient: ApolloClient,
-    private val tokenStore: TokenStore,
-) : ShepherdRepository {
+class ApolloShepherdRepository(private val apolloClient: ApolloClient, private val tokenStore: TokenStore) :
+    ShepherdRepository {
 
     // ── Auth ────────────────────────────────────────────────
 
     override suspend fun register(name: String, username: String, password: String): AuthPayload {
         val result = execute(
             apolloClient.mutation(
-                RegisterMutation(RegisterInput(name = name, username = username, password = password))
-            )
+                RegisterMutation(RegisterInput(name = name, username = username, password = password)),
+            ),
         ).register
         tokenStore.token = result.token
         return AuthPayload(token = result.token, user = result.user.userFields.toModel())
@@ -48,14 +46,13 @@ class ApolloShepherdRepository(
 
     override suspend fun login(username: String, password: String): AuthPayload {
         val result = execute(
-            apolloClient.mutation(LoginMutation(LoginInput(username = username, password = password)))
+            apolloClient.mutation(LoginMutation(LoginInput(username = username, password = password))),
         ).login
         tokenStore.token = result.token
         return AuthPayload(token = result.token, user = result.user.userFields.toModel())
     }
 
-    override suspend fun getMe(): User =
-        execute(apolloClient.query(MeQuery())).me.userFields.toModel()
+    override suspend fun getMe(): User = execute(apolloClient.query(MeQuery())).me.userFields.toModel()
 
     override fun logout() {
         tokenStore.token = null
@@ -80,7 +77,15 @@ class ApolloShepherdRepository(
     }
 
     /** Null arguments are left unchanged on the server. */
-    override suspend fun updatePerson(id: String, name: String?, age: Int?, yearMet: Int?, lastContactDate: String?, isActive: Boolean?, statusId: String?): Person {
+    override suspend fun updatePerson(
+        id: String,
+        name: String?,
+        age: Int?,
+        yearMet: Int?,
+        lastContactDate: String?,
+        isActive: Boolean?,
+        statusId: String?,
+    ): Person {
         val input = UpdatePersonInput(
             name = Optional.presentIfNotNull(name),
             age = Optional.presentIfNotNull(age),
@@ -89,7 +94,9 @@ class ApolloShepherdRepository(
             isActive = Optional.presentIfNotNull(isActive),
             statusId = Optional.presentIfNotNull(statusId),
         )
-        return execute(apolloClient.mutation(UpdatePersonMutation(id = id, input = input))).updatePerson.personDetail.toModel()
+        return execute(
+            apolloClient.mutation(UpdatePersonMutation(id = id, input = input)),
+        ).updatePerson.personDetail.toModel()
     }
 
     override suspend fun deletePerson(id: String): Boolean =
@@ -115,18 +122,26 @@ class ApolloShepherdRepository(
 
     // ── Milestones ──────────────────────────────────────────
 
-    override suspend fun recordMilestone(personId: String, milestoneId: String, dateAchieved: String?, notes: String?): MilestonePerson {
+    override suspend fun recordMilestone(
+        personId: String,
+        milestoneId: String,
+        dateAchieved: String?,
+        notes: String?,
+    ): MilestonePerson {
         val input = RecordMilestoneInput(
             personId = personId,
             milestoneId = milestoneId,
             dateAchieved = Optional.presentIfNotNull(dateAchieved),
             notes = Optional.presentIfNotNull(notes),
         )
-        return execute(apolloClient.mutation(RecordMilestoneMutation(input))).recordMilestone.milestonePersonFields.toModel()
+        return execute(
+            apolloClient.mutation(RecordMilestoneMutation(input)),
+        ).recordMilestone.milestonePersonFields.toModel()
     }
 
-    override suspend fun removeMilestone(personId: String, milestoneId: String): Boolean =
-        execute(apolloClient.mutation(RemoveMilestoneMutation(personId = personId, milestoneId = milestoneId))).removeMilestone
+    override suspend fun removeMilestone(personId: String, milestoneId: String): Boolean = execute(
+        apolloClient.mutation(RemoveMilestoneMutation(personId = personId, milestoneId = milestoneId)),
+    ).removeMilestone
 
     // ── Prayer Burdens ──────────────────────────────────────
 
@@ -134,9 +149,12 @@ class ApolloShepherdRepository(
         execute(apolloClient.query(ActivePrayerBurdensQuery(personId = Optional.presentIfNotNull(personId))))
             .activePrayerBurdens.map { it.prayerBurdenFields.toModel() }
 
-    override suspend fun createPrayerBurden(personId: String, content: String): PrayerBurden =
-        execute(apolloClient.mutation(CreatePrayerBurdenMutation(CreatePrayerBurdenInput(personId = personId, content = content))))
-            .createPrayerBurden.prayerBurdenFields.toModel()
+    override suspend fun createPrayerBurden(personId: String, content: String): PrayerBurden = execute(
+        apolloClient.mutation(
+            CreatePrayerBurdenMutation(CreatePrayerBurdenInput(personId = personId, content = content)),
+        ),
+    )
+        .createPrayerBurden.prayerBurdenFields.toModel()
 
     override suspend fun releasePrayerBurden(id: String): PrayerBurden =
         execute(apolloClient.mutation(ReleasePrayerBurdenMutation(id = id)))
@@ -168,6 +186,7 @@ class ApolloShepherdRepository(
 
         when (val exception = response.exception) {
             null -> Unit
+
             is ApolloHttpException ->
                 if (exception.statusCode == 401) {
                     tokenStore.token = null
@@ -175,6 +194,7 @@ class ApolloShepherdRepository(
                 } else {
                     throw ShepherdException.Network(exception)
                 }
+
             else -> throw ShepherdException.Network(exception)
         }
 

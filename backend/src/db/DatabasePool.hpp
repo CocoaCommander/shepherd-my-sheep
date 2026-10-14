@@ -17,9 +17,7 @@
  */
 class DatabasePool {
 public:
-    DatabasePool(const std::string& connStr, int poolSize)
-        : m_connStr(connStr)
-    {
+    DatabasePool(const std::string& connStr, int poolSize) : m_connStr(connStr) {
         for (int i = 0; i < poolSize; ++i) {
             m_pool.push(std::make_shared<pqxx::connection>(connStr));
         }
@@ -47,10 +45,10 @@ public:
     }
 
 private:
-    std::string m_connStr;
+    std::string                                   m_connStr;
     std::queue<std::shared_ptr<pqxx::connection>> m_pool;
-    std::mutex m_mutex;
-    std::condition_variable m_cv;
+    std::mutex                                    m_mutex;
+    std::condition_variable                       m_cv;
 };
 
 /**
@@ -68,20 +66,24 @@ private:
 class PooledConnection {
 public:
     explicit PooledConnection(std::shared_ptr<DatabasePool> pool)
-        : m_pool(pool), m_conn(pool->acquire()) {}
+        : m_pool(std::move(pool)), m_conn(m_pool->acquire()) {}
 
     ~PooledConnection() {
         m_pool->release(m_conn);
     }
 
     // Non-copyable
-    PooledConnection(const PooledConnection&) = delete;
+    PooledConnection(const PooledConnection&)            = delete;
     PooledConnection& operator=(const PooledConnection&) = delete;
 
-    pqxx::connection& operator*()  { return *m_conn; }
-    pqxx::connection* operator->() { return m_conn.get(); }
+    pqxx::connection& operator*() {
+        return *m_conn;
+    }
+    pqxx::connection* operator->() {
+        return m_conn.get();
+    }
 
 private:
-    std::shared_ptr<DatabasePool> m_pool;
+    std::shared_ptr<DatabasePool>     m_pool;
     std::shared_ptr<pqxx::connection> m_conn;
 };

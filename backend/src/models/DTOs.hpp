@@ -82,7 +82,7 @@ class PrayerBurdenDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "PrayerBurden";
     DTO_FIELD(String, id);
     DTO_FIELD(String, content);
-    DTO_FIELD(String, releasedDate);       // nullable — null means still active
+    DTO_FIELD(String, releasedDate);  // nullable — null means still active
     DTO_FIELD(String, createdAt);
     DTO_FIELD(String, updatedAt);
 };
@@ -105,8 +105,8 @@ class MilestonePersonDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "MilestonePerson";
     DTO_FIELD(String, id);
     DTO_FIELD(oatpp::Object<MilestoneDto>, milestone);
-    DTO_FIELD(String, dateAchieved);       // nullable
-    DTO_FIELD(String, notes);              // nullable
+    DTO_FIELD(String, dateAchieved);                // nullable
+    DTO_FIELD(String, notes);                       // nullable
     DTO_FIELD(oatpp::Object<UserDto>, recordedBy);  // nullable
     DTO_FIELD(String, createdAt);
 };
@@ -117,9 +117,9 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "Person";
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
-    DTO_FIELD(Int32,  age);                // nullable
-    DTO_FIELD(Int32,  yearMet);            // nullable
-    DTO_FIELD(String, lastContactDate);    // nullable
+    DTO_FIELD(Int32, age);               // nullable
+    DTO_FIELD(Int32, yearMet);           // nullable
+    DTO_FIELD(String, lastContactDate);  // nullable
     DTO_FIELD(Boolean, isActive);
     DTO_FIELD(oatpp::Object<StatusDto>, status);
     DTO_FIELD(String, createdAt);
@@ -127,10 +127,10 @@ class PersonDto : public oatpp::DTO {
 
     // Loaded only by the `person` query. Each may be empty, never null,
     // when loaded: a new contact has no milestones, burdens or comments.
-    DTO_FIELD(oatpp::Vector<oatpp::Object<UserDto>>,            shepherds);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<UserDto>>, shepherds);
     DTO_FIELD(oatpp::Vector<oatpp::Object<MilestonePersonDto>>, milestones);
-    DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>,    prayerBurdens);
-    DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>,         comments);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>, prayerBurdens);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>, comments);
 };
 
 // ── Auth ────────────────────────────────────────────────────
@@ -164,20 +164,20 @@ class CreatePersonInput : public oatpp::DTO {
     DTO_INIT(CreatePersonInput, DTO)
 
     DTO_FIELD(String, name);
-    DTO_FIELD(Int32,  age);        // nullable
-    DTO_FIELD(Int32,  yearMet);    // nullable
+    DTO_FIELD(Int32, age);      // nullable
+    DTO_FIELD(Int32, yearMet);  // nullable
     DTO_FIELD(String, statusId);
 };
 
 class UpdatePersonInput : public oatpp::DTO {
     DTO_INIT(UpdatePersonInput, DTO)
 
-    DTO_FIELD(String,  name);              // nullable — only update if provided
-    DTO_FIELD(Int32,   age);
-    DTO_FIELD(Int32,   yearMet);
-    DTO_FIELD(String,  lastContactDate);
+    DTO_FIELD(String, name);  // nullable — only update if provided
+    DTO_FIELD(Int32, age);
+    DTO_FIELD(Int32, yearMet);
+    DTO_FIELD(String, lastContactDate);
     DTO_FIELD(Boolean, isActive);
-    DTO_FIELD(String,  statusId);
+    DTO_FIELD(String, statusId);
 };
 
 class RecordMilestoneInput : public oatpp::DTO {
@@ -185,8 +185,8 @@ class RecordMilestoneInput : public oatpp::DTO {
 
     DTO_FIELD(String, personId);
     DTO_FIELD(String, milestoneId);
-    DTO_FIELD(String, dateAchieved);   // nullable
-    DTO_FIELD(String, notes);          // nullable
+    DTO_FIELD(String, dateAchieved);  // nullable
+    DTO_FIELD(String, notes);         // nullable
 };
 
 class CreatePrayerBurdenInput : public oatpp::DTO {
