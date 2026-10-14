@@ -11,10 +11,16 @@ export function PersonPage() {
     <>
       <Header />
       <main className="page stack">
-        <Link to="/" className="back">← My people</Link>
+        <Link to="/" className="back">
+          ← My people
+        </Link>
 
         {loading && <p className="muted">Loading…</p>}
-        {error && <p className="error" role="alert">{error.message}</p>}
+        {error && (
+          <p className="error" role="alert">
+            {error.message}
+          </p>
+        )}
 
         {/* null for someone who doesn't exist or isn't assigned to you */}
         {data && !data.person && <p className="empty">This person was not found.</p>}
@@ -30,7 +36,8 @@ type Person = NonNullable<PersonQuery['person']>
 function PersonDetail({ person }: { person: Person }) {
   const activeBurdens = person.prayerBurdens.filter((b) => !b.releasedDate)
   const releasedBurdens = person.prayerBurdens.filter((b) => b.releasedDate)
-  const commentsFor = (burdenId: string) => person.comments.filter((c) => c.prayerBurden?.id === burdenId)
+  const commentsFor = (burdenId: string) =>
+    person.comments.filter((c) => c.prayerBurden?.id === burdenId)
   const notes = person.comments.filter((c) => !c.prayerBurden)
 
   return (
@@ -38,12 +45,17 @@ function PersonDetail({ person }: { person: Person }) {
       <section className="card">
         <div className="title-row">
           <h1>{person.name}</h1>
-          <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>{person.status.name}</span>
+          <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
+            {person.status.name}
+          </span>
         </div>
         <dl className="facts">
           <Fact label="Age" value={person.age} />
           <Fact label="Year met" value={person.yearMet} />
-          <Fact label="Last contact" value={person.lastContactDate && formatDate(person.lastContactDate)} />
+          <Fact
+            label="Last contact"
+            value={person.lastContactDate && formatDate(person.lastContactDate)}
+          />
           <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
           <Fact label="Shepherds" value={person.shepherds.map((s) => s.name).join(', ')} />
         </dl>
@@ -78,7 +90,12 @@ function PersonDetail({ person }: { person: Person }) {
             {activeBurdens.length > 0 && (
               <ul className="list">
                 {activeBurdens.map((b) => (
-                  <Burden key={b.id} content={b.content} createdAt={b.createdAt} comments={commentsFor(b.id)} />
+                  <Burden
+                    key={b.id}
+                    content={b.content}
+                    createdAt={b.createdAt}
+                    comments={commentsFor(b.id)}
+                  />
                 ))}
               </ul>
             )}
@@ -87,7 +104,13 @@ function PersonDetail({ person }: { person: Person }) {
                 <summary className="muted">Released ({releasedBurdens.length})</summary>
                 <ul className="list">
                   {releasedBurdens.map((b) => (
-                    <Burden key={b.id} content={b.content} createdAt={b.createdAt} comments={commentsFor(b.id)} released />
+                    <Burden
+                      key={b.id}
+                      content={b.content}
+                      createdAt={b.createdAt}
+                      comments={commentsFor(b.id)}
+                      released
+                    />
                   ))}
                 </ul>
               </details>
@@ -105,7 +128,9 @@ function PersonDetail({ person }: { person: Person }) {
             {notes.map((c) => (
               <li key={c.id} className="list-item">
                 <p>{c.content}</p>
-                <p className="muted small">{c.author.name} · {formatDateTime(c.createdAt)}</p>
+                <p className="muted small">
+                  {c.author.name} · {formatDateTime(c.createdAt)}
+                </p>
               </li>
             ))}
           </ul>
@@ -119,7 +144,13 @@ function Fact({ label, value }: { label: string; value: string | number | null |
   return (
     <div>
       <dt>{label}</dt>
-      <dd>{value === null || value === undefined || value === '' ? <span className="muted">—</span> : value}</dd>
+      <dd>
+        {value === null || value === undefined || value === '' ? (
+          <span className="muted">—</span>
+        ) : (
+          value
+        )}
+      </dd>
     </div>
   )
 }
@@ -144,7 +175,10 @@ function Burden({
         <ul className="replies">
           {comments.map((c) => (
             <li key={c.id}>
-              {c.content} <span className="muted small">— {c.author.name}, {formatDateTime(c.createdAt)}</span>
+              {c.content}{' '}
+              <span className="muted small">
+                — {c.author.name}, {formatDateTime(c.createdAt)}
+              </span>
             </li>
           ))}
         </ul>

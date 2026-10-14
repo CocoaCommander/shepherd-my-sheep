@@ -10,9 +10,7 @@ import com.apollographql.apollo.network.http.HttpInterceptorChain
  * a token still go out: login and register don't need one, and the
  * server answers anything else with 401.
  */
-class AuthorizationInterceptor(
-    private val tokenStore: TokenStore
-) : HttpInterceptor {
+class AuthorizationInterceptor(private val tokenStore: TokenStore) : HttpInterceptor {
 
     override suspend fun intercept(request: HttpRequest, chain: HttpInterceptorChain): HttpResponse {
         val token = tokenStore.token ?: return chain.proceed(request)
@@ -20,7 +18,7 @@ class AuthorizationInterceptor(
         return chain.proceed(
             request.newBuilder()
                 .addHeader("Authorization", "Bearer $token")
-                .build()
+                .build(),
         )
     }
 }

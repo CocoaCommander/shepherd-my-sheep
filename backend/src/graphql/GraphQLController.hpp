@@ -39,22 +39,15 @@
  */
 class GraphQLController : public oatpp::web::server::api::ApiController {
 public:
-    GraphQLController(
-        const std::shared_ptr<ObjectMapper>& objectMapper,
-        const std::shared_ptr<DatabasePool>& dbPool,
-        const std::shared_ptr<JWTService>& jwtService
-    )
-        : oatpp::web::server::api::ApiController(objectMapper)
-        , m_dbPool(dbPool)
-        , m_authenticator(std::make_shared<Authenticator>(jwtService))
-        , m_queryResolver(std::make_shared<QueryResolver>(dbPool))
-        , m_mutationResolver(std::make_shared<MutationResolver>(dbPool, jwtService))
-    {}
+    GraphQLController(const std::shared_ptr<ObjectMapper>& objectMapper, const std::shared_ptr<DatabasePool>& dbPool,
+                      const std::shared_ptr<JWTService>& jwtService)
+        : oatpp::web::server::api::ApiController(objectMapper), m_dbPool(dbPool),
+          m_authenticator(std::make_shared<Authenticator>(jwtService)),
+          m_queryResolver(std::make_shared<QueryResolver>(dbPool)),
+          m_mutationResolver(std::make_shared<MutationResolver>(dbPool, jwtService)) {}
 
-    ENDPOINT("POST", "/graphql", handleGraphQL,
-             REQUEST(std::shared_ptr<IncomingRequest>, httpRequest),
-             BODY_DTO(oatpp::Object<GraphQLRequest>, request))
-    {
+    ENDPOINT("POST", "/graphql", handleGraphQL, REQUEST(std::shared_ptr<IncomingRequest>, httpRequest),
+             BODY_DTO(oatpp::Object<GraphQLRequest>, request)) {
         auto response = GraphQLResponse::createShared();
 
         try {
@@ -63,12 +56,12 @@ public:
                 return createErrorResponse("Query string is required");
             }
 
-            auto op = OperationParser::parse(query->c_str());
+            auto op         = OperationParser::parse(query->c_str());
             bool isMutation = op.type == ParsedOperation::Type::Mutation;
 
             std::string userId;
             if (!(isMutation && MutationResolver::isPublic(op.field))) {
-                auto header = httpRequest->getHeader("Authorization");
+                auto header        = httpRequest->getHeader("Authorization");
                 auto authenticated = m_authenticator->authenticate(header ? header->c_str() : "");
                 if (!authenticated) {
                     return createUnauthenticatedResponse();
@@ -77,9 +70,8 @@ public:
             }
 
             Args args(request->variables);
-            auto value = isMutation
-                ? m_mutationResolver->resolve(op.field, args, userId)
-                : m_queryResolver->resolve(op.field, args, userId);
+            auto value = isMutation ? m_mutationResolver->resolve(op.field, args, userId)
+                                    : m_queryResolver->resolve(op.field, args, userId);
 
             auto data = oatpp::Fields<oatpp::Any>::createShared();
             data->push_back({oatpp::String(op.responseKey.c_str()), value});
@@ -96,25 +88,21 @@ public:
         return createDtoResponse(Status::CODE_200, response);
     }
 
-    ENDPOINT("GET", "/health", healthCheck)
-    {
-        auto response = oatpp::Fields<oatpp::String>({
-            {"status", "ok"}
-        });
+    ENDPOINT("GET", "/health", healthCheck) {
+        auto response = oatpp::Fields<oatpp::String>({{"status", "ok"}});
         return createDtoResponse(Status::CODE_200, response);
     }
 
 private:
 
-    std::shared_ptr<DatabasePool> m_dbPool;
-    std::shared_ptr<Authenticator> m_authenticator;
-    std::shared_ptr<QueryResolver> m_queryResolver;
+    std::shared_ptr<DatabasePool>     m_dbPool;
+    std::shared_ptr<Authenticator>    m_authenticator;
+    std::shared_ptr<QueryResolver>    m_queryResolver;
     std::shared_ptr<MutationResolver> m_mutationResolver;
 
-    static oatpp::Object<GraphQLResponse> errorBody(const std::string& message,
-                                                    const char* code = nullptr) {
-        auto response = GraphQLResponse::createShared();
-        auto error = GraphQLError::createShared();
+    static oatpp::Object<GraphQLResponse> errorBody(const std::string& message, const char* code = nullptr) {
+        auto response  = GraphQLResponse::createShared();
+        auto error     = GraphQLError::createShared();
         error->message = message.c_str();
         if (code) {
             error->extensions = oatpp::Fields<oatpp::String>({{"code", code}});
@@ -126,16 +114,13 @@ private:
         return response;
     }
 
-    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>
-    createErrorResponse(const std::string& message) {
+    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> createErrorResponse(const std::string& message) {
         return createDtoResponse(Status::CODE_200, errorBody(message));
     }
 
     // Same body whether the token was missing, expired or forged.
-    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>
-    createUnauthenticatedResponse() {
-        auto response = createDtoResponse(
-            Status::CODE_401, errorBody("Not authenticated", "UNAUTHENTICATED"));
+    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> createUnauthenticatedResponse() {
+        auto response = createDtoResponse(Status::CODE_401, errorBody("Not authenticated", "UNAUTHENTICATED"));
         response->putHeader("WWW-Authenticate", "Bearer");
         return response;
     }

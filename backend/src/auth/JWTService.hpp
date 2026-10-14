@@ -19,10 +19,7 @@
 class JWTService {
 public:
     JWTService(std::string secret, std::string issuer, int accessTtlSeconds)
-        : m_secret(std::move(secret))
-        , m_issuer(std::move(issuer))
-        , m_accessTtlSeconds(accessTtlSeconds)
-    {}
+        : m_secret(std::move(secret)), m_issuer(std::move(issuer)), m_accessTtlSeconds(accessTtlSeconds) {}
 
     /** Signs an access token whose subject is the user's UUID. */
     std::string issue(const std::string& userId) const {
@@ -47,10 +44,7 @@ public:
     std::string verify(const std::string& token) const {
         auto decoded = jwt::decode(token);
 
-        jwt::verify()
-            .allow_algorithm(jwt::algorithm::hs256{m_secret})
-            .with_issuer(m_issuer)
-            .verify(decoded);
+        jwt::verify().allow_algorithm(jwt::algorithm::hs256{m_secret}).with_issuer(m_issuer).verify(decoded);
 
         return decoded.get_subject();
     }

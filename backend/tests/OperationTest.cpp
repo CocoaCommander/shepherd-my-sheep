@@ -12,31 +12,28 @@ TEST(OperationParser, AnonymousShorthandIsAQuery) {
 }
 
 TEST(OperationParser, NamedQueryWithVariables) {
-    auto op = OperationParser::parse(
-        "query Person($id: UUID!) { person(id: $id) { id name } }");
+    auto op = OperationParser::parse("query Person($id: UUID!) { person(id: $id) { id name } }");
     EXPECT_EQ(op.type, Type::Query);
     EXPECT_EQ(op.field, "person");
 }
 
 TEST(OperationParser, NamedMutation) {
-    auto op = OperationParser::parse(
-        "mutation Login($input: LoginInput!) { login(input: $input) { token } }");
+    auto op = OperationParser::parse("mutation Login($input: LoginInput!) { login(input: $input) { token } }");
     EXPECT_EQ(op.type, Type::Mutation);
     EXPECT_EQ(op.field, "login");
 }
 
 // Regression: substring matching routed this to assignPerson.
 TEST(OperationParser, UnassignIsNotAssign) {
-    auto op = OperationParser::parse(
-        "mutation Unassign($personId: UUID!, $userId: UUID!) "
-        "{ unassignPerson(personId: $personId, userId: $userId) { id } }");
+    auto op = OperationParser::parse("mutation Unassign($personId: UUID!, $userId: UUID!) "
+                                     "{ unassignPerson(personId: $personId, userId: $userId) { id } }");
     EXPECT_EQ(op.field, "unassignPerson");
 }
 
 // Regression: "personId" in the arguments routed this to `person`.
 TEST(OperationParser, ArgumentNamesDoNotAffectRouting) {
-    auto op = OperationParser::parse(
-        "query Burdens($personId: UUID) { activePrayerBurdens(personId: $personId) { id } }");
+    auto op =
+        OperationParser::parse("query Burdens($personId: UUID) { activePrayerBurdens(personId: $personId) { id } }");
     EXPECT_EQ(op.field, "activePrayerBurdens");
 }
 
@@ -53,12 +50,11 @@ TEST(OperationParser, AliasBecomesResponseKey) {
 }
 
 TEST(OperationParser, SkipsCommentsCommasAndWhitespace) {
-    auto op = OperationParser::parse(
-        "# fetch the caller\n"
-        "  query Me ,\n"
-        "  { # root\n"
-        "    me { id }\n"
-        "  }");
+    auto op = OperationParser::parse("# fetch the caller\n"
+                                     "  query Me ,\n"
+                                     "  { # root\n"
+                                     "    me { id }\n"
+                                     "  }");
     EXPECT_EQ(op.field, "me");
 }
 
@@ -79,9 +75,8 @@ TEST(OperationParser, RejectsSubscriptions) {
 }
 
 TEST(OperationParser, RejectsFragmentFirst) {
-    EXPECT_THROW(
-        OperationParser::parse("fragment F on Person { id } query { myPeople { ...F } }"),
-        std::invalid_argument);
+    EXPECT_THROW(OperationParser::parse("fragment F on Person { id } query { myPeople { ...F } }"),
+                 std::invalid_argument);
 }
 
 TEST(OperationParser, RejectsMalformedDocuments) {

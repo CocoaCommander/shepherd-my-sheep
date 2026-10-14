@@ -3,9 +3,8 @@ Tests for stored procedures — the write operations used by the app.
 Every test calls the same stored procedure the C++ backend will call.
 """
 
-import pytest
 import psycopg2
-
+import pytest
 
 # ── Helpers ──────────────────────────────────────────────────
 
@@ -41,9 +40,9 @@ class TestCreateUser:
     def test_creates_user_with_all_fields(self, db):
         with db.cursor() as cur:
             row = sp_create_user(cur, "Alice", "alice", "hash_abc")
-            assert row[1] == "Alice"       # name
-            assert row[2] == "alice"       # username
-            assert row[3] == "hash_abc"    # password_hash
+            assert row[1] == "Alice"  # name
+            assert row[2] == "alice"  # username
+            assert row[3] == "hash_abc"  # password_hash
 
     def test_duplicate_username_rejected(self, db):
         with db.cursor() as cur:
@@ -59,24 +58,22 @@ class TestCreatePerson:
     def test_creates_person_with_required_fields_only(self, db):
         with db.cursor() as cur:
             row = sp_create_person(cur, "Jane")
-            assert row[1] == "Jane"   # name
-            assert row[2] is None     # age — not provided
-            assert row[3] is None     # year_met — not provided
+            assert row[1] == "Jane"  # name
+            assert row[2] is None  # age — not provided
+            assert row[3] is None  # year_met — not provided
 
     def test_creates_person_with_optional_fields(self, db):
         with db.cursor() as cur:
             row = sp_create_person(cur, "Bob", age=25, year_met=2024)
             assert row[1] == "Bob"
-            assert row[2] == 25       # age
-            assert row[3] == 2024     # year_met
+            assert row[2] == 25  # age
+            assert row[3] == 2024  # year_met
 
     def test_invalid_status_rejected(self, db):
         with db.cursor() as cur:
             fake_uuid = "00000000-0000-0000-0000-000000000000"
             with pytest.raises(psycopg2.errors.ForeignKeyViolation):
-                cur.execute(
-                    "SELECT * FROM create_person(%s, %s)", ("Nobody", fake_uuid)
-                )
+                cur.execute("SELECT * FROM create_person(%s, %s)", ("Nobody", fake_uuid))
 
 
 # ── update_person ────────────────────────────────────────────
@@ -94,7 +91,7 @@ class TestUpdatePerson:
             )
             updated = cur.fetchone()
             assert updated[1] == "Updated"  # name changed
-            assert updated[2] == 20         # age unchanged
+            assert updated[2] == 20  # age unchanged
 
     def test_update_nonexistent_raises(self, db):
         with db.cursor() as cur:
@@ -135,9 +132,7 @@ class TestDeletePerson:
                 (user_row[0], person_row[0], "will be deleted"),
             )
             cur.execute("SELECT * FROM delete_person(%s)", (person_row[0],))
-            cur.execute(
-                "SELECT COUNT(*) FROM comment WHERE person_id = %s", (person_row[0],)
-            )
+            cur.execute("SELECT COUNT(*) FROM comment WHERE person_id = %s", (person_row[0],))
             assert cur.fetchone()[0] == 0
 
     def test_delete_cascades_to_prayer_burdens(self, db):
@@ -163,20 +158,16 @@ class TestAssignment:
         with db.cursor() as cur:
             user_row = sp_create_user(cur)
             person_row = sp_create_person(cur)
-            cur.execute(
-                "SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0])
-            )
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
             result = cur.fetchone()
-            assert result[1] == user_row[0]    # user_id
+            assert result[1] == user_row[0]  # user_id
             assert result[2] == person_row[0]  # person_id
 
     def test_duplicate_assignment_rejected(self, db):
         with db.cursor() as cur:
             user_row = sp_create_user(cur)
             person_row = sp_create_person(cur)
-            cur.execute(
-                "SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0])
-            )
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
             with pytest.raises(psycopg2.errors.UniqueViolation):
                 cur.execute(
                     "SELECT * FROM assign_person(%s, %s)",
@@ -187,31 +178,21 @@ class TestAssignment:
         with db.cursor() as cur:
             user_row = sp_create_user(cur)
             person_row = sp_create_person(cur)
-            cur.execute(
-                "SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0])
-            )
-            cur.execute(
-                "SELECT * FROM unassign_person(%s, %s)", (user_row[0], person_row[0])
-            )
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
+            cur.execute("SELECT * FROM unassign_person(%s, %s)", (user_row[0], person_row[0]))
             assert cur.fetchone()[0] is True
 
     def test_unassign_nonexistent_raises(self, db):
         with db.cursor() as cur:
             fake_uuid = "00000000-0000-0000-0000-000000000000"
-            with pytest.raises(
-                psycopg2.errors.RaiseException, match="Assignment not found"
-            ):
-                cur.execute(
-                    "SELECT * FROM unassign_person(%s, %s)", (fake_uuid, fake_uuid)
-                )
+            with pytest.raises(psycopg2.errors.RaiseException, match="Assignment not found"):
+                cur.execute("SELECT * FROM unassign_person(%s, %s)", (fake_uuid, fake_uuid))
 
     def test_user_with_no_people(self, db):
         """Business rule: a new user has no one assigned."""
         with db.cursor() as cur:
             user_row = sp_create_user(cur)
-            cur.execute(
-                "SELECT COUNT(*) FROM user_person WHERE user_id = %s", (user_row[0],)
-            )
+            cur.execute("SELECT COUNT(*) FROM user_person WHERE user_id = %s", (user_row[0],))
             assert cur.fetchone()[0] == 0
 
 
@@ -230,8 +211,8 @@ class TestMilestones:
                 (person_row[0], milestone_id, user_row[0], "2024-06-15", "Big day!"),
             )
             result = cur.fetchone()
-            assert result[1] == person_row[0]   # person_id
-            assert result[2] == milestone_id    # milestone_id
+            assert result[1] == person_row[0]  # person_id
+            assert result[2] == milestone_id  # milestone_id
 
     def test_duplicate_milestone_rejected(self, db):
         with db.cursor() as cur:
@@ -268,12 +249,8 @@ class TestMilestones:
     def test_remove_nonexistent_milestone_raises(self, db):
         with db.cursor() as cur:
             fake_uuid = "00000000-0000-0000-0000-000000000000"
-            with pytest.raises(
-                psycopg2.errors.RaiseException, match="Milestone record not found"
-            ):
-                cur.execute(
-                    "SELECT * FROM remove_milestone(%s, %s)", (fake_uuid, fake_uuid)
-                )
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone record not found"):
+                cur.execute("SELECT * FROM remove_milestone(%s, %s)", (fake_uuid, fake_uuid))
 
     def test_person_with_no_milestones(self, db):
         """Business rule: a new person has no milestones."""
@@ -298,9 +275,9 @@ class TestPrayerBurdens:
                 (person_row[0], "Pray for growth"),
             )
             result = cur.fetchone()
-            assert result[1] == person_row[0]        # person_id
-            assert result[2] == "Pray for growth"    # content
-            assert result[3] is None                 # released_date — still active
+            assert result[1] == person_row[0]  # person_id
+            assert result[2] == "Pray for growth"  # content
+            assert result[3] is None  # released_date — still active
 
     def test_release_prayer_burden(self, db):
         with db.cursor() as cur:
@@ -325,9 +302,7 @@ class TestPrayerBurdens:
             burden_id = cur.fetchone()[0]
             cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
 
-            with pytest.raises(
-                psycopg2.errors.RaiseException, match="already released"
-            ):
+            with pytest.raises(psycopg2.errors.RaiseException, match="already released"):
                 cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
 
     def test_person_with_no_prayer_burdens(self, db):
@@ -370,8 +345,8 @@ class TestComments:
                 (user_row[0], person_row[0], "Just a note"),
             )
             result = cur.fetchone()
-            assert result[4] == "Just a note"   # content
-            assert result[3] is None            # prayer_burden_id — standalone
+            assert result[4] == "Just a note"  # content
+            assert result[3] is None  # prayer_burden_id — standalone
 
     def test_comment_linked_to_prayer_burden(self, db):
         with db.cursor() as cur:
@@ -431,9 +406,7 @@ class TestComments:
     def test_delete_nonexistent_comment_raises(self, db):
         with db.cursor() as cur:
             fake_uuid = "00000000-0000-0000-0000-000000000000"
-            with pytest.raises(
-                psycopg2.errors.RaiseException, match="Comment not found"
-            ):
+            with pytest.raises(psycopg2.errors.RaiseException, match="Comment not found"):
                 cur.execute("SELECT * FROM delete_comment(%s)", (fake_uuid,))
 
     def test_delete_prayer_burden_nullifies_comment_fk(self, db):
@@ -455,9 +428,7 @@ class TestComments:
             # Delete the burden directly (no SP needed — cascade is a DB concern)
             cur.execute("DELETE FROM prayer_burden WHERE id = %s", (burden_id,))
 
-            cur.execute(
-                "SELECT prayer_burden_id FROM comment WHERE id = %s", (comment_id,)
-            )
+            cur.execute("SELECT prayer_burden_id FROM comment WHERE id = %s", (comment_id,))
             assert cur.fetchone()[0] is None
 
     def test_person_with_no_comments(self, db):

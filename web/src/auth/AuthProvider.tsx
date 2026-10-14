@@ -1,5 +1,14 @@
 import { ApolloProvider } from '@apollo/client'
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { createApolloClient } from './apolloClient'
 
 const TOKEN_KEY = 'shepherd.accessToken'
@@ -73,7 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOutRef.current = signOut
   }, [signOut])
 
-  const value = useMemo(() => ({ isSignedIn: token !== null, signIn, signOut }), [token, signIn, signOut])
+  const value = useMemo(
+    () => ({ isSignedIn: token !== null, signIn, signOut }),
+    [token, signIn, signOut],
+  )
 
   return (
     <AuthContext.Provider value={value}>

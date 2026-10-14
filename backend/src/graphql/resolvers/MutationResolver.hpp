@@ -28,8 +28,7 @@ public:
     // is not the only thing slowing down a guesser.
     static constexpr size_t MIN_PASSWORD_LENGTH = 8;
 
-    MutationResolver(std::shared_ptr<DatabasePool> dbPool,
-                     std::shared_ptr<JWTService> jwtService)
+    MutationResolver(std::shared_ptr<DatabasePool> dbPool, std::shared_ptr<JWTService> jwtService)
         : m_dbPool(std::move(dbPool)), m_jwt(std::move(jwtService)) {}
 
     /** Mutations that run without an access token. */
@@ -39,29 +38,29 @@ public:
 
     /** `userId` is empty only for isPublic() mutations. */
     oatpp::Any resolve(const std::string& field, const Args& args, const std::string& userId) {
-        if (field == "register")            return resolveRegister(args);
-        if (field == "login")               return resolveLogin(args);
-        if (field == "createPerson")        return resolveCreatePerson(args, userId);
-        if (field == "updatePerson")        return resolveUpdatePerson(args, userId);
-        if (field == "deletePerson")        return resolveDeletePerson(args, userId);
-        if (field == "assignPerson")        return resolveAssignPerson(args, userId);
-        if (field == "unassignPerson")      return resolveUnassignPerson(args, userId);
-        if (field == "recordMilestone")     return resolveRecordMilestone(args, userId);
-        if (field == "removeMilestone")     return resolveRemoveMilestone(args, userId);
-        if (field == "createPrayerBurden")  return resolveCreatePrayerBurden(args, userId);
+        if (field == "register") return resolveRegister(args);
+        if (field == "login") return resolveLogin(args);
+        if (field == "createPerson") return resolveCreatePerson(args, userId);
+        if (field == "updatePerson") return resolveUpdatePerson(args, userId);
+        if (field == "deletePerson") return resolveDeletePerson(args, userId);
+        if (field == "assignPerson") return resolveAssignPerson(args, userId);
+        if (field == "unassignPerson") return resolveUnassignPerson(args, userId);
+        if (field == "recordMilestone") return resolveRecordMilestone(args, userId);
+        if (field == "removeMilestone") return resolveRemoveMilestone(args, userId);
+        if (field == "createPrayerBurden") return resolveCreatePrayerBurden(args, userId);
         if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
-        if (field == "createComment")       return resolveCreateComment(args, userId);
-        if (field == "deleteComment")       return resolveDeleteComment(args, userId);
+        if (field == "createComment") return resolveCreateComment(args, userId);
+        if (field == "deleteComment") return resolveDeleteComment(args, userId);
 
         throw std::invalid_argument("Unknown mutation: " + field);
     }
 
 private:
     std::shared_ptr<DatabasePool> m_dbPool;
-    std::shared_ptr<JWTService> m_jwt;
+    std::shared_ptr<JWTService>   m_jwt;
 
     oatpp::Object<AuthPayloadDto> authPayload(const pqxx::row& userRow) {
-        auto payload = AuthPayloadDto::createShared();
+        auto payload   = AuthPayloadDto::createShared();
         payload->token = m_jwt->issue(userRow["id"].c_str()).c_str();
         payload->user  = rowToUser(userRow);
         return payload;
@@ -79,8 +78,8 @@ private:
             throw std::invalid_argument("Name and username are required");
         }
         if (password.size() < MIN_PASSWORD_LENGTH) {
-            throw std::invalid_argument(
-                "Password must be at least " + std::to_string(MIN_PASSWORD_LENGTH) + " characters");
+            throw std::invalid_argument("Password must be at least " + std::to_string(MIN_PASSWORD_LENGTH)
+                                        + " characters");
         }
 
         // Hashed here, never in the database: a pgcrypto crypt() call would
@@ -88,14 +87,11 @@ private:
         std::string passwordHash = PasswordHasher::hash(password);
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         pqxx::result result;
         try {
-            result = txn.exec_params(
-                "SELECT * FROM create_user($1, $2, $3)",
-                name, username, passwordHash
-            );
+            result = txn.exec_params("SELECT * FROM create_user($1, $2, $3)", name, username, passwordHash);
         } catch (const pqxx::unique_violation&) {
             throw std::invalid_argument("Username is already taken");
         }
@@ -110,12 +106,9 @@ private:
         auto password = input.req("password");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
-        auto result = txn.exec_params(
-            "SELECT * FROM \"user\" WHERE username = $1",
-            username
-        );
+        auto result = txn.exec_params("SELECT * FROM \"user\" WHERE username = $1", username);
         txn.commit();
 
         if (result.empty()) {
@@ -142,10 +135,8 @@ private:
         if (PasswordHasher::needsRehash(storedHash)) {
             try {
                 pqxx::work rehashTxn(*conn);
-                rehashTxn.exec_params(
-                    "UPDATE \"user\" SET password_hash = $1 WHERE id = $2",
-                    PasswordHasher::hash(password), result[0]["id"].c_str()
-                );
+                rehashTxn.exec_params("UPDATE \"user\" SET password_hash = $1 WHERE id = $2",
+                                      PasswordHasher::hash(password), result[0]["id"].c_str());
                 rehashTxn.commit();
             } catch (const PasswordHasher::Busy&) {
                 // No hash slot free — leave the old hash in place.
@@ -169,12 +160,10 @@ private:
         auto yearMet  = input.opt("yearMet");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
-        auto created = txn.exec_params(
-            "SELECT id FROM create_person($1, $2::uuid, $3::int, $4::int)",
-            name, statusId, nullable(age), nullable(yearMet)
-        );
+        auto created = txn.exec_params("SELECT id FROM create_person($1, $2::uuid, $3::int, $4::int)", name, statusId,
+                                       nullable(age), nullable(yearMet));
         std::string personId = created[0]["id"].c_str();
 
         txn.exec_params("SELECT * FROM assign_person($1, $2)", userId, personId);
@@ -190,26 +179,20 @@ private:
         auto input = args.object("input");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, id);
 
-        txn.exec_params(
-            "SELECT * FROM update_person("
-            "p_id                := $1::uuid, "
-            "p_name              := $2::varchar, "
-            "p_age               := $3::int, "
-            "p_year_met          := $4::int, "
-            "p_last_contact_date := $5::date, "
-            "p_is_active         := $6::boolean, "
-            "p_status_id         := $7::uuid)",
-            id,
-            nullable(input.opt("name")),
-            nullable(input.opt("age")),
-            nullable(input.opt("yearMet")),
-            nullable(input.opt("lastContactDate")),
-            nullable(input.opt("isActive")),
-            nullable(input.opt("statusId"))
-        );
+        txn.exec_params("SELECT * FROM update_person("
+                        "p_id                := $1::uuid, "
+                        "p_name              := $2::varchar, "
+                        "p_age               := $3::int, "
+                        "p_year_met          := $4::int, "
+                        "p_last_contact_date := $5::date, "
+                        "p_is_active         := $6::boolean, "
+                        "p_status_id         := $7::uuid)",
+                        id, nullable(input.opt("name")), nullable(input.opt("age")), nullable(input.opt("yearMet")),
+                        nullable(input.opt("lastContactDate")), nullable(input.opt("isActive")),
+                        nullable(input.opt("statusId")));
 
         auto person = fetchPersonDetail(txn, id);
         txn.commit();
@@ -220,7 +203,7 @@ private:
         auto id = args.req("id");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, id);
 
         txn.exec_params("SELECT * FROM delete_person($1)", id);
@@ -237,7 +220,7 @@ private:
         auto targetId = args.req("userId");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
         try {
@@ -259,7 +242,7 @@ private:
         auto targetId = args.req("userId");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
         txn.exec_params("SELECT * FROM unassign_person($1, $2)", targetId, personId);
@@ -279,23 +262,19 @@ private:
         auto notes        = input.opt("notes");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
         pqxx::result created;
         try {
-            created = txn.exec_params(
-                "SELECT id FROM record_milestone($1, $2, $3, $4::date, $5)",
-                personId, milestoneId, userId, nullable(dateAchieved), nullable(notes)
-            );
+            created = txn.exec_params("SELECT id FROM record_milestone($1, $2, $3, $4::date, $5)", personId,
+                                      milestoneId, userId, nullable(dateAchieved), nullable(notes));
         } catch (const pqxx::unique_violation&) {
             throw std::invalid_argument("Milestone is already recorded for this person");
         }
 
-        auto result = txn.exec_params(
-            std::string(MILESTONE_PERSON_SELECT) + "WHERE mp.id = $1",
-            created[0]["id"].c_str()
-        );
+        auto result =
+            txn.exec_params(std::string(MILESTONE_PERSON_SELECT) + "WHERE mp.id = $1", created[0]["id"].c_str());
         txn.commit();
 
         return rowToMilestonePerson(result[0]);
@@ -306,7 +285,7 @@ private:
         auto milestoneId = args.req("milestoneId");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
         txn.exec_params("SELECT * FROM remove_milestone($1, $2)", personId, milestoneId);
@@ -323,13 +302,10 @@ private:
         auto content  = input.req("content");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
-        auto result = txn.exec_params(
-            "SELECT * FROM create_prayer_burden($1, $2)",
-            personId, content
-        );
+        auto result = txn.exec_params("SELECT * FROM create_prayer_burden($1, $2)", personId, content);
         txn.commit();
 
         return rowToPrayerBurden(result[0]);
@@ -339,7 +315,7 @@ private:
         auto id = args.req("id");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         auto owner = txn.exec_params("SELECT person_id FROM prayer_burden WHERE id = $1", id);
         if (owner.empty() || !isShepherd(txn, userId, owner[0]["person_id"].c_str())) {
@@ -361,30 +337,23 @@ private:
         auto prayerBurdenId = input.opt("prayerBurdenId");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
         // A comment may link to a burden (business rule 5), but only to
         // one of the same person's — never to someone else's.
         if (prayerBurdenId) {
-            auto burden = txn.exec_params(
-                "SELECT 1 FROM prayer_burden WHERE id = $1 AND person_id = $2",
-                *prayerBurdenId, personId
-            );
+            auto burden = txn.exec_params("SELECT 1 FROM prayer_burden WHERE id = $1 AND person_id = $2",
+                                          *prayerBurdenId, personId);
             if (burden.empty()) {
                 throw NotFound("Prayer burden not found");
             }
         }
 
-        auto created = txn.exec_params(
-            "SELECT id FROM create_comment($1, $2, $3, $4::uuid)",
-            userId, personId, content, nullable(prayerBurdenId)
-        );
+        auto created = txn.exec_params("SELECT id FROM create_comment($1, $2, $3, $4::uuid)", userId, personId, content,
+                                       nullable(prayerBurdenId));
 
-        auto result = txn.exec_params(
-            std::string(COMMENT_SELECT) + "WHERE c.id = $1",
-            created[0]["id"].c_str()
-        );
+        auto result = txn.exec_params(std::string(COMMENT_SELECT) + "WHERE c.id = $1", created[0]["id"].c_str());
         txn.commit();
 
         return rowToComment(result[0]);
@@ -395,7 +364,7 @@ private:
         auto id = args.req("id");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         auto owner = txn.exec_params("SELECT 1 FROM comment WHERE id = $1 AND user_id = $2", id, userId);
         if (owner.empty()) {

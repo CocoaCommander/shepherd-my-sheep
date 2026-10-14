@@ -20,19 +20,15 @@
  * browsers will be blocked, which is the safe default).
  */
 
-class CorsRequestInterceptor
-    : public oatpp::web::server::interceptor::RequestInterceptor {
+class CorsRequestInterceptor : public oatpp::web::server::interceptor::RequestInterceptor {
 public:
 
-    std::shared_ptr<OutgoingResponse> intercept(
-        const std::shared_ptr<IncomingRequest>& request
-    ) override {
+    std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
         auto method = request->getStartingLine().method;
 
         if (method == "OPTIONS") {
             auto response = oatpp::web::protocol::http::outgoing::ResponseFactory::createResponse(
-                oatpp::web::protocol::http::Status::CODE_204, ""
-            );
+                oatpp::web::protocol::http::Status::CODE_204, "");
             addCorsHeaders(response);
             return response;
         }
@@ -41,9 +37,7 @@ public:
     }
 
 private:
-    static void addCorsHeaders(
-        const std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>& response
-    ) {
+    static void addCorsHeaders(const std::shared_ptr<oatpp::web::protocol::http::outgoing::Response>& response) {
         auto origin = getAllowedOrigin();
         if (!origin.empty()) {
             response->putHeader("Access-Control-Allow-Origin", origin);
@@ -59,15 +53,11 @@ private:
     }
 };
 
-
-class CorsResponseInterceptor
-    : public oatpp::web::server::interceptor::ResponseInterceptor {
+class CorsResponseInterceptor : public oatpp::web::server::interceptor::ResponseInterceptor {
 public:
 
-    std::shared_ptr<OutgoingResponse> intercept(
-        const std::shared_ptr<IncomingRequest>& request,
-        const std::shared_ptr<OutgoingResponse>& response
-    ) override {
+    std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>&  request,
+                                                const std::shared_ptr<OutgoingResponse>& response) override {
         auto origin = getAllowedOrigin();
         if (!origin.empty()) {
             response->putHeader("Access-Control-Allow-Origin", origin);
