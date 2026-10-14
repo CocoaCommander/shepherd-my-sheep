@@ -1,6 +1,19 @@
 # shepherd-my-sheep
 A full stack app to track progression of the ones we are caring for
 
+## Sample data
+
+`db/seed` holds a hand-written demo dataset: three users (one with nobody assigned yet) and 15 people with milestones, prayer burdens and comments, covering every business rule in `CLAUDE.md`. It is opt-in and never part of the migrations.
+
+```sh
+pip install -r tests/requirements.txt
+docker compose up -d db
+set -a; source .env; set +a      # needs SEED_USER_PASSWORD
+python -m db.seed                # --reset to reload
+```
+
+Then log in as `demo_shepherd`, `demo_coleader` or `demo_newuser` with `SEED_USER_PASSWORD`. Tests get the same data through the `seeded_db` fixture, inside their rollback.
+
 ## Linting
 
 Every language has a linter or formatter, run through [pre-commit](https://pre-commit.com):

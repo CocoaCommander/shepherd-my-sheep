@@ -6,9 +6,15 @@ runs the migration, and provides a clean DB for each test.
 """
 
 import os
+import sys
+import uuid
 
 import psycopg2
 import pytest
+
+# The seed package lives at db/seed, outside tests/.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from db.seed import seed  # noqa: E402
 
 REQUIRED_ENV = ["POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"]
 _missing = [v for v in REQUIRED_ENV if not os.getenv(v)]
@@ -57,3 +63,15 @@ def db(db_connection):
     yield db_connection
     db_connection.rollback()
     db_connection.autocommit = True
+
+
+@pytest.fixture()
+def seeded_db(db):
+    """
+    The sample dataset (db/seed/dataset.py) loaded inside the per-test
+    transaction. Yields (conn, ids); look rows up by dataset key, e.g.
+    ids.people["maria"]. Usernames get a unique prefix so this never
+    collides with demo data seeded into the same database.
+    """
+    ids = seed(db, "not-a-real-hash", username_prefix=f"t{uuid.uuid4().hex[:8]}_")
+    yield db, ids
