@@ -1,0 +1,80 @@
+# The backend reads arguments from variables of the same name, so each
+# argument is passed as $<argumentName>.
+
+mutation Register($input: RegisterInput!) {
+  register(input: $input) {
+    token
+    user {
+      ...UserFields
+    }
+  }
+}
+
+mutation Login($input: LoginInput!) {
+  login(input: $input) {
+    token
+    user {
+      ...UserFields
+    }
+  }
+}
+
+mutation CreatePerson($input: CreatePersonInput!) {
+  createPerson(input: $input) {
+    ...PersonDetail
+  }
+}
+
+mutation UpdatePerson($id: UUID!, $input: UpdatePersonInput!) {
+  updatePerson(id: $id, input: $input) {
+    ...PersonDetail
+  }
+}
+
+mutation DeletePerson($id: UUID!) {
+  deletePerson(id: $id)
+}
+
+mutation AssignPerson($personId: UUID!, $userId: UUID!) {
+  assignPerson(personId: $personId, userId: $userId) {
+    ...PersonDetail
+  }
+}
+
+mutation UnassignPerson($personId: UUID!, $userId: UUID!) {
+  unassignPerson(personId: $personId, userId: $userId) {
+    ...PersonDetail
+  }
+}
+
+mutation RecordMilestone($input: RecordMilestoneInput!) {
+  recordMilestone(input: $input) {
+    ...MilestonePersonFields
+  }
+}
+
+mutation RemoveMilestone($personId: UUID!, $milestoneId: UUID!) {
+  removeMilestone(personId: $personId, milestoneId: $milestoneId)
+}
+
+mutation CreatePrayerBurden($input: CreatePrayerBurdenInput!) {
+  createPrayerBurden(input: $input) {
+    ...PrayerBurdenFields
+  }
+}
+
+mutation ReleasePrayerBurden($id: UUID!) {
+  releasePrayerBurden(id: $id) {
+    ...PrayerBurdenFields
+  }
+}
+
+mutation CreateComment($input: CreateCommentInput!) {
+  createComment(input: $input) {
+    ...CommentFields
+  }
+}
+
+mutation DeleteComment($id: UUID!) {
+  deleteComment(id: $id)
+}

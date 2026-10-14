@@ -34,13 +34,24 @@ class GraphQLError : public oatpp::DTO {
     DTO_INIT(GraphQLError, DTO)
 
     DTO_FIELD(String, message);
+    DTO_FIELD(oatpp::Fields<String>, extensions);  // e.g. {"code": "UNAUTHENTICATED"}
 };
 
 // ── Domain DTOs ─────────────────────────────────────────────
+//
+// Every object type carries "__typename". Apollo (web and Kotlin) asks
+// for it on every selection set and relies on it for cache
+// normalisation and fragments; a response without it fails to parse.
+//
+// The executor does not evaluate selection sets, so a resolver fills
+// every field it can. Nested lists the resolver did not load are left
+// null — clients must only select them on operations that load them
+// (see QueryResolver::resolvePerson).
 
 class StatusDto : public oatpp::DTO {
     DTO_INIT(StatusDto, DTO)
 
+    DTO_FIELD(String, typename_, "__typename") = "Status";
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
 };
@@ -48,6 +59,7 @@ class StatusDto : public oatpp::DTO {
 class MilestoneDto : public oatpp::DTO {
     DTO_INIT(MilestoneDto, DTO)
 
+    DTO_FIELD(String, typename_, "__typename") = "Milestone";
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
     DTO_FIELD(String, description);
@@ -56,6 +68,7 @@ class MilestoneDto : public oatpp::DTO {
 class UserDto : public oatpp::DTO {
     DTO_INIT(UserDto, DTO)
 
+    DTO_FIELD(String, typename_, "__typename") = "User";
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
     DTO_FIELD(String, username);
@@ -63,34 +76,10 @@ class UserDto : public oatpp::DTO {
     DTO_FIELD(String, updatedAt);
 };
 
-class PersonDto : public oatpp::DTO {
-    DTO_INIT(PersonDto, DTO)
-
-    DTO_FIELD(String, id);
-    DTO_FIELD(String, name);
-    DTO_FIELD(Int32,  age);                // nullable
-    DTO_FIELD(Int32,  yearMet);            // nullable
-    DTO_FIELD(String, lastContactDate);    // nullable
-    DTO_FIELD(Boolean, isActive);
-    DTO_FIELD(oatpp::Object<StatusDto>, status);
-    DTO_FIELD(String, createdAt);
-    DTO_FIELD(String, updatedAt);
-};
-
-class MilestonePersonDto : public oatpp::DTO {
-    DTO_INIT(MilestonePersonDto, DTO)
-
-    DTO_FIELD(String, id);
-    DTO_FIELD(oatpp::Object<MilestoneDto>, milestone);
-    DTO_FIELD(String, dateAchieved);       // nullable
-    DTO_FIELD(String, notes);              // nullable
-    DTO_FIELD(oatpp::Object<UserDto>, recordedBy);  // nullable
-    DTO_FIELD(String, createdAt);
-};
-
 class PrayerBurdenDto : public oatpp::DTO {
     DTO_INIT(PrayerBurdenDto, DTO)
 
+    DTO_FIELD(String, typename_, "__typename") = "PrayerBurden";
     DTO_FIELD(String, id);
     DTO_FIELD(String, content);
     DTO_FIELD(String, releasedDate);       // nullable — null means still active
@@ -101,12 +90,47 @@ class PrayerBurdenDto : public oatpp::DTO {
 class CommentDto : public oatpp::DTO {
     DTO_INIT(CommentDto, DTO)
 
+    DTO_FIELD(String, typename_, "__typename") = "Comment";
     DTO_FIELD(String, id);
     DTO_FIELD(oatpp::Object<UserDto>, author);
-    DTO_FIELD(String, prayerBurdenId);     // nullable — null means standalone note
+    DTO_FIELD(oatpp::Object<PrayerBurdenDto>, prayerBurden);  // nullable — null means standalone note
     DTO_FIELD(String, content);
     DTO_FIELD(String, createdAt);
     DTO_FIELD(String, updatedAt);
+};
+
+class MilestonePersonDto : public oatpp::DTO {
+    DTO_INIT(MilestonePersonDto, DTO)
+
+    DTO_FIELD(String, typename_, "__typename") = "MilestonePerson";
+    DTO_FIELD(String, id);
+    DTO_FIELD(oatpp::Object<MilestoneDto>, milestone);
+    DTO_FIELD(String, dateAchieved);       // nullable
+    DTO_FIELD(String, notes);              // nullable
+    DTO_FIELD(oatpp::Object<UserDto>, recordedBy);  // nullable
+    DTO_FIELD(String, createdAt);
+};
+
+class PersonDto : public oatpp::DTO {
+    DTO_INIT(PersonDto, DTO)
+
+    DTO_FIELD(String, typename_, "__typename") = "Person";
+    DTO_FIELD(String, id);
+    DTO_FIELD(String, name);
+    DTO_FIELD(Int32,  age);                // nullable
+    DTO_FIELD(Int32,  yearMet);            // nullable
+    DTO_FIELD(String, lastContactDate);    // nullable
+    DTO_FIELD(Boolean, isActive);
+    DTO_FIELD(oatpp::Object<StatusDto>, status);
+    DTO_FIELD(String, createdAt);
+    DTO_FIELD(String, updatedAt);
+
+    // Loaded only by the `person` query. Each may be empty, never null,
+    // when loaded: a new contact has no milestones, burdens or comments.
+    DTO_FIELD(oatpp::Vector<oatpp::Object<UserDto>>,            shepherds);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<MilestonePersonDto>>, milestones);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>,    prayerBurdens);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>,         comments);
 };
 
 // ── Auth ────────────────────────────────────────────────────
@@ -114,6 +138,7 @@ class CommentDto : public oatpp::DTO {
 class AuthPayloadDto : public oatpp::DTO {
     DTO_INIT(AuthPayloadDto, DTO)
 
+    DTO_FIELD(String, typename_, "__typename") = "AuthPayload";
     DTO_FIELD(String, token);
     DTO_FIELD(oatpp::Object<UserDto>, user);
 };

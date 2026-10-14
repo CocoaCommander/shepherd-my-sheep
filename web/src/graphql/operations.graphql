@@ -1,0 +1,106 @@
+# The backend reads arguments from variables of the same name, so each
+# argument is passed as $<argumentName>.
+
+fragment PersonSummary on Person {
+  id
+  name
+  age
+  yearMet
+  lastContactDate
+  isActive
+  status {
+    id
+    name
+  }
+}
+
+query Me {
+  me {
+    id
+    name
+    username
+  }
+}
+
+query MyPeople {
+  myPeople {
+    ...PersonSummary
+  }
+}
+
+# Nested lists are only loaded by `person`; never select them on myPeople.
+query Person($id: UUID!) {
+  person(id: $id) {
+    ...PersonSummary
+    shepherds {
+      id
+      name
+    }
+    milestones {
+      id
+      dateAchieved
+      notes
+      milestone {
+        id
+        name
+      }
+      recordedBy {
+        id
+        name
+      }
+    }
+    prayerBurdens {
+      id
+      content
+      releasedDate
+      createdAt
+    }
+    comments {
+      id
+      content
+      createdAt
+      author {
+        id
+        name
+      }
+      prayerBurden {
+        id
+      }
+    }
+  }
+}
+
+query Statuses {
+  statuses {
+    id
+    name
+  }
+}
+
+mutation Login($input: LoginInput!) {
+  login(input: $input) {
+    token
+    user {
+      id
+      name
+      username
+    }
+  }
+}
+
+mutation Register($input: RegisterInput!) {
+  register(input: $input) {
+    token
+    user {
+      id
+      name
+      username
+    }
+  }
+}
+
+mutation CreatePerson($input: CreatePersonInput!) {
+  createPerson(input: $input) {
+    ...PersonSummary
+  }
+}

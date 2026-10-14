@@ -1,18 +1,16 @@
-import { Routes, Route } from 'react-router-dom'
-
-function Home() {
-  return (
-    <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>Shepherd My Sheep</h1>
-      <p>Running on Web (React + TypeScript)</p>
-    </div>
-  )
-}
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { RequireAuth } from './auth/RequireAuth'
+import { LoginPage } from './pages/LoginPage'
+import { PeoplePage } from './pages/PeoplePage'
+import { PersonPage } from './pages/PersonPage'
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<RequireAuth><PeoplePage /></RequireAuth>} />
+      <Route path="/people/:id" element={<RequireAuth><PersonPage /></RequireAuth>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

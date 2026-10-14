@@ -1,0 +1,77 @@
+# Shared selections, so every operation maps to the domain models the
+# same way. The backend loads Person's nested lists only for `person`
+# and for mutations returning a single Person, so only those operations
+# may select PersonDetail. myPeople selects PersonSummary.
+
+fragment UserFields on User {
+  id
+  name
+  username
+  createdAt
+  updatedAt
+}
+
+fragment PersonSummary on Person {
+  id
+  name
+  age
+  yearMet
+  lastContactDate
+  isActive
+  status {
+    id
+    name
+  }
+}
+
+fragment PrayerBurdenFields on PrayerBurden {
+  id
+  content
+  releasedDate
+  createdAt
+  updatedAt
+}
+
+fragment CommentFields on Comment {
+  id
+  content
+  createdAt
+  updatedAt
+  author {
+    ...UserFields
+  }
+  prayerBurden {
+    id
+  }
+}
+
+fragment MilestonePersonFields on MilestonePerson {
+  id
+  dateAchieved
+  notes
+  createdAt
+  milestone {
+    id
+    name
+    description
+  }
+  recordedBy {
+    ...UserFields
+  }
+}
+
+fragment PersonDetail on Person {
+  ...PersonSummary
+  shepherds {
+    ...UserFields
+  }
+  milestones {
+    ...MilestonePersonFields
+  }
+  prayerBurdens {
+    ...PrayerBurdenFields
+  }
+  comments {
+    ...CommentFields
+  }
+}

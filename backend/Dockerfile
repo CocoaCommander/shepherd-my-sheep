@@ -29,6 +29,18 @@ RUN --mount=type=cache,target=/build/_deps \
     && cmake --build /build -j"$(nproc)" \
     && cp /build/shepherd-api /usr/local/bin/shepherd-api
 
+# ── Unit tests ───────────────────────────────────────────────
+# Built only on request — `docker build --target test backend` — and
+# never part of the shipped image. A failing test fails the build.
+FROM builder AS test
+
+COPY tests ./tests
+
+RUN --mount=type=cache,target=/build-tests/_deps \
+    cmake -S /src -B /build-tests -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON \
+    && cmake --build /build-tests --target unit_tests -j"$(nproc)" \
+    && cd /build-tests && ctest --output-on-failure
+
 # ── Runtime ──────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
 

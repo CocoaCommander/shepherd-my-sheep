@@ -4,6 +4,7 @@
 #include "../../models/DTOs.hpp"
 #include "../../auth/PasswordHasher.hpp"
 #include "../../auth/JWTService.hpp"
+#include "ResolverSupport.hpp"
 
 #include <pqxx/pqxx>
 #include <memory>
@@ -15,124 +16,72 @@
  * All writes go through PostgreSQL stored procedures so the app
  * and tests exercise the exact same code path. Password hashing is the
  * one thing deliberately kept out of the database — see PasswordHasher.
+ *
+ * Apart from register and login (see isPublic), every mutation runs
+ * as the user in the access token. The acting user is never taken from
+ * the request variables, and each person-scoped write first checks
+ * requireShepherd() inside the same transaction.
  */
 class MutationResolver {
 public:
+    // Short enough to type on a phone, long enough that the argon2 cost
+    // is not the only thing slowing down a guesser.
+    static constexpr size_t MIN_PASSWORD_LENGTH = 8;
+
     MutationResolver(std::shared_ptr<DatabasePool> dbPool,
                      std::shared_ptr<JWTService> jwtService)
-        : m_dbPool(dbPool), m_jwt(jwtService) {}
+        : m_dbPool(std::move(dbPool)), m_jwt(std::move(jwtService)) {}
 
-    oatpp::Any resolve(const std::string& query, const oatpp::Any& variables) {
-        if (query.find("register") != std::string::npos) {
-            return resolveRegister(variables);
-        }
-        if (query.find("login") != std::string::npos) {
-            return resolveLogin(variables);
-        }
-        if (query.find("createPerson") != std::string::npos) {
-            return resolveCreatePerson(variables);
-        }
-        if (query.find("updatePerson") != std::string::npos) {
-            return resolveUpdatePerson(variables);
-        }
-        if (query.find("deletePerson") != std::string::npos) {
-            return resolveDeletePerson(variables);
-        }
-        if (query.find("assignPerson") != std::string::npos) {
-            return resolveAssignPerson(variables);
-        }
-        if (query.find("unassignPerson") != std::string::npos) {
-            return resolveUnassignPerson(variables);
-        }
-        if (query.find("recordMilestone") != std::string::npos) {
-            return resolveRecordMilestone(variables);
-        }
-        if (query.find("removeMilestone") != std::string::npos) {
-            return resolveRemoveMilestone(variables);
-        }
-        if (query.find("createPrayerBurden") != std::string::npos) {
-            return resolveCreatePrayerBurden(variables);
-        }
-        if (query.find("releasePrayerBurden") != std::string::npos) {
-            return resolveReleasePrayerBurden(variables);
-        }
-        if (query.find("createComment") != std::string::npos) {
-            return resolveCreateComment(variables);
-        }
-        if (query.find("deleteComment") != std::string::npos) {
-            return resolveDeleteComment(variables);
-        }
+    /** Mutations that run without an access token. */
+    static bool isPublic(const std::string& field) {
+        return field == "register" || field == "login";
+    }
 
-        throw std::runtime_error("Unknown mutation");
+    /** `userId` is empty only for isPublic() mutations. */
+    oatpp::Any resolve(const std::string& field, const Args& args, const std::string& userId) {
+        if (field == "register")            return resolveRegister(args);
+        if (field == "login")               return resolveLogin(args);
+        if (field == "createPerson")        return resolveCreatePerson(args, userId);
+        if (field == "updatePerson")        return resolveUpdatePerson(args, userId);
+        if (field == "deletePerson")        return resolveDeletePerson(args, userId);
+        if (field == "assignPerson")        return resolveAssignPerson(args, userId);
+        if (field == "unassignPerson")      return resolveUnassignPerson(args, userId);
+        if (field == "recordMilestone")     return resolveRecordMilestone(args, userId);
+        if (field == "removeMilestone")     return resolveRemoveMilestone(args, userId);
+        if (field == "createPrayerBurden")  return resolveCreatePrayerBurden(args, userId);
+        if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
+        if (field == "createComment")       return resolveCreateComment(args, userId);
+        if (field == "deleteComment")       return resolveDeleteComment(args, userId);
+
+        throw std::invalid_argument("Unknown mutation: " + field);
     }
 
 private:
     std::shared_ptr<DatabasePool> m_dbPool;
     std::shared_ptr<JWTService> m_jwt;
 
-    // ── Helpers ─────────────────────────────────────────────
-
-    static std::string extractVar(const oatpp::Any& variables, const std::string& key) {
-        if (!variables) throw std::runtime_error("Missing variables");
-        auto fields = variables.retrieve<oatpp::Fields<oatpp::Any>>();
-        for (auto& pair : *fields) {
-            if (pair.first == key) {
-                return pair.second.retrieve<oatpp::String>()->c_str();
-            }
-        }
-        throw std::runtime_error("Missing variable: " + key);
-    }
-
-    static bool hasVar(const oatpp::Any& variables, const std::string& key) {
-        if (!variables) return false;
-        auto fields = variables.retrieve<oatpp::Fields<oatpp::Any>>();
-        for (auto& pair : *fields) {
-            if (pair.first == key && pair.second) return true;
-        }
-        return false;
-    }
-
-    static std::string extractVarOrNull(const oatpp::Any& variables, const std::string& key) {
-        if (!hasVar(variables, key)) return "";
-        return extractVar(variables, key);
-    }
-
-    static oatpp::Fields<oatpp::Any> extractInput(const oatpp::Any& variables) {
-        if (!variables) throw std::runtime_error("Missing variables");
-        auto fields = variables.retrieve<oatpp::Fields<oatpp::Any>>();
-        for (auto& pair : *fields) {
-            if (pair.first == "input") {
-                return pair.second.retrieve<oatpp::Fields<oatpp::Any>>();
-            }
-        }
-        throw std::runtime_error("Missing 'input' in variables");
-    }
-
-    static std::string inputField(const oatpp::Fields<oatpp::Any>& input, const std::string& key) {
-        for (auto& pair : *input) {
-            if (pair.first == key) {
-                return pair.second.retrieve<oatpp::String>()->c_str();
-            }
-        }
-        throw std::runtime_error("Missing input field: " + key);
-    }
-
-    static std::string inputFieldOrEmpty(const oatpp::Fields<oatpp::Any>& input, const std::string& key) {
-        for (auto& pair : *input) {
-            if (pair.first == key && pair.second) {
-                return pair.second.retrieve<oatpp::String>()->c_str();
-            }
-        }
-        return "";
+    oatpp::Object<AuthPayloadDto> authPayload(const pqxx::row& userRow) {
+        auto payload = AuthPayloadDto::createShared();
+        payload->token = m_jwt->issue(userRow["id"].c_str()).c_str();
+        payload->user  = rowToUser(userRow);
+        return payload;
     }
 
     // ── Auth ────────────────────────────────────────────────
 
-    oatpp::Any resolveRegister(const oatpp::Any& variables) {
-        auto input = extractInput(variables);
-        auto name     = inputField(input, "name");
-        auto username = inputField(input, "username");
-        auto password = inputField(input, "password");
+    oatpp::Any resolveRegister(const Args& args) {
+        auto input    = args.object("input");
+        auto name     = input.req("name");
+        auto username = input.req("username");
+        auto password = input.req("password");
+
+        if (name.empty() || username.empty()) {
+            throw std::invalid_argument("Name and username are required");
+        }
+        if (password.size() < MIN_PASSWORD_LENGTH) {
+            throw std::invalid_argument(
+                "Password must be at least " + std::to_string(MIN_PASSWORD_LENGTH) + " characters");
+        }
 
         // Hashed here, never in the database: a pgcrypto crypt() call would
         // put the plaintext on the wire and into pg_stat_statements.
@@ -141,29 +90,24 @@ private:
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
 
-        auto result = txn.exec_params(
-            "SELECT * FROM create_user($1, $2, $3)",
-            name, username, passwordHash
-        );
+        pqxx::result result;
+        try {
+            result = txn.exec_params(
+                "SELECT * FROM create_user($1, $2, $3)",
+                name, username, passwordHash
+            );
+        } catch (const pqxx::unique_violation&) {
+            throw std::invalid_argument("Username is already taken");
+        }
         txn.commit();
 
-        auto user = UserDto::createShared();
-        user->id        = result[0]["id"].c_str();
-        user->name      = result[0]["name"].c_str();
-        user->username  = result[0]["username"].c_str();
-        user->createdAt = result[0]["created_at"].c_str();
-        user->updatedAt = result[0]["updated_at"].c_str();
-
-        auto payload = AuthPayloadDto::createShared();
-        payload->token = m_jwt->issue(result[0]["id"].c_str()).c_str();
-        payload->user = user;
-        return payload;
+        return authPayload(result[0]);
     }
 
-    oatpp::Any resolveLogin(const oatpp::Any& variables) {
-        auto input = extractInput(variables);
-        auto username = inputField(input, "username");
-        auto password = inputField(input, "password");
+    oatpp::Any resolveLogin(const Args& args) {
+        auto input    = args.object("input");
+        auto username = input.req("username");
+        auto password = input.req("password");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
@@ -208,117 +152,77 @@ private:
             }
         }
 
-        auto user = UserDto::createShared();
-        user->id        = result[0]["id"].c_str();
-        user->name      = result[0]["name"].c_str();
-        user->username  = result[0]["username"].c_str();
-        user->createdAt = result[0]["created_at"].c_str();
-        user->updatedAt = result[0]["updated_at"].c_str();
-
-        auto payload = AuthPayloadDto::createShared();
-        payload->token = m_jwt->issue(result[0]["id"].c_str()).c_str();
-        payload->user = user;
-        return payload;
+        return authPayload(result[0]);
     }
 
     // ── Person ──────────────────────────────────────────────
 
-    oatpp::Any resolveCreatePerson(const oatpp::Any& variables) {
-        auto input = extractInput(variables);
-        auto name     = inputField(input, "name");
-        auto statusId = inputField(input, "statusId");
-        auto age      = inputFieldOrEmpty(input, "age");
-        auto yearMet  = inputFieldOrEmpty(input, "yearMet");
+    /**
+     * The creator becomes the person's first shepherd in the same
+     * transaction; otherwise the new person would be visible to no one.
+     */
+    oatpp::Any resolveCreatePerson(const Args& args, const std::string& userId) {
+        auto input    = args.object("input");
+        auto name     = input.req("name");
+        auto statusId = input.req("statusId");
+        auto age      = input.opt("age");
+        auto yearMet  = input.opt("yearMet");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
 
-        pqxx::result result;
-        if (age.empty() && yearMet.empty()) {
-            result = txn.exec_params("SELECT * FROM create_person($1, $2)", name, statusId);
-        } else if (yearMet.empty()) {
-            result = txn.exec_params("SELECT * FROM create_person($1, $2, $3)", name, statusId, std::stoi(age));
-        } else if (age.empty()) {
-            result = txn.exec_params("SELECT * FROM create_person($1, $2, NULL, $3)", name, statusId, std::stoi(yearMet));
-        } else {
-            result = txn.exec_params("SELECT * FROM create_person($1, $2, $3, $4)", name, statusId, std::stoi(age), std::stoi(yearMet));
-        }
-        txn.commit();
-
-        auto dto = PersonDto::createShared();
-        dto->id       = result[0]["id"].c_str();
-        dto->name     = result[0]["name"].c_str();
-        dto->isActive = result[0]["is_active"].as<bool>();
-        dto->createdAt = result[0]["created_at"].c_str();
-        dto->updatedAt = result[0]["updated_at"].c_str();
-        if (!result[0]["age"].is_null())      dto->age = result[0]["age"].as<int>();
-        if (!result[0]["year_met"].is_null()) dto->yearMet = result[0]["year_met"].as<int>();
-        return dto;
-    }
-
-    oatpp::Any resolveUpdatePerson(const oatpp::Any& variables) {
-        auto id    = extractVar(variables, "id");
-        auto input = extractInput(variables);
-
-        auto name     = inputFieldOrEmpty(input, "name");
-        auto age      = inputFieldOrEmpty(input, "age");
-        auto yearMet  = inputFieldOrEmpty(input, "yearMet");
-        auto lastDate = inputFieldOrEmpty(input, "lastContactDate");
-        auto isActive = inputFieldOrEmpty(input, "isActive");
-        auto statusId = inputFieldOrEmpty(input, "statusId");
-
-        PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
-
-        // Build the SP call with named parameters for partial updates
-        std::string sql = "SELECT * FROM update_person(p_id := $1";
-        std::vector<std::string> params = { id };
-        int paramIdx = 2;
-
-        auto addParam = [&](const std::string& val, const std::string& paramName) {
-            if (!val.empty()) {
-                sql += ", " + paramName + " := $" + std::to_string(paramIdx++);
-                params.push_back(val);
-            }
-        };
-
-        addParam(name, "p_name");
-        addParam(statusId, "p_status_id");
-        sql += ")";
-
-        // For simplicity, use exec with string interpolation for named params.
-        // libpqxx doesn't support dynamic param counts easily, so we use
-        // the connection's exec method with a prepared-style query.
-        auto result = txn.exec_params1(
-            "SELECT * FROM update_person("
-            "p_id := $1,"
-            "p_name := CASE WHEN $2 = '' THEN NULL ELSE $2 END,"
-            "p_age := CASE WHEN $3 = '' THEN NULL ELSE $3::int END,"
-            "p_year_met := CASE WHEN $4 = '' THEN NULL ELSE $4::int END,"
-            "p_last_contact_date := CASE WHEN $5 = '' THEN NULL ELSE $5::date END,"
-            "p_is_active := CASE WHEN $6 = '' THEN NULL ELSE $6::boolean END,"
-            "p_status_id := CASE WHEN $7 = '' THEN NULL ELSE $7::uuid END"
-            ")",
-            id, name, age, yearMet, lastDate, isActive, statusId
+        auto created = txn.exec_params(
+            "SELECT id FROM create_person($1, $2::uuid, $3::int, $4::int)",
+            name, statusId, nullable(age), nullable(yearMet)
         );
-        txn.commit();
+        std::string personId = created[0]["id"].c_str();
 
-        auto dto = PersonDto::createShared();
-        dto->id        = result["id"].c_str();
-        dto->name      = result["name"].c_str();
-        dto->isActive  = result["is_active"].as<bool>();
-        dto->createdAt = result["created_at"].c_str();
-        dto->updatedAt = result["updated_at"].c_str();
-        if (!result["age"].is_null())      dto->age = result["age"].as<int>();
-        if (!result["year_met"].is_null()) dto->yearMet = result["year_met"].as<int>();
-        return dto;
+        txn.exec_params("SELECT * FROM assign_person($1, $2)", userId, personId);
+
+        auto person = fetchPersonDetail(txn, personId);
+        txn.commit();
+        return person;
     }
 
-    oatpp::Any resolveDeletePerson(const oatpp::Any& variables) {
-        auto id = extractVar(variables, "id");
+    /** Only the fields present in `input` change. */
+    oatpp::Any resolveUpdatePerson(const Args& args, const std::string& userId) {
+        auto id    = args.req("id");
+        auto input = args.object("input");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+        requireShepherd(txn, userId, id);
+
+        txn.exec_params(
+            "SELECT * FROM update_person("
+            "p_id                := $1::uuid, "
+            "p_name              := $2::varchar, "
+            "p_age               := $3::int, "
+            "p_year_met          := $4::int, "
+            "p_last_contact_date := $5::date, "
+            "p_is_active         := $6::boolean, "
+            "p_status_id         := $7::uuid)",
+            id,
+            nullable(input.opt("name")),
+            nullable(input.opt("age")),
+            nullable(input.opt("yearMet")),
+            nullable(input.opt("lastContactDate")),
+            nullable(input.opt("isActive")),
+            nullable(input.opt("statusId"))
+        );
+
+        auto person = fetchPersonDetail(txn, id);
+        txn.commit();
+        return person;
+    }
+
+    oatpp::Any resolveDeletePerson(const Args& args, const std::string& userId) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work txn(*conn);
+        requireShepherd(txn, userId, id);
+
         txn.exec_params("SELECT * FROM delete_person($1)", id);
         txn.commit();
 
@@ -327,94 +231,84 @@ private:
 
     // ── Assignment ──────────────────────────────────────────
 
-    oatpp::Any resolveAssignPerson(const oatpp::Any& variables) {
-        auto personId = extractVar(variables, "personId");
-        auto userId   = extractVar(variables, "userId");
+    /** Any current shepherd may add another user as a shepherd. */
+    oatpp::Any resolveAssignPerson(const Args& args, const std::string& userId) {
+        auto personId = args.req("personId");
+        auto targetId = args.req("userId");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
-        txn.exec_params("SELECT * FROM assign_person($1, $2)", userId, personId);
+        requireShepherd(txn, userId, personId);
+
+        try {
+            txn.exec_params("SELECT * FROM assign_person($1, $2)", targetId, personId);
+        } catch (const pqxx::unique_violation&) {
+            throw std::invalid_argument("User is already assigned to this person");
+        } catch (const pqxx::foreign_key_violation&) {
+            throw NotFound("User not found");
+        }
+
+        auto person = fetchPersonDetail(txn, personId);
         txn.commit();
-
-        // Return the person with updated shepherds list
-        pqxx::work txn2(*conn);
-        auto result = txn2.exec_params(
-            "SELECT p.*, s.name AS status_name "
-            "FROM person p JOIN status s ON s.id = p.status_id "
-            "WHERE p.id = $1",
-            personId
-        );
-        txn2.commit();
-
-        auto dto = PersonDto::createShared();
-        dto->id   = result[0]["id"].c_str();
-        dto->name = result[0]["name"].c_str();
-        return dto;
+        return person;
     }
 
-    oatpp::Any resolveUnassignPerson(const oatpp::Any& variables) {
-        auto personId = extractVar(variables, "personId");
-        auto userId   = extractVar(variables, "userId");
+    /** Any current shepherd may remove a shepherd, including themselves. */
+    oatpp::Any resolveUnassignPerson(const Args& args, const std::string& userId) {
+        auto personId = args.req("personId");
+        auto targetId = args.req("userId");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
-        txn.exec_params("SELECT * FROM unassign_person($1, $2)", userId, personId);
+        requireShepherd(txn, userId, personId);
+
+        txn.exec_params("SELECT * FROM unassign_person($1, $2)", targetId, personId);
+
+        auto person = fetchPersonDetail(txn, personId);
         txn.commit();
-
-        pqxx::work txn2(*conn);
-        auto result = txn2.exec_params(
-            "SELECT p.*, s.name AS status_name "
-            "FROM person p JOIN status s ON s.id = p.status_id "
-            "WHERE p.id = $1",
-            personId
-        );
-        txn2.commit();
-
-        auto dto = PersonDto::createShared();
-        dto->id   = result[0]["id"].c_str();
-        dto->name = result[0]["name"].c_str();
-        return dto;
+        return person;
     }
 
     // ── Milestones ──────────────────────────────────────────
 
-    oatpp::Any resolveRecordMilestone(const oatpp::Any& variables) {
-        auto input = extractInput(variables);
-        auto personId    = inputField(input, "personId");
-        auto milestoneId = inputField(input, "milestoneId");
-        auto dateAchieved = inputFieldOrEmpty(input, "dateAchieved");
-        auto notes        = inputFieldOrEmpty(input, "notes");
-
-        // recordedBy comes from auth context — placeholder for now
-        auto recordedBy = extractVarOrNull(variables, "userId");
+    oatpp::Any resolveRecordMilestone(const Args& args, const std::string& userId) {
+        auto input        = args.object("input");
+        auto personId     = input.req("personId");
+        auto milestoneId  = input.req("milestoneId");
+        auto dateAchieved = input.opt("dateAchieved");
+        auto notes        = input.opt("notes");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+        requireShepherd(txn, userId, personId);
+
+        pqxx::result created;
+        try {
+            created = txn.exec_params(
+                "SELECT id FROM record_milestone($1, $2, $3, $4::date, $5)",
+                personId, milestoneId, userId, nullable(dateAchieved), nullable(notes)
+            );
+        } catch (const pqxx::unique_violation&) {
+            throw std::invalid_argument("Milestone is already recorded for this person");
+        }
 
         auto result = txn.exec_params(
-            "SELECT * FROM record_milestone($1, $2, $3, "
-            "CASE WHEN $4 = '' THEN NULL ELSE $4::date END, "
-            "CASE WHEN $5 = '' THEN NULL ELSE $5 END)",
-            personId, milestoneId,
-            recordedBy.empty() ? nullptr : recordedBy.c_str(),
-            dateAchieved, notes
+            std::string(MILESTONE_PERSON_SELECT) + "WHERE mp.id = $1",
+            created[0]["id"].c_str()
         );
         txn.commit();
 
-        auto dto = MilestonePersonDto::createShared();
-        dto->id        = result[0]["id"].c_str();
-        dto->createdAt = result[0]["created_at"].c_str();
-        if (!result[0]["date_achieved"].is_null()) dto->dateAchieved = result[0]["date_achieved"].c_str();
-        if (!result[0]["notes"].is_null())         dto->notes = result[0]["notes"].c_str();
-        return dto;
+        return rowToMilestonePerson(result[0]);
     }
 
-    oatpp::Any resolveRemoveMilestone(const oatpp::Any& variables) {
-        auto personId    = extractVar(variables, "personId");
-        auto milestoneId = extractVar(variables, "milestoneId");
+    oatpp::Any resolveRemoveMilestone(const Args& args, const std::string& userId) {
+        auto personId    = args.req("personId");
+        auto milestoneId = args.req("milestoneId");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+        requireShepherd(txn, userId, personId);
+
         txn.exec_params("SELECT * FROM remove_milestone($1, $2)", personId, milestoneId);
         txn.commit();
 
@@ -423,13 +317,14 @@ private:
 
     // ── Prayer Burdens ──────────────────────────────────────
 
-    oatpp::Any resolveCreatePrayerBurden(const oatpp::Any& variables) {
-        auto input    = extractInput(variables);
-        auto personId = inputField(input, "personId");
-        auto content  = inputField(input, "content");
+    oatpp::Any resolveCreatePrayerBurden(const Args& args, const std::string& userId) {
+        auto input    = args.object("input");
+        auto personId = input.req("personId");
+        auto content  = input.req("content");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+        requireShepherd(txn, userId, personId);
 
         auto result = txn.exec_params(
             "SELECT * FROM create_prayer_burden($1, $2)",
@@ -437,76 +332,76 @@ private:
         );
         txn.commit();
 
-        auto dto = PrayerBurdenDto::createShared();
-        dto->id        = result[0]["id"].c_str();
-        dto->content   = result[0]["content"].c_str();
-        dto->createdAt = result[0]["created_at"].c_str();
-        dto->updatedAt = result[0]["updated_at"].c_str();
-        return dto;
+        return rowToPrayerBurden(result[0]);
     }
 
-    oatpp::Any resolveReleasePrayerBurden(const oatpp::Any& variables) {
-        auto id = extractVar(variables, "id");
+    oatpp::Any resolveReleasePrayerBurden(const Args& args, const std::string& userId) {
+        auto id = args.req("id");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+
+        auto owner = txn.exec_params("SELECT person_id FROM prayer_burden WHERE id = $1", id);
+        if (owner.empty() || !isShepherd(txn, userId, owner[0]["person_id"].c_str())) {
+            throw NotFound("Prayer burden not found");
+        }
 
         auto result = txn.exec_params("SELECT * FROM release_prayer_burden($1)", id);
         txn.commit();
 
-        auto dto = PrayerBurdenDto::createShared();
-        dto->id           = result[0]["id"].c_str();
-        dto->content      = result[0]["content"].c_str();
-        dto->releasedDate = result[0]["released_date"].c_str();
-        dto->createdAt    = result[0]["created_at"].c_str();
-        dto->updatedAt    = result[0]["updated_at"].c_str();
-        return dto;
+        return rowToPrayerBurden(result[0]);
     }
 
     // ── Comments ────────────────────────────────────────────
 
-    oatpp::Any resolveCreateComment(const oatpp::Any& variables) {
-        auto input          = extractInput(variables);
-        auto personId       = inputField(input, "personId");
-        auto content        = inputField(input, "content");
-        auto prayerBurdenId = inputFieldOrEmpty(input, "prayerBurdenId");
-
-        // userId comes from auth context — placeholder for now
-        auto userId = extractVar(variables, "userId");
+    oatpp::Any resolveCreateComment(const Args& args, const std::string& userId) {
+        auto input          = args.object("input");
+        auto personId       = input.req("personId");
+        auto content        = input.req("content");
+        auto prayerBurdenId = input.opt("prayerBurdenId");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+        requireShepherd(txn, userId, personId);
 
-        pqxx::result result;
-        if (prayerBurdenId.empty()) {
-            result = txn.exec_params(
-                "SELECT * FROM create_comment($1, $2, $3)",
-                userId, personId, content
+        // A comment may link to a burden (business rule 5), but only to
+        // one of the same person's — never to someone else's.
+        if (prayerBurdenId) {
+            auto burden = txn.exec_params(
+                "SELECT 1 FROM prayer_burden WHERE id = $1 AND person_id = $2",
+                *prayerBurdenId, personId
             );
-        } else {
-            result = txn.exec_params(
-                "SELECT * FROM create_comment($1, $2, $3, $4)",
-                userId, personId, content, prayerBurdenId
-            );
+            if (burden.empty()) {
+                throw NotFound("Prayer burden not found");
+            }
         }
+
+        auto created = txn.exec_params(
+            "SELECT id FROM create_comment($1, $2, $3, $4::uuid)",
+            userId, personId, content, nullable(prayerBurdenId)
+        );
+
+        auto result = txn.exec_params(
+            std::string(COMMENT_SELECT) + "WHERE c.id = $1",
+            created[0]["id"].c_str()
+        );
         txn.commit();
 
-        auto dto = CommentDto::createShared();
-        dto->id        = result[0]["id"].c_str();
-        dto->content   = result[0]["content"].c_str();
-        dto->createdAt = result[0]["created_at"].c_str();
-        dto->updatedAt = result[0]["updated_at"].c_str();
-        if (!result[0]["prayer_burden_id"].is_null()) {
-            dto->prayerBurdenId = result[0]["prayer_burden_id"].c_str();
-        }
-        return dto;
+        return rowToComment(result[0]);
     }
 
-    oatpp::Any resolveDeleteComment(const oatpp::Any& variables) {
-        auto id = extractVar(variables, "id");
+    /** Only the comment's author may delete it. */
+    oatpp::Any resolveDeleteComment(const Args& args, const std::string& userId) {
+        auto id = args.req("id");
 
         PooledConnection conn(m_dbPool);
         pqxx::work txn(*conn);
+
+        auto owner = txn.exec_params("SELECT 1 FROM comment WHERE id = $1 AND user_id = $2", id, userId);
+        if (owner.empty()) {
+            throw NotFound("Comment not found");
+        }
+
         txn.exec_params("SELECT * FROM delete_comment($1)", id);
         txn.commit();
 
