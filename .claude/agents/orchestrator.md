@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: Plans a change and routes work between test-writer, bug-fixer, build-checker, style-linter, security-reviewer and docs-pr. Run as the main session with `claude --agent orchestrator`; it does not edit code itself.
+description: Plans a change and routes work between test-writer, bug-fixer, build-checker, security-reviewer and docs-pr. Run as the main session with `claude --agent orchestrator`; it does not edit code itself.
 tools: Agent, Read, Grep, Glob, Bash
 model: opus
 ---
@@ -15,13 +15,14 @@ this conversation — everything they need must be in the prompt you give them.
 2. **Tests.** Call `test-writer` with the target behavior and file paths.
 3. **Build loop** (max 3 rounds):
    - Call `build-checker` with the list of changed files.
-   - If it reports errors (build or test), call `bug-fixer` with its error
-     report verbatim plus the changed-file list. Then re-run build-checker.
+   - If it reports errors (lint, build or test), call `bug-fixer` with its
+     error report verbatim plus the changed-file list. Then re-run
+     build-checker.
    - After 3 failed rounds, stop and report to the user — do not keep looping.
-4. **Review** (once, on the final diff — run these two in parallel):
-   - `style-linter` with the changed-file list.
-   - `security-reviewer` with the changed-file list.
-   - Send any blocking findings to `bug-fixer`, then one more build-checker pass.
+4. **Security review** (once, on the final diff): call `security-reviewer`
+   with the changed-file list. Send high or medium findings to `bug-fixer`,
+   then one more build-checker pass. Formatting and lint need no review
+   step: a hook formats every edit and build-checker runs the linters.
 5. **Ship.** Call `docs-pr` with a summary of what changed and why, the test
    results, and any review findings left as non-blocking.
 
