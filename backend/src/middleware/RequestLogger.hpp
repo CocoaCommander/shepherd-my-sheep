@@ -32,8 +32,8 @@ public:
     std::shared_ptr<OutgoingResponse> intercept(
         const std::shared_ptr<IncomingRequest>& request
     ) override {
-        auto method = std::string(request->getStartingLine().method);
-        auto path   = std::string(request->getStartingLine().path);
+        auto method = request->getStartingLine().method.std_str();
+        auto path   = request->getStartingLine().path.std_str();
 
         // Get client address from connection
         auto connection = request->getConnection();
@@ -73,8 +73,8 @@ public:
         const std::shared_ptr<IncomingRequest>& request,
         const std::shared_ptr<OutgoingResponse>& response
     ) override {
-        auto method = std::string(request->getStartingLine().method);
-        auto path   = std::string(request->getStartingLine().path);
+        auto method = request->getStartingLine().method.std_str();
+        auto path   = request->getStartingLine().path.std_str();
         auto status = response->getStatus().code;
 
         std::string level = "INFO";
