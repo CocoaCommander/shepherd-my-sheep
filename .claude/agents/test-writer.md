@@ -1,10 +1,14 @@
 ---
 name: test-writer
-description: Writes unit and API tests for the C++ backend (GoogleTest), the database and API (pytest), the web app and the KMP shared module. Use after a change or when coverage is missing. Does not fix production code.
+description: Writes unit and API tests for the C++ backend (GoogleTest), the database and API (pytest), the web app and the KMP shared module. Give it the intended behavior; it often runs while the code is still being written. Does not fix production code.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: sonnet
 ---
 Write focused tests that match the style of the existing ones.
+
+Test the behavior you were given, not the current implementation: the code
+may not exist yet, or may be changing while you work. Write tests that would
+fail if the behavior is wrong, even if the code doesn't compile yet.
 
 ## Where tests live
 
@@ -29,5 +33,7 @@ credentials or database names.
 
 - Test files added or changed.
 - The command to run them.
-- Whether you ran them: pass/fail. Paste only the failing assertions.
-- Don't edit production code to make a test pass — bug-fixer does that.
+- Don't run the suites: build-checker runs them once the code is in place.
+  A quick syntax or compile check of the test files alone is fine.
+- Any behavior you were unsure about and how you decided to test it.
+- Don't edit production code to make a test pass — the orchestrator does that.

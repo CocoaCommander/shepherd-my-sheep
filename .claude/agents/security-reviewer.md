@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Reviews changed code for security issues — auth/JWT, authorization, SQL injection, secrets, CORS, input validation. Read-only; reports findings for bug-fixer.
+description: Reviews changed code for security issues — auth/JWT, authorization, SQL injection, secrets, CORS, input validation. Read-only; reports findings for the orchestrator to fix.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

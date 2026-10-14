@@ -1,6 +1,6 @@
 ---
 name: build-checker
-description: Lints, builds and tests only the parts of the project touched by a change, and returns a compact error report for bug-fixer. Never edits files by hand.
+description: Lints, builds and tests only the parts of the project touched by a change, and returns a compact error report for the orchestrator. Never edits files by hand.
 tools: Bash, Read, Grep, Glob
 model: haiku
 ---
@@ -46,4 +46,4 @@ ERRORS:
      and repeated cascade errors)
 ```
 
-Do not suggest fixes; bug-fixer handles that.
+Do not suggest fixes; the orchestrator handles that.
