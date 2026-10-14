@@ -232,8 +232,47 @@ describe('PersonPage milestones', () => {
       { mutation },
     )
     await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
+    expect(result).not.toHaveBeenCalled()
+    expect(screen.getByText('Remove this milestone?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Baptized' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     await waitFor(() => expect(refetch).toHaveBeenCalled())
+  })
+
+  it('cancelling milestone removal restores the button and sends no mutation', async () => {
+    const user = userEvent.setup()
+    const { mutation, result } = mutationMock(
+      G.RemoveMilestoneDocument,
+      { personId: PERSON_ID, milestoneId: 'ms-baptized' },
+      { removeMilestone: true },
+    )
+    const { refetch } = renderPage(
+      person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }),
+      { mutation },
+    )
+    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Remove this milestone?')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Remove Baptized' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(result).not.toHaveBeenCalled()
+    expect(refetch).not.toHaveBeenCalled()
+  })
+
+  it('shows an alert when removing a milestone fails after confirming', async () => {
+    const user = userEvent.setup()
+    const mutation = {
+      request: {
+        query: G.RemoveMilestoneDocument,
+        variables: { personId: PERSON_ID, milestoneId: 'ms-baptized' },
+      } as MockedResponse['request'],
+      result: { errors: [new GraphQLError('Cannot remove')] },
+    }
+    renderPage(person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }), { mutation })
+    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot remove')
   })
 })
 
@@ -291,8 +330,31 @@ describe('PersonPage prayer burdens', () => {
       mutation,
     })
     await user.click(await screen.findByRole('button', { name: 'Release' }))
+    expect(result).not.toHaveBeenCalled()
+    expect(screen.getByText('Release this prayer burden?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Release' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Yes, release' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     await waitFor(() => expect(refetch).toHaveBeenCalled())
+  })
+
+  it('cancelling release restores the button and sends no mutation', async () => {
+    const user = userEvent.setup()
+    const { mutation, result } = mutationMock(
+      G.ReleasePrayerBurdenDocument,
+      { id: 'b1' },
+      { releasePrayerBurden: { __typename: 'PrayerBurden', id: 'b1' } },
+    )
+    const { refetch } = renderPage(person({ prayerBurdens: [burden('b1', 'Pray for work')] }), {
+      mutation,
+    })
+    await user.click(await screen.findByRole('button', { name: 'Release' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Release this prayer burden?')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Release' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(result).not.toHaveBeenCalled()
+    expect(refetch).not.toHaveBeenCalled()
   })
 
   it('puts released burdens under a Released (n) details without Release or comment form', async () => {
@@ -426,8 +488,29 @@ describe('PersonPage deleting comments', () => {
       { mutation },
     )
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    expect(result).not.toHaveBeenCalled()
+    expect(screen.getByText('Delete this comment?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     await waitFor(() => expect(refetch).toHaveBeenCalled())
+  })
+
+  it('cancelling delete restores the button and sends no mutation', async () => {
+    const user = userEvent.setup()
+    const { mutation, result } = mutationMock(
+      G.DeleteCommentDocument,
+      { id: 'c3' },
+      { deleteComment: true },
+    )
+    const { refetch } = renderPage(person({ comments: [comment('c3', 'My note')] }), { mutation })
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByText('Delete this comment?')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(result).not.toHaveBeenCalled()
+    expect(refetch).not.toHaveBeenCalled()
   })
 
   it('deletes my comment on a burden by id', async () => {
@@ -448,6 +531,7 @@ describe('PersonPage deleting comments', () => {
       { mutation },
     )
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
   })
 })

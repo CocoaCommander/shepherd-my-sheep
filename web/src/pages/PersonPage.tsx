@@ -450,6 +450,8 @@ function RemoveMilestoneButton({
     <ActionButton
       label="Remove"
       ariaLabel={`Remove ${name}`}
+      question="Remove this milestone?"
+      confirmLabel="Yes, remove"
       loading={loading}
       error={error}
       onClick={() => removeMilestone({ variables: { personId, milestoneId } })}
@@ -465,6 +467,8 @@ function ReleaseBurdenButton({ id, personId }: { id: string; personId: string })
   return (
     <ActionButton
       label="Release"
+      question="Release this prayer burden?"
+      confirmLabel="Yes, release"
       loading={loading}
       error={error}
       onClick={() => releasePrayerBurden({ variables: { id } })}
@@ -479,6 +483,8 @@ function DeleteCommentButton({ id, personId }: { id: string; personId: string })
   return (
     <ActionButton
       label="Delete"
+      question="Delete this comment?"
+      confirmLabel="Yes, delete"
       loading={loading}
       error={error}
       onClick={() => deleteComment({ variables: { id } })}
@@ -486,38 +492,62 @@ function DeleteCommentButton({ id, personId }: { id: string; personId: string })
   )
 }
 
+/** A destructive action that asks inline before it runs; nothing happens on Cancel. */
 function ActionButton({
   label,
   ariaLabel,
+  question,
+  confirmLabel,
   loading,
   error,
   onClick,
 }: {
   label: string
   ariaLabel?: string
+  question: string
+  confirmLabel: string
   loading: boolean
   error: ApolloError | undefined
   onClick: () => Promise<unknown>
 }) {
-  async function handleClick() {
+  const [confirming, setConfirming] = useState(false)
+
+  async function handleConfirm() {
     try {
       await onClick()
     } catch {
       // Shown from the mutation's `error` below.
     }
+    setConfirming(false)
   }
 
   return (
     <span className="action">
-      <button
-        type="button"
-        className="link"
-        aria-label={ariaLabel}
-        disabled={loading}
-        onClick={handleClick}
-      >
-        {label}
-      </button>
+      {confirming ? (
+        <span className="confirm">
+          <span className="small">{question}</span>
+          <button type="button" className="link danger" disabled={loading} onClick={handleConfirm}>
+            {loading ? 'Working…' : confirmLabel}
+          </button>
+          <button
+            type="button"
+            className="link"
+            disabled={loading}
+            onClick={() => setConfirming(false)}
+          >
+            Cancel
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="link"
+          aria-label={ariaLabel}
+          onClick={() => setConfirming(true)}
+        >
+          {label}
+        </button>
+      )}
       <ErrorMessage error={error} />
     </span>
   )

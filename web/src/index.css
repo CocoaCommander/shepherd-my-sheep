@@ -215,6 +215,17 @@ button.link {
   margin-left: 8px;
 }
 
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 10px;
+}
+button.link.danger {
+  color: var(--error);
+}
+
 /* An add form inside a card, set off from the list above it. */
 .subform {
   padding-top: 12px;
