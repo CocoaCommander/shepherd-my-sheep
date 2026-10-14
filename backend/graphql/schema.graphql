@@ -8,6 +8,12 @@
 #     no prayer burdens, and no comments.
 #   - Optional scalars (no !) may be null:
 #     Comment.prayerBurden, Person.age, Person.yearMet, etc.
+#
+# Errors: every entry in errors[] carries extensions.code:
+#   UNAUTHENTICATED (also HTTP 401), NOT_FOUND (missing or not yours;
+#   deliberately indistinguishable), CONFLICT (already exists),
+#   BAD_USER_INPUT (message is safe to show), UNAVAILABLE (busy, retry),
+#   INTERNAL (generic message; details only in server logs).
 
 # ── Scalars ──────────────────────────────────────────────────
 scalar DateTime

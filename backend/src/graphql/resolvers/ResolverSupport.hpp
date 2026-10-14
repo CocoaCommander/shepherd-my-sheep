@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../models/DTOs.hpp"
+#include "../ErrorMapping.hpp"
 
 #include <pqxx/pqxx>
 
@@ -31,6 +32,12 @@ public:
     using std::runtime_error::runtime_error;
 };
 
+/** The record already exists, e.g. a taken username or a repeated milestone. */
+class Conflict : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
 /**
  * Arguments are read from the request's `variables`, keyed by argument
  * name. Clients must therefore pass every argument as a variable with
@@ -54,7 +61,7 @@ public:
     std::string req(const std::string& key) const {
         auto value = opt(key);
         if (!value) {
-            throw std::invalid_argument("Missing argument: " + key);
+            throw BadInput("Missing argument: " + key);
         }
         return *value;
     }
@@ -63,7 +70,7 @@ public:
     Args object(const std::string& key) const {
         auto value = m_obj ? lookup(key) : oatpp::Any();
         if (!value) {
-            throw std::invalid_argument("Missing argument: " + key);
+            throw BadInput("Missing argument: " + key);
         }
         return Args(asObject(value, key));
     }
@@ -82,7 +89,7 @@ private:
 
     static oatpp::Fields<oatpp::Any> asObject(const oatpp::Any& value, const std::string& name) {
         if (value.getStoredType() != oatpp::Fields<oatpp::Any>::Class::getType()) {
-            throw std::invalid_argument("Expected an object for: " + name);
+            throw BadInput("Expected an object for: " + name);
         }
         return value.retrieve<oatpp::Fields<oatpp::Any>>();
     }
@@ -120,7 +127,7 @@ private:
             if (b == nullptr) return std::nullopt;
             return *b ? "true" : "false";
         }
-        throw std::invalid_argument("Expected a scalar for: " + key);
+        throw BadInput("Expected a scalar for: " + key);
     }
 };
 

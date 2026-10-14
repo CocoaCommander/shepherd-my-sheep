@@ -6,6 +6,7 @@ import {
   useMyPeopleQuery,
   useStatusesQuery,
 } from '../generated/graphql'
+import { friendlyMessage } from '../errors'
 import { Header } from './Header'
 
 export function PeoplePage() {
@@ -20,7 +21,7 @@ export function PeoplePage() {
         {loading && <p className="muted">Loading…</p>}
         {error && (
           <p className="error" role="alert">
-            {error.message}
+            {friendlyMessage(error)}
           </p>
         )}
 
@@ -131,7 +132,7 @@ function AddPersonForm() {
       </div>
       {error && (
         <p className="error" role="alert">
-          {error.message}
+          {friendlyMessage(error)}
         </p>
       )}
       <button type="submit" disabled={loading || !selectedStatus}>

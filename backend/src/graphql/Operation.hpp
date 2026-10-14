@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ErrorMapping.hpp"
+
 #include <cctype>
 #include <stdexcept>
 #include <string>
@@ -27,7 +29,7 @@ struct ParsedOperation {
 
 class OperationParser {
 public:
-    /** Throws std::invalid_argument on anything it cannot route. */
+    /** Throws BadInput on anything it cannot route. */
     static ParsedOperation parse(const std::string& doc) {
         OperationParser p(doc);
         return p.parseDocument();
@@ -50,9 +52,9 @@ private:
             } else if (keyword == "mutation") {
                 op.type = ParsedOperation::Type::Mutation;
             } else if (keyword == "subscription") {
-                throw std::invalid_argument("Subscriptions are not supported");
+                throw BadInput("Subscriptions are not supported");
             } else {
-                throw std::invalid_argument("Expected query or mutation");
+                throw BadInput("Expected query or mutation");
             }
 
             // Skip the optional name, variable definitions and directives
@@ -72,14 +74,14 @@ private:
         }
 
         if (peek() != '{') {
-            throw std::invalid_argument("Expected a selection set");
+            throw BadInput("Expected a selection set");
         }
         ++m_pos;
 
         skipIgnored();
         auto first = readName();
         if (first.empty()) {
-            throw std::invalid_argument("Expected a root field");
+            throw BadInput("Expected a root field");
         }
 
         skipIgnored();
@@ -89,7 +91,7 @@ private:
             op.responseKey = first;
             op.field       = readName();
             if (op.field.empty()) {
-                throw std::invalid_argument("Expected a field name after alias");
+                throw BadInput("Expected a field name after alias");
             }
         } else {
             op.field       = first;
@@ -137,7 +139,7 @@ private:
             ++m_pos;
         }
         if (m_pos >= m_doc.size()) {
-            throw std::invalid_argument("Unterminated string");
+            throw BadInput("Unterminated string");
         }
         ++m_pos;  // closing quote
     }
@@ -157,6 +159,6 @@ private:
             }
             ++m_pos;
         }
-        throw std::invalid_argument(std::string("Unbalanced '") + open + "'");
+        throw BadInput(std::string("Unbalanced '") + open + "'");
     }
 };

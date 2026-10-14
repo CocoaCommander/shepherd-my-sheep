@@ -210,7 +210,11 @@ describe('edit person form', () => {
     const user = userEvent.setup()
     const failing: MockedResponse = {
       request: { query: G.UpdatePersonDocument, variables: { id: PERSON_ID, input: { age: 31 } } },
-      result: { errors: [new GraphQLError('Age is not allowed')] },
+      result: {
+        errors: [
+          new GraphQLError('Age is not allowed', { extensions: { code: 'BAD_USER_INPUT' } }),
+        ],
+      },
     }
     renderPage(person(), [failing])
     await openForm(user)

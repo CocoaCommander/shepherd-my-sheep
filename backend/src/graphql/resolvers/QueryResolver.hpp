@@ -30,7 +30,7 @@ public:
         if (field == "milestones") return resolveMilestones();
         if (field == "activePrayerBurdens") return resolveActivePrayerBurdens(args, userId);
 
-        throw std::invalid_argument("Unknown query: " + field);
+        throw BadInput("Unknown query: " + field);
     }
 
 private:

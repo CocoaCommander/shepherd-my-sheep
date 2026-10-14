@@ -74,6 +74,14 @@ def gql_error(query, variables=None, token=None):
     return body["errors"][0]["message"]
 
 
+def gql_error_full(query, variables=None, token=None):
+    """The whole first error (message, extensions) of a request that must fail with HTTP 200."""
+    status, body = post(query, variables, token)
+    assert status == 200, body
+    assert body.get("errors"), f"expected an error, got {body}"
+    return body["errors"][0]
+
+
 REGISTER = """
 mutation Register($input: RegisterInput!) {
   register(input: $input) { token user { __typename id name username } }
@@ -452,3 +460,111 @@ class TestPersonActivity:
             "recordedBy": {"id": user_id},
             "dateAchieved": "2026-04-05",
         }
+
+
+# ── Error codes ──────────────────────────────────────────────
+
+
+class TestErrorCodes:
+    def assert_clean(self, error):
+        message = error["message"]
+        assert not message.startswith("Database error"), message
+        for leak in ("violates", "constraint", "syntax", "uuid"):
+            assert leak not in message.lower(), message
+
+    def test_wrong_password_is_bad_user_input(self, make_user):
+        _, _, username = make_user()
+        error = gql_error_full(LOGIN, {"input": {"username": username, "password": "nope-nope"}})
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Invalid username or password"
+
+    def test_taken_username_is_conflict(self, make_user):
+        _, _, username = make_user()
+        error = gql_error_full(REGISTER, {"input": {"name": "X", "username": username, "password": "long-enough"}})
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == "Username is already taken"
+
+    def test_short_password_is_bad_user_input(self):
+        error = gql_error_full(REGISTER, {"input": {"name": "X", "username": "apitest_short", "password": "short"}})
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+
+    def test_duplicate_milestone_is_conflict(self, make_user, status_id, db_connection):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT id FROM milestone WHERE name = 'baptised'")
+            milestone_id = str(cur.fetchone()[0])
+        record = """mutation R($input: RecordMilestoneInput!) {
+                      recordMilestone(input: $input) { dateAchieved }
+                    }"""
+        variables = {"input": {"personId": person_id, "milestoneId": milestone_id, "dateAchieved": "2026-04-05"}}
+        gql(record, variables, token)
+        error = gql_error_full(record, variables, token)
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == "Milestone is already recorded for this person"
+
+    def test_stranger_burden_is_not_found(self, make_user, status_id):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        person_id = create_person(owner, status_id)
+        error = gql_error_full(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, stranger)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Person not found"
+
+    def test_malformed_uuid_is_bad_user_input(self, make_user):
+        token, _, _ = make_user()
+        error = gql_error_full("query P($id: UUID!) { person(id: $id) { id } }", {"id": "not-a-uuid"}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Invalid input"
+        self.assert_clean(error)
+
+    def test_update_with_unknown_status_is_not_found(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(
+            "mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }",
+            {"id": person_id, "input": {"statusId": str(uuid.uuid4())}},
+            token,
+        )
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Not found"
+        self.assert_clean(error)
+
+    def test_overlong_name_is_bad_user_input(self, make_user, status_id):
+        token, _, _ = make_user()
+        error = gql_error_full(CREATE_PERSON, {"input": {"name": "x" * 101, "statusId": status_id}}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "A value is too long"
+        self.assert_clean(error)
+
+    def test_releasing_twice_is_not_found_without_uuid(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "x"}}, token)["createPrayerBurden"][
+            "id"
+        ]
+        release = "mutation R($id: UUID!) { releasePrayerBurden(id: $id) { id } }"
+        gql(release, {"id": burden_id}, token)
+        error = gql_error_full(release, {"id": burden_id}, token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert burden_id not in error["message"]
+        self.assert_clean(error)
+
+    def test_removing_unrecorded_milestone_is_not_found(self, make_user, status_id, db_connection):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT id FROM milestone WHERE name = 'baptised'")
+            milestone_id = str(cur.fetchone()[0])
+        error = gql_error_full(
+            "mutation R($personId: UUID!, $milestoneId: UUID!) { removeMilestone(personId: $personId, milestoneId: $milestoneId) }",
+            {"personId": person_id, "milestoneId": milestone_id},
+            token,
+        )
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        self.assert_clean(error)
+
+    def test_unauthenticated_is_still_401(self):
+        status, body = post(MY_PEOPLE)
+        assert status == 401
+        assert body["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"

@@ -272,7 +272,71 @@ describe('PersonPage milestones', () => {
     renderPage(person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }), { mutation })
     await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
     await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot remove')
+    // No error code, so the friendly generic text is shown, not the raw message.
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Something went wrong. Please try again.')
+    expect(alert).not.toHaveTextContent('Cannot remove')
+  })
+
+  it('shows the NOT_FOUND sentence when the milestone was already removed elsewhere', async () => {
+    const user = userEvent.setup()
+    const mutation = {
+      request: {
+        query: G.RemoveMilestoneDocument,
+        variables: { personId: PERSON_ID, milestoneId: 'ms-baptized' },
+      } as MockedResponse['request'],
+      result: { errors: [new GraphQLError('Not found', { extensions: { code: 'NOT_FOUND' } })] },
+    }
+    renderPage(person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }), { mutation })
+    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This was changed or removed by someone else.',
+    )
+  })
+})
+
+describe('PersonPage query errors', () => {
+  function renderFailing(code: string | undefined, message: string) {
+    const mocks: MockedResponse[] = [
+      {
+        request: { query: G.PersonDocument, variables: { id: 'not-a-uuid' } },
+        result: {
+          errors: [new GraphQLError(message, code ? { extensions: { code } } : undefined)],
+        },
+      },
+      {
+        request: { query: G.MeDocument },
+        result: { data: { me: ME } },
+        maxUsageCount: Number.POSITIVE_INFINITY,
+      },
+    ]
+    render(
+      <MockedProvider mocks={mocks}>
+        <MemoryRouter initialEntries={['/people/not-a-uuid']}>
+          <Routes>
+            <Route path="/people/:id" element={<PersonPage />} />
+          </Routes>
+        </MemoryRouter>
+      </MockedProvider>,
+    )
+  }
+
+  it.each(['BAD_USER_INPUT', 'NOT_FOUND'])(
+    'shows "not found" without an alert for %s',
+    async (code) => {
+      renderFailing(code, 'Invalid input')
+      expect(await screen.findByText('This person was not found.')).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    },
+  )
+
+  it('shows the friendly message for INTERNAL, never the raw server text', async () => {
+    renderFailing('INTERNAL', 'raw server text')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Something went wrong. Please try again.')
+    expect(screen.queryByText(/raw server text/)).not.toBeInTheDocument()
+    expect(screen.queryByText('This person was not found.')).not.toBeInTheDocument()
   })
 })
 
@@ -311,7 +375,11 @@ describe('PersonPage prayer burdens', () => {
         query: G.CreatePrayerBurdenDocument,
         variables: { input: { personId: PERSON_ID, content: 'Healing' } },
       } as MockedResponse['request'],
-      result: { errors: [new GraphQLError('Not allowed to do that')] },
+      result: {
+        errors: [
+          new GraphQLError('Not allowed to do that', { extensions: { code: 'BAD_USER_INPUT' } }),
+        ],
+      },
     }
     renderPage(person(), { mutation })
     await user.type(await screen.findByLabelText('New prayer burden'), 'Healing')

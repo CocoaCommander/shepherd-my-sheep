@@ -52,7 +52,7 @@ public:
         if (field == "createComment") return resolveCreateComment(args, userId);
         if (field == "deleteComment") return resolveDeleteComment(args, userId);
 
-        throw std::invalid_argument("Unknown mutation: " + field);
+        throw BadInput("Unknown mutation: " + field);
     }
 
 private:
@@ -75,11 +75,10 @@ private:
         auto password = input.req("password");
 
         if (name.empty() || username.empty()) {
-            throw std::invalid_argument("Name and username are required");
+            throw BadInput("Name and username are required");
         }
         if (password.size() < MIN_PASSWORD_LENGTH) {
-            throw std::invalid_argument("Password must be at least " + std::to_string(MIN_PASSWORD_LENGTH)
-                                        + " characters");
+            throw BadInput("Password must be at least " + std::to_string(MIN_PASSWORD_LENGTH) + " characters");
         }
 
         // Hashed here, never in the database: a pgcrypto crypt() call would
@@ -93,7 +92,7 @@ private:
         try {
             result = txn.exec_params("SELECT * FROM create_user($1, $2, $3)", name, username, passwordHash);
         } catch (const pqxx::unique_violation&) {
-            throw std::invalid_argument("Username is already taken");
+            throw Conflict("Username is already taken");
         }
         txn.commit();
 
@@ -115,7 +114,7 @@ private:
             // Spend the same time a real verify would before failing, so
             // response latency does not reveal which usernames exist.
             PasswordHasher::dummyVerify(password);
-            throw std::runtime_error("Invalid username or password");
+            throw BadInput("Invalid username or password");
         }
 
         std::string storedHash = result[0]["password_hash"].c_str();
@@ -123,7 +122,7 @@ private:
         if (!PasswordHasher::verify(storedHash, password)) {
             // Identical message to the branch above — never distinguish
             // "no such user" from "wrong password" to the caller.
-            throw std::runtime_error("Invalid username or password");
+            throw BadInput("Invalid username or password");
         }
 
         // The plaintext is only in hand during login, so this is the one
@@ -226,7 +225,7 @@ private:
         try {
             txn.exec_params("SELECT * FROM assign_person($1, $2)", targetId, personId);
         } catch (const pqxx::unique_violation&) {
-            throw std::invalid_argument("User is already assigned to this person");
+            throw Conflict("User is already assigned to this person");
         } catch (const pqxx::foreign_key_violation&) {
             throw NotFound("User not found");
         }
@@ -270,7 +269,7 @@ private:
             created = txn.exec_params("SELECT id FROM record_milestone($1, $2, $3, $4::date, $5)", personId,
                                       milestoneId, userId, nullable(dateAchieved), nullable(notes));
         } catch (const pqxx::unique_violation&) {
-            throw std::invalid_argument("Milestone is already recorded for this person");
+            throw Conflict("Milestone is already recorded for this person");
         }
 
         auto result =
