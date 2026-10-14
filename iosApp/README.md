@@ -1,34 +1,38 @@
 # iOS App — Shepherd My Sheep
 
-## Setup
+SwiftUI for the UI; the KMP `shared` framework for models, the GraphQL
+client and the repository.
 
-The iOS app uses SwiftUI for the UI layer and the KMP `shared` framework
-for business logic and GraphQL client.
+## Running
 
-### First-time setup
+1. Install the iOS platform once: Xcode → Settings → Components → iOS.
+   Without it Xcode reports "iOS … is not installed" and won't build
+   for a device or simulator.
+2. Open `iosApp/iosApp.xcodeproj`, pick a simulator, and Run.
 
-1. Build the shared framework from the project root:
-   ```
-   ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
-   ```
+The **Compile Kotlin Framework** build phase runs
+`./gradlew :shared:embedAndSignAppleFrameworkForXcode` before the Swift
+sources compile, so Kotlin changes are picked up on every build. Gradle
+skips the work when nothing changed. `shared` is a static framework, so
+it is linked into the app binary rather than embedded.
 
-2. Open `iosApp.xcodeproj` in Xcode (or create it via KMP project wizard).
+To run on a device, set your team under Signing & Capabilities.
 
-3. Add the shared framework:
-   - In Xcode, go to target → General → Frameworks
-   - Add `shared.framework` from `shared/build/bin/iosSimulatorArm64/debugFramework/`
-
-4. Run on a simulator or device.
-
-### Project structure
+## Project structure
 
 ```
 iosApp/
-├── iosApp/
-│   ├── ShepherdApp.swift     ← App entry point
-│   └── ContentView.swift     ← Main view (SwiftUI)
+├── iosApp.xcodeproj
+├── iosApp/                   ← synced folder: new .swift files here are
+│   ├── ShepherdApp.swift       added to the target automatically
+│   └── ContentView.swift
 └── README.md
 ```
 
-The Xcode project file (`.xcodeproj`) is generated when you first set up
-the project through Android Studio's KMP wizard or manually via Xcode.
+## Calling Kotlin from Swift
+
+Top-level Kotlin functions are exported on a class named after the file
+that defines them, e.g. `getPlatform()` (actual in `Platform.ios.kt`) is
+`Platform_iosKt.getPlatform()`. Check
+`shared/build/xcode-frameworks/.../shared.framework/Headers/shared.h`
+for exact names.
