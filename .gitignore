@@ -36,3 +36,6 @@ web/src/generated/
 # Xcode per-user state
 xcuserdata/
 *.xcuserstate
+
+# `make start` web dev server pid and log
+.dev/

@@ -1,6 +1,20 @@
 # shepherd-my-sheep
 A full stack app to track progression of the ones we are caring for
 
+## Running locally
+
+Needs Docker running and a filled-in `.env` (see `CLAUDE.md`).
+
+```sh
+make start     # Postgres, the API (rebuilt) and the web dev server
+make stop      # stop all three; the database is kept
+make restart   # stop, then start; picks up backend and web changes
+make reset     # wipe the database, start fresh and load demo data
+make help      # list every target
+```
+
+The web app is at http://localhost:3000. The dev server runs in the background and logs to `.dev/web.log`.
+
 ## Sample data
 
 `db/seed` holds a hand-written demo dataset: three users (one with nobody assigned yet) and 15 people with milestones, prayer burdens and comments, covering every business rule in `CLAUDE.md`. It is opt-in and never part of the migrations.
