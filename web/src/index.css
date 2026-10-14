@@ -102,6 +102,7 @@ a {
 
 .header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
@@ -114,6 +115,21 @@ a {
   text-decoration: none;
   color: var(--text);
 }
+.nav {
+  display: flex;
+  gap: 16px;
+  margin-right: auto;
+  margin-left: 24px;
+}
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.nav a[aria-current='page'] {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .header-user {
   display: flex;
   align-items: center;

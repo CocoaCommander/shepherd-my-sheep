@@ -126,17 +126,26 @@ private:
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
 
-        auto result = txn.exec_params(std::string(PRAYER_BURDEN_SELECT)
-                                          + "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
-                                            "WHERE pb.released_date IS NULL "
-                                            "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
-                                            "ORDER BY pb.created_at DESC",
+        // Adds the person's name, so a list across people can say whose each one is.
+        auto result = txn.exec_params("SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, "
+                                      "       pb.updated_at, p.name AS person_name "
+                                      "FROM prayer_burden pb "
+                                      "JOIN person p ON p.id = pb.person_id "
+                                      "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
+                                      "WHERE pb.released_date IS NULL "
+                                      "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
+                                      "ORDER BY pb.created_at DESC",
                                       userId, nullable(personId));
         txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
         for (const auto& row : result) {
-            list->push_back(rowToPrayerBurden(row));
+            auto burden    = rowToPrayerBurden(row);
+            auto person    = PersonRefDto::createShared();
+            person->id     = row["person_id"].c_str();
+            person->name   = row["person_name"].c_str();
+            burden->person = person;
+            list->push_back(burden);
         }
         return list;
     }

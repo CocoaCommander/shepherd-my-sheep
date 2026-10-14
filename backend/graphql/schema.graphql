@@ -70,7 +70,7 @@ type MilestonePerson {
 
 type PrayerBurden {
   id: UUID!
-  person: Person!
+  person: Person!                 # only activePrayerBurdens populates this for now; elsewhere, select it from the parent person
   content: String!
   releasedDate: DateTime          # null = still active
   comments: [Comment!]!           # may be empty — burdens can exist without comments
