@@ -1,0 +1,65 @@
+erDiagram
+    status ||--o{ person : "classifies"
+
+    user ||--o{ user_person : "shepherds"
+    person ||--o{ user_person : "assigned via"
+
+    person ||--o{ milestone_person : "reaches"
+    milestone ||--o{ milestone_person : "recorded as"
+    user |o--o{ milestone_person : "recorded_by"
+
+    person ||--o{ prayer_burden : "carries"
+    person ||--o{ comment : "noted on"
+    user ||--o{ comment : "writes"
+    prayer_burden |o--o{ comment : "discussed in"
+
+    status {
+        uuid id PK
+        varchar name UK
+    }
+    milestone {
+        uuid id PK
+        varchar name UK
+        text description
+    }
+    user {
+        uuid id PK
+        varchar name
+        varchar username UK
+        varchar password_hash
+    }
+    person {
+        uuid id PK
+        varchar name
+        int age
+        int year_met
+        date last_contact_date
+        boolean is_active
+        uuid status_id FK
+    }
+    user_person {
+        uuid id PK
+        uuid user_id FK
+        uuid person_id FK
+    }
+    milestone_person {
+        uuid id PK
+        uuid person_id FK
+        uuid milestone_id FK
+        date date_achieved
+        text notes
+        uuid recorded_by FK
+    }
+    prayer_burden {
+        uuid id PK
+        uuid person_id FK
+        text content
+        timestamptz released_date
+    }
+    comment {
+        uuid id PK
+        uuid user_id FK
+        uuid person_id FK
+        uuid prayer_burden_id FK
+        text content
+    }
