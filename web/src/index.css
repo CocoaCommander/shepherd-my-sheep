@@ -226,6 +226,16 @@ button.link.danger {
   color: var(--error);
 }
 
+.facts-label {
+  margin: 0 0 4px;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.shepherds .list {
+  gap: 2px;
+}
+
 .card-actions {
   display: flex;
   flex-wrap: wrap;

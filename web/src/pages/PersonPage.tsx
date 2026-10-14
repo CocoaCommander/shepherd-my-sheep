@@ -16,6 +16,7 @@ import {
   useRemoveMilestoneMutation,
   type PersonQuery,
 } from '../generated/graphql'
+import { ActionButton } from './ActionButton'
 import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
 import { PersonDetailsCard } from './PersonDetailsCard'
@@ -73,7 +74,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
 
   return (
     <>
-      <PersonDetailsCard person={person} />
+      <PersonDetailsCard person={person} meId={meId} />
 
       <section className="card stack">
         <h2>Milestones</h2>
@@ -464,66 +465,5 @@ function DeleteCommentButton({ id, personId }: { id: string; personId: string })
       error={error}
       onClick={() => deleteComment({ variables: { id } })}
     />
-  )
-}
-
-/** A destructive action that asks inline before it runs; nothing happens on Cancel. */
-function ActionButton({
-  label,
-  ariaLabel,
-  question,
-  confirmLabel,
-  loading,
-  error,
-  onClick,
-}: {
-  label: string
-  ariaLabel?: string
-  question: string
-  confirmLabel: string
-  loading: boolean
-  error: ApolloError | undefined
-  onClick: () => Promise<unknown>
-}) {
-  const [confirming, setConfirming] = useState(false)
-
-  async function handleConfirm() {
-    try {
-      await onClick()
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-    setConfirming(false)
-  }
-
-  return (
-    <span className="action">
-      {confirming ? (
-        <span className="confirm">
-          <span className="small">{question}</span>
-          <button type="button" className="link danger" disabled={loading} onClick={handleConfirm}>
-            {loading ? 'Working…' : confirmLabel}
-          </button>
-          <button
-            type="button"
-            className="link"
-            disabled={loading}
-            onClick={() => setConfirming(false)}
-          >
-            Cancel
-          </button>
-        </span>
-      ) : (
-        <button
-          type="button"
-          className="link"
-          aria-label={ariaLabel}
-          onClick={() => setConfirming(true)}
-        >
-          {label}
-        </button>
-      )}
-      <ErrorMessage error={error} />
-    </span>
   )
 }

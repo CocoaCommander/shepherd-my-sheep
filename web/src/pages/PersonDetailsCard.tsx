@@ -1,17 +1,23 @@
 import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useApolloClient } from '@apollo/client'
 import { formatDate, todayIsoDate } from '../format'
 import {
+  MyPeopleDocument,
+  useDeletePersonMutation,
   useStatusesQuery,
+  useUnassignPersonMutation,
   useUpdatePersonMutation,
   type PersonQuery,
   type UpdatePersonInput,
 } from '../generated/graphql'
+import { ActionButton } from './ActionButton'
 import { ErrorMessage } from './ErrorMessage'
 
 type Person = NonNullable<PersonQuery['person']>
 
 /** The person's facts, with an inline form to edit them. */
-export function PersonDetailsCard({ person }: { person: Person }) {
+export function PersonDetailsCard({ person, meId }: { person: Person; meId: string | undefined }) {
   const [editing, setEditing] = useState(false)
 
   return (
@@ -36,13 +42,14 @@ export function PersonDetailsCard({ person }: { person: Person }) {
               value={person.lastContactDate && formatDate(person.lastContactDate)}
             />
             <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
-            <Fact label="Shepherds" value={person.shepherds.map((s) => s.name).join(', ')} />
           </dl>
+          <Shepherds person={person} meId={meId} />
           <div className="card-actions">
             <ContactedTodayButton person={person} />
             <button type="button" className="link" onClick={() => setEditing(true)}>
               Edit details
             </button>
+            <DeletePersonButton person={person} />
           </div>
         </>
       )}
@@ -62,6 +69,116 @@ function Fact({ label, value }: { label: string; value: string | number | null |
         )}
       </dd>
     </div>
+  )
+}
+
+const reloadMyPeople = { refetchQueries: [{ query: MyPeopleDocument }] }
+
+/**
+ * For leaving this page for good: the person is gone, or no longer ours.
+ * Navigates first, then drops them from the cache, so this page doesn't
+ * refetch them on the way out and Back doesn't show stale details.
+ */
+function useLeavePerson(personId: string) {
+  const navigate = useNavigate()
+  const client = useApolloClient()
+  return () => {
+    navigate('/')
+    client.cache.evict({ id: client.cache.identify({ __typename: 'Person', id: personId }) })
+    client.cache.gc()
+  }
+}
+
+/**
+ * Any shepherd may remove another, or step back themselves, but the API
+ * refuses to remove the last one, so with a single shepherd there is nothing
+ * to offer here; deleting the person is the way out.
+ */
+function Shepherds({ person, meId }: { person: Person; meId: string | undefined }) {
+  const canRemove = person.shepherds.length > 1
+
+  return (
+    <div className="shepherds">
+      <h3 className="facts-label">Shepherds</h3>
+      <ul className="list">
+        {person.shepherds.map((s) => (
+          <li key={s.id} className="item-head">
+            <span>
+              {s.name}
+              {s.id === meId && <span className="muted"> (you)</span>}
+            </span>
+            {canRemove &&
+              (s.id === meId ? (
+                <StopShepherdingButton person={person} meId={meId} />
+              ) : (
+                <RemoveShepherdButton personId={person.id} shepherd={s} />
+              ))}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function RemoveShepherdButton({
+  personId,
+  shepherd,
+}: {
+  personId: string
+  shepherd: Person['shepherds'][number]
+}) {
+  // The result's shepherds list is merged into the cached person.
+  const [unassignPerson, { loading, error }] = useUnassignPersonMutation()
+
+  return (
+    <ActionButton
+      label="Remove"
+      ariaLabel={`Remove ${shepherd.name} as shepherd`}
+      question={`Remove ${shepherd.name} as a shepherd?`}
+      confirmLabel="Yes, remove"
+      loading={loading}
+      error={error}
+      onClick={() => unassignPerson({ variables: { personId, userId: shepherd.id } })}
+    />
+  )
+}
+
+function StopShepherdingButton({ person, meId }: { person: Person; meId: string }) {
+  const leave = useLeavePerson(person.id)
+  const [unassignPerson, { loading, error }] = useUnassignPersonMutation(reloadMyPeople)
+
+  return (
+    <ActionButton
+      label="Stop shepherding"
+      question={`Stop shepherding ${person.name}? They'll be removed from your list.`}
+      confirmLabel="Yes, stop"
+      loading={loading}
+      error={error}
+      onClick={async () => {
+        await unassignPerson({ variables: { personId: person.id, userId: meId } })
+        leave()
+      }}
+    />
+  )
+}
+
+function DeletePersonButton({ person }: { person: Person }) {
+  const leave = useLeavePerson(person.id)
+  const [deletePerson, { loading, error }] = useDeletePersonMutation(reloadMyPeople)
+
+  return (
+    <ActionButton
+      label="Delete person"
+      danger
+      question={`Delete ${person.name}? This removes them, their milestones, prayer burdens and notes for every shepherd. It can't be undone.`}
+      confirmLabel="Yes, delete"
+      loading={loading}
+      error={error}
+      onClick={async () => {
+        await deletePerson({ variables: { id: person.id } })
+        leave()
+      }}
+    />
   )
 }
 

@@ -235,14 +235,29 @@ private:
         return person;
     }
 
-    /** Any current shepherd may remove a shepherd, including themselves. */
+    /**
+     * Any current shepherd may remove a shepherd, including themselves, but
+     * never the last one: a person with no shepherds is visible to no one.
+     */
     oatpp::Any resolveUnassignPerson(const Args& args, const std::string& userId) {
         auto personId = args.req("personId");
         auto targetId = args.req("userId");
 
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
+
+        // Locking the person serialises concurrent unassigns, so two
+        // shepherds removing each other can't both pass the count below. It
+        // comes first so the shepherd check sees any removal of the caller
+        // that committed while we waited.
+        txn.exec_params("SELECT 1 FROM person WHERE id = $1 FOR UPDATE", personId);
         requireShepherd(txn, userId, personId);
+        auto shepherds = txn.exec_params("SELECT count(*) FROM user_person WHERE person_id = $1", personId);
+        auto target =
+            txn.exec_params("SELECT 1 FROM user_person WHERE person_id = $1 AND user_id = $2", personId, targetId);
+        if (!target.empty() && shepherds[0][0].as<int>() <= 1) {
+            throw BadInput("A person needs at least one shepherd. Delete them instead.");
+        }
 
         txn.exec_params("SELECT * FROM unassign_person($1, $2)", targetId, personId);
 

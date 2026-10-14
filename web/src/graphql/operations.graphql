@@ -153,3 +153,19 @@ mutation UpdatePerson($id: UUID!, $input: UpdatePersonInput!) {
     ...PersonSummary
   }
 }
+
+# Removes the person for every shepherd, with their milestones, burdens and
+# comments.
+mutation DeletePerson($id: UUID!) {
+  deletePerson(id: $id)
+}
+
+mutation UnassignPerson($personId: UUID!, $userId: UUID!) {
+  unassignPerson(personId: $personId, userId: $userId) {
+    id
+    shepherds {
+      id
+      name
+    }
+  }
+}
