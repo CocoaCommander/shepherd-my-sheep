@@ -7,12 +7,11 @@ A full stack app to track progression of the ones we are caring for
 
 ```sh
 pip install -r tests/requirements.txt
-docker compose up -d db
-set -a; source .env; set +a      # needs SEED_USER_PASSWORD
-python -m db.seed                # --reset to reload
+make seed      # starts the db and loads demo data; needs SEED_USER_PASSWORD in .env
+make reseed    # wipe and reload
 ```
 
-Then log in as `demo_shepherd`, `demo_coleader` or `demo_newuser` with `SEED_USER_PASSWORD`. Tests get the same data through the `seeded_db` fixture, inside their rollback.
+Then log in as `demo_shepherd`, `demo_coleader` or `demo_newuser` with `SEED_USER_PASSWORD`. Tests get the same data through the `seeded_db` fixture, inside their rollback. `make test` runs the suite with `.env` loaded (`make test-seed` for just the seed tests).
 
 ## Linting
 
