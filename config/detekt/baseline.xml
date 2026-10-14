@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>MagicNumber:ApolloShepherdRepository.kt:ApolloShepherdRepository$401</ID>
+    <ID>ModifierMissing:MainActivity.kt:@Composable fun ShepherdApp</ID>
+    <ID>ThrowsCount:ApolloShepherdRepository.kt:ApolloShepherdRepository$private suspend fun &lt;D : Operation.Data&gt; execute: D</ID>
+    <ID>TooManyFunctions:ApolloShepherdRepository.kt:ApolloShepherdRepository : ShepherdRepository</ID>
+    <ID>TooManyFunctions:ShepherdRepository.kt:ShepherdRepository</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -20,15 +20,14 @@
  */
 class QueryResolver {
 public:
-    explicit QueryResolver(std::shared_ptr<DatabasePool> dbPool)
-        : m_dbPool(std::move(dbPool)) {}
+    explicit QueryResolver(std::shared_ptr<DatabasePool> dbPool) : m_dbPool(std::move(dbPool)) {}
 
     oatpp::Any resolve(const std::string& field, const Args& args, const std::string& userId) {
-        if (field == "me")                  return resolveMe(userId);
-        if (field == "myPeople")            return resolveMyPeople(userId);
-        if (field == "person")              return resolvePerson(args, userId);
-        if (field == "statuses")            return resolveStatuses();
-        if (field == "milestones")          return resolveMilestones();
+        if (field == "me") return resolveMe(userId);
+        if (field == "myPeople") return resolveMyPeople(userId);
+        if (field == "person") return resolvePerson(args, userId);
+        if (field == "statuses") return resolveStatuses();
+        if (field == "milestones") return resolveMilestones();
         if (field == "activePrayerBurdens") return resolveActivePrayerBurdens(args, userId);
 
         throw std::invalid_argument("Unknown query: " + field);
@@ -39,7 +38,7 @@ private:
 
     oatpp::Any resolveMe(const std::string& userId) {
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         auto result = txn.exec_params(std::string(USER_SELECT) + "WHERE u.id = $1", userId);
         txn.commit();
@@ -53,14 +52,14 @@ private:
 
     oatpp::Any resolveStatuses() {
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         auto result = txn.exec("SELECT id, name FROM status ORDER BY name");
         txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<StatusDto>>::createShared();
         for (const auto& row : result) {
-            auto dto = StatusDto::createShared();
+            auto dto  = StatusDto::createShared();
             dto->id   = row["id"].c_str();
             dto->name = row["name"].c_str();
             list->push_back(dto);
@@ -70,14 +69,14 @@ private:
 
     oatpp::Any resolveMilestones() {
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         auto result = txn.exec("SELECT id, name, description FROM milestone ORDER BY name");
         txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<MilestoneDto>>::createShared();
         for (const auto& row : result) {
-            auto dto = MilestoneDto::createShared();
+            auto dto         = MilestoneDto::createShared();
             dto->id          = row["id"].c_str();
             dto->name        = row["name"].c_str();
             dto->description = textOrNull(row["description"]);
@@ -91,7 +90,7 @@ private:
         auto personId = args.req("id");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
         if (!isShepherd(txn, userId, personId)) {
             return oatpp::Any();
@@ -104,15 +103,13 @@ private:
     /** May be empty — a new user has no one assigned (business rule 1). */
     oatpp::Any resolveMyPeople(const std::string& userId) {
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
-        auto result = txn.exec_params(
-            std::string(PERSON_SELECT)
-            + "JOIN user_person up ON up.person_id = p.id "
-              "WHERE up.user_id = $1 "
-              "ORDER BY p.name",
-            userId
-        );
+        auto result = txn.exec_params(std::string(PERSON_SELECT)
+                                          + "JOIN user_person up ON up.person_id = p.id "
+                                            "WHERE up.user_id = $1 "
+                                            "ORDER BY p.name",
+                                      userId);
         txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<PersonDto>>::createShared();
@@ -127,16 +124,14 @@ private:
         auto personId = args.opt("personId");
 
         PooledConnection conn(m_dbPool);
-        pqxx::work txn(*conn);
+        pqxx::work       txn(*conn);
 
-        auto result = txn.exec_params(
-            std::string(PRAYER_BURDEN_SELECT)
-            + "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
-              "WHERE pb.released_date IS NULL "
-              "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
-              "ORDER BY pb.created_at DESC",
-            userId, nullable(personId)
-        );
+        auto result = txn.exec_params(std::string(PRAYER_BURDEN_SELECT)
+                                          + "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
+                                            "WHERE pb.released_date IS NULL "
+                                            "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
+                                            "ORDER BY pb.created_at DESC",
+                                      userId, nullable(personId));
         txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();

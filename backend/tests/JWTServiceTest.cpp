@@ -19,7 +19,7 @@ TEST(JWTService, RoundTripsSubject) {
 
 TEST(JWTService, IssuedTokenCarriesIssuerAndExpiry) {
     JWTService jwt(SECRET, ISSUER, 60);
-    auto decoded = jwt::decode(jwt.issue("user-123"));
+    auto       decoded = jwt::decode(jwt.issue("user-123"));
     EXPECT_EQ(decoded.get_issuer(), ISSUER);
     EXPECT_EQ(decoded.get_algorithm(), "HS256");
 
@@ -29,14 +29,14 @@ TEST(JWTService, IssuedTokenCarriesIssuerAndExpiry) {
 
 TEST(JWTService, RejectsExpiredToken) {
     JWTService jwt(SECRET, ISSUER, 60);
-    auto past = std::chrono::system_clock::now() - std::chrono::hours(2);
-    auto token = jwt::create()
-        .set_type("JWT")
-        .set_issuer(ISSUER)
-        .set_subject("user-123")
-        .set_issued_at(past)
-        .set_expires_at(past + std::chrono::seconds(60))
-        .sign(jwt::algorithm::hs256{SECRET});
+    auto       past  = std::chrono::system_clock::now() - std::chrono::hours(2);
+    auto       token = jwt::create()
+                     .set_type("JWT")
+                     .set_issuer(ISSUER)
+                     .set_subject("user-123")
+                     .set_issued_at(past)
+                     .set_expires_at(past + std::chrono::seconds(60))
+                     .sign(jwt::algorithm::hs256{SECRET});
     EXPECT_ANY_THROW(jwt.verify(token));
 }
 
@@ -55,26 +55,25 @@ TEST(JWTService, RejectsWrongSecret) {
 // alg:none tokens must never be trusted, even with valid claims.
 TEST(JWTService, RejectsUnsignedToken) {
     JWTService jwt(SECRET, ISSUER, 60);
-    auto now = std::chrono::system_clock::now();
-    auto token = jwt::create()
-        .set_type("JWT")
-        .set_issuer(ISSUER)
-        .set_subject("user-123")
-        .set_issued_at(now)
-        .set_expires_at(now + std::chrono::seconds(60))
-        .sign(jwt::algorithm::none{});
+    auto       now   = std::chrono::system_clock::now();
+    auto       token = jwt::create()
+                     .set_type("JWT")
+                     .set_issuer(ISSUER)
+                     .set_subject("user-123")
+                     .set_issued_at(now)
+                     .set_expires_at(now + std::chrono::seconds(60))
+                     .sign(jwt::algorithm::none{});
     EXPECT_ANY_THROW(jwt.verify(token));
 }
 
 TEST(JWTService, RejectsTamperedPayload) {
     JWTService jwt(SECRET, ISSUER, 60);
-    auto token = jwt.issue("user-123");
-    auto firstDot  = token.find('.');
-    auto secondDot = token.find('.', firstDot + 1);
+    auto       token     = jwt.issue("user-123");
+    auto       firstDot  = token.find('.');
+    auto       secondDot = token.find('.', firstDot + 1);
 
-    auto forgedPayload = jwt::base::trim<jwt::alphabet::base64url>(
-        jwt::base::encode<jwt::alphabet::base64url>(
-            R"({"iss":"shepherd-test","sub":"someone-else","exp":9999999999})"));
+    auto forgedPayload = jwt::base::trim<jwt::alphabet::base64url>(jwt::base::encode<jwt::alphabet::base64url>(
+        R"({"iss":"shepherd-test","sub":"someone-else","exp":9999999999})"));
 
     auto forged = token.substr(0, firstDot + 1) + forgedPayload + token.substr(secondDot);
     EXPECT_ANY_THROW(jwt.verify(forged));

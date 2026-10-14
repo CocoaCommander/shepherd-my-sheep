@@ -8,10 +8,14 @@ export function Header() {
 
   return (
     <header className="header">
-      <Link to="/" className="brand">Shepherd My Sheep</Link>
+      <Link to="/" className="brand">
+        Shepherd My Sheep
+      </Link>
       <div className="header-user">
         {data && <span className="muted">{data.me.name}</span>}
-        <button type="button" className="link" onClick={signOut}>Sign out</button>
+        <button type="button" className="link" onClick={signOut}>
+          Sign out
+        </button>
       </div>
     </header>
   )

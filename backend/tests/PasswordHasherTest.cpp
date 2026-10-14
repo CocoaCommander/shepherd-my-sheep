@@ -30,10 +30,9 @@ TEST(PasswordHasher, CurrentHashDoesNotNeedRehash) {
 
 TEST(PasswordHasher, WeakerHashNeedsRehash) {
     char weak[crypto_pwhash_STRBYTES];
-    ASSERT_EQ(crypto_pwhash_str_alg(weak, "pw", 2,
-                                    crypto_pwhash_OPSLIMIT_MIN,
-                                    crypto_pwhash_MEMLIMIT_MIN,
-                                    crypto_pwhash_ALG_ARGON2ID13), 0);
+    ASSERT_EQ(crypto_pwhash_str_alg(weak, "pw", 2, crypto_pwhash_OPSLIMIT_MIN, crypto_pwhash_MEMLIMIT_MIN,
+                                    crypto_pwhash_ALG_ARGON2ID13),
+              0);
     EXPECT_TRUE(PasswordHasher::needsRehash(weak));
     EXPECT_TRUE(PasswordHasher::needsRehash(""));
 }

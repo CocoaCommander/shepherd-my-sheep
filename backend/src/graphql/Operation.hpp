@@ -35,7 +35,7 @@ public:
 
 private:
     const std::string& m_doc;
-    size_t m_pos = 0;
+    size_t             m_pos = 0;
 
     explicit OperationParser(const std::string& doc) : m_doc(doc) {}
 
@@ -87,12 +87,12 @@ private:
             ++m_pos;
             skipIgnored();
             op.responseKey = first;
-            op.field = readName();
+            op.field       = readName();
             if (op.field.empty()) {
                 throw std::invalid_argument("Expected a field name after alias");
             }
         } else {
-            op.field = first;
+            op.field       = first;
             op.responseKey = first;
         }
 
@@ -110,7 +110,8 @@ private:
             if (std::isspace(static_cast<unsigned char>(c)) || c == ',') {
                 ++m_pos;
             } else if (c == '#') {
-                while (m_pos < m_doc.size() && m_doc[m_pos] != '\n') ++m_pos;
+                while (m_pos < m_doc.size() && m_doc[m_pos] != '\n')
+                    ++m_pos;
             } else {
                 break;
             }
@@ -119,8 +120,7 @@ private:
 
     std::string readName() {
         size_t start = m_pos;
-        if (m_pos < m_doc.size()
-            && (std::isalpha(static_cast<unsigned char>(m_doc[m_pos])) || m_doc[m_pos] == '_')) {
+        if (m_pos < m_doc.size() && (std::isalpha(static_cast<unsigned char>(m_doc[m_pos])) || m_doc[m_pos] == '_')) {
             ++m_pos;
             while (m_pos < m_doc.size()
                    && (std::isalnum(static_cast<unsigned char>(m_doc[m_pos])) || m_doc[m_pos] == '_')) {

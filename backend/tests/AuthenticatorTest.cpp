@@ -37,7 +37,7 @@ TEST(ExtractBearerToken, RejectsMissingOrOtherSchemes) {
 
 TEST(Authenticate, ReturnsSubjectOfValidToken) {
     JWTService jwt(SECRET, ISSUER, 60);
-    auto token = jwt.issue("user-123");
+    auto       token = jwt.issue("user-123");
     EXPECT_EQ(makeAuthenticator().authenticate("Bearer " + token), "user-123");
 }
 

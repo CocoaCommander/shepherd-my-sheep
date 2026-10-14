@@ -1,16 +1,25 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
-    alias(libs.plugins.android.library)
+    // AGP 9: KMP modules use this plugin, not com.android.library.
+    alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.apollo)
 }
 
 kotlin {
-    androidTarget()
+    android {
+        namespace = "com.shepherdmysheep.shared"
+        compileSdk = 37
+        minSdk = 26
+
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
 
     listOf(
         iosX64(),
         iosArm64(),
-        iosSimulatorArm64()
+        iosSimulatorArm64(),
     ).forEach { target ->
         target.binaries.framework {
             baseName = "shared"
@@ -33,20 +42,6 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
-    }
-}
-
-android {
-    namespace = "com.shepherdmysheep.shared"
-    compileSdk = 37
-
-    defaultConfig {
-        minSdk = 26
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

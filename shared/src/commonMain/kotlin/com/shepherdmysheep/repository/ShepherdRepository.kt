@@ -26,7 +26,15 @@ interface ShepherdRepository {
     suspend fun getMyPeople(): List<Person>
     suspend fun getPerson(id: String): Person?
     suspend fun createPerson(name: String, statusId: String, age: Int? = null, yearMet: Int? = null): Person
-    suspend fun updatePerson(id: String, name: String? = null, age: Int? = null, yearMet: Int? = null, lastContactDate: String? = null, isActive: Boolean? = null, statusId: String? = null): Person
+    suspend fun updatePerson(
+        id: String,
+        name: String? = null,
+        age: Int? = null,
+        yearMet: Int? = null,
+        lastContactDate: String? = null,
+        isActive: Boolean? = null,
+        statusId: String? = null,
+    ): Person
     suspend fun deletePerson(id: String): Boolean
     suspend fun assignPerson(personId: String, userId: String): Person
     suspend fun unassignPerson(personId: String, userId: String): Person
@@ -36,7 +44,12 @@ interface ShepherdRepository {
     suspend fun getMilestones(): List<Milestone>
 
     // Milestones
-    suspend fun recordMilestone(personId: String, milestoneId: String, dateAchieved: String? = null, notes: String? = null): MilestonePerson
+    suspend fun recordMilestone(
+        personId: String,
+        milestoneId: String,
+        dateAchieved: String? = null,
+        notes: String? = null,
+    ): MilestonePerson
     suspend fun removeMilestone(personId: String, milestoneId: String): Boolean
 
     // Prayer Burdens

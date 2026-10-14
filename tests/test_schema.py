@@ -3,9 +3,8 @@ Tests for the PostgreSQL schema — seed data, constraints, triggers.
 Uses raw SQL for structural checks (these don't go through app logic).
 """
 
-import pytest
 import psycopg2
-
+import pytest
 
 # ── Helpers ──────────────────────────────────────────────────
 
@@ -78,9 +77,7 @@ class TestUpdatedAtTrigger:
     def test_prayer_burden_updated_at_on_release(self, db):
         with db.cursor() as cur:
             status_id = get_status_id(cur)
-            cur.execute(
-                "SELECT * FROM create_person(%s, %s)", ("Burden Test", status_id)
-            )
+            cur.execute("SELECT * FROM create_person(%s, %s)", ("Burden Test", status_id))
             person_id = cur.fetchone()[0]
 
             cur.execute(
@@ -92,9 +89,7 @@ class TestUpdatedAtTrigger:
             original = row[4]  # created_at
 
             cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
-            cur.execute(
-                "SELECT updated_at FROM prayer_burden WHERE id = %s", (burden_id,)
-            )
+            cur.execute("SELECT updated_at FROM prayer_burden WHERE id = %s", (burden_id,))
             updated = cur.fetchone()[0]
 
             assert updated >= original

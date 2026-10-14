@@ -9,13 +9,7 @@ package com.shepherdmysheep.models
  * on the networking library directly.
  */
 
-data class User(
-    val id: String,
-    val name: String,
-    val username: String,
-    val createdAt: String,
-    val updatedAt: String
-)
+data class User(val id: String, val name: String, val username: String, val createdAt: String, val updatedAt: String)
 
 data class Person(
     val id: String,
@@ -28,19 +22,12 @@ data class Person(
     val shepherds: List<User> = emptyList(),
     val milestones: List<MilestonePerson> = emptyList(),
     val prayerBurdens: List<PrayerBurden> = emptyList(),
-    val comments: List<Comment> = emptyList()
+    val comments: List<Comment> = emptyList(),
 )
 
-data class Status(
-    val id: String,
-    val name: String
-)
+data class Status(val id: String, val name: String)
 
-data class Milestone(
-    val id: String,
-    val name: String,
-    val description: String? = null
-)
+data class Milestone(val id: String, val name: String, val description: String? = null)
 
 data class MilestonePerson(
     val id: String,
@@ -48,7 +35,7 @@ data class MilestonePerson(
     val dateAchieved: String? = null,
     val notes: String? = null,
     val recordedBy: User? = null,
-    val createdAt: String
+    val createdAt: String,
 )
 
 data class PrayerBurden(
@@ -57,7 +44,7 @@ data class PrayerBurden(
     val releasedDate: String? = null,
     val comments: List<Comment> = emptyList(),
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
 )
 
 data class Comment(
@@ -66,10 +53,7 @@ data class Comment(
     val prayerBurdenId: String? = null,
     val content: String,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
 )
 
-data class AuthPayload(
-    val token: String,
-    val user: User
-)
+data class AuthPayload(val token: String, val user: User)

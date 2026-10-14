@@ -33,11 +33,9 @@ public:
             return std::nullopt;
         }
 
-        bool schemeMatches = std::equal(
-            scheme.begin(), scheme.end(), header.begin(),
-            [](char a, char b) {
-                return a == std::tolower(static_cast<unsigned char>(b));
-            });
+        bool schemeMatches = std::equal(scheme.begin(), scheme.end(), header.begin(), [](char a, char b) {
+            return a == std::tolower(static_cast<unsigned char>(b));
+        });
         if (!schemeMatches || header[scheme.size()] != ' ') {
             return std::nullopt;
         }

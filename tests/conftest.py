@@ -6,8 +6,9 @@ runs the migration, and provides a clean DB for each test.
 """
 
 import os
-import pytest
+
 import psycopg2
+import pytest
 
 REQUIRED_ENV = ["POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"]
 _missing = [v for v in REQUIRED_ENV if not os.getenv(v)]
@@ -26,25 +27,19 @@ MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "..", "db", "migrations
 @pytest.fixture(scope="session")
 def db_connection():
     """Single connection for the entire test session. Runs migrations if needed."""
-    conn = psycopg2.connect(
-        host=DB_HOST, port=DB_PORT, dbname=DB_NAME, user=DB_USER, password=DB_PASS
-    )
+    conn = psycopg2.connect(host=DB_HOST, port=DB_PORT, dbname=DB_NAME, user=DB_USER, password=DB_PASS)
     conn.autocommit = True
 
     # Check if schema already exists (docker-compose mounts migrations into initdb.d)
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'status')"
-        )
+        cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'status')")
         schema_exists = cur.fetchone()[0]
 
     if not schema_exists:
-        migration_files = sorted(
-            f for f in os.listdir(MIGRATIONS_DIR) if f.endswith(".sql")
-        )
+        migration_files = sorted(f for f in os.listdir(MIGRATIONS_DIR) if f.endswith(".sql"))
         for filename in migration_files:
             filepath = os.path.join(MIGRATIONS_DIR, filename)
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 with conn.cursor() as cur:
                     cur.execute(f.read())
 
