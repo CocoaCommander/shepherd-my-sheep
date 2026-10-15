@@ -78,6 +78,15 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - Add `searchUsers` to the operations and repository.
   - Fetch `person { id name }` on `activePrayerBurdens` for the prayer list.
   - Add tests (the module has none).
+- [ ] **Dev logs, watchable live on local.** Logs are split today: the API
+  (`backend/src/middleware/RequestLogger.hpp`) goes to `docker compose logs
+  api`, the web dev server to `$(WEB_LOG)` from `make start`, Postgres to
+  its container. Add support for dev logs and a way to watch them as
+  they're generated.
+  - [ ] Add a `make logs` target that follows API, web and Postgres
+    together, labelled by source.
+  - [ ] Decide on log levels (DEBUG in dev, INFO otherwise) set by an env
+    var, and whether to write to a file under the dev dir.
 
 ## Mobile apps
 
