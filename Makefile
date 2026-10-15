@@ -7,10 +7,18 @@ DEV_DIR := .dev
 WEB_PID := $(DEV_DIR)/web.pid
 WEB_LOG := $(DEV_DIR)/web.log
 
-.PHONY: help start stop restart reset db seed reseed test test-seed
+.PHONY: help deps check-deps start stop restart reset db seed reseed test test-seed
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
+
+deps: ## install the Python packages the seed script and tests need
+	python3 -m pip install -r tests/requirements.txt
+
+# Fails fast, before anything is wiped, if the seed/test packages are missing.
+check-deps:
+	@python3 -c "import nacl, psycopg2, pytest" 2>/dev/null || \
+		{ echo "Missing Python packages for $$(command -v python3); run: make deps"; exit 1; }
 
 start: ## start Postgres, the API (rebuilt) and the web dev server
 	docker compose up -d --build --wait
@@ -38,7 +46,7 @@ stop: ## stop the web dev server, the API and Postgres (data is kept)
 
 restart: stop start ## stop, then start (picks up backend and web changes)
 
-reset: ## wipe the database, start everything fresh and load demo data
+reset: check-deps ## wipe the database, start everything fresh and load demo data
 	@$(MAKE) --no-print-directory stop
 	docker compose down -v
 	@$(MAKE) --no-print-directory start
@@ -47,14 +55,14 @@ reset: ## wipe the database, start everything fresh and load demo data
 db: ## start Postgres
 	docker compose up -d --wait db
 
-seed: db ## load demo data into the dev DB
+seed: check-deps db ## load demo data into the dev DB
 	$(ENV) python3 -m db.seed
 
-reseed: db ## wipe and reload demo data
+reseed: check-deps db ## wipe and reload demo data
 	$(ENV) python3 -m db.seed --reset
 
-test: ## run the pytest suite
+test: check-deps ## run the pytest suite
 	$(ENV) python3 -m pytest tests/
 
-test-seed: ## run only the seed-data tests
+test-seed: check-deps ## run only the seed-data tests
 	$(ENV) python3 -m pytest tests/test_seed.py

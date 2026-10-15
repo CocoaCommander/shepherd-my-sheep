@@ -6,6 +6,7 @@ A full stack app to track progression of the ones we are caring for
 Needs Docker running and a filled-in `.env` (see `CLAUDE.md`).
 
 ```sh
+make deps      # one-time: Python packages for the seed script and tests
 make start     # Postgres, the API (rebuilt) and the web dev server
 make stop      # stop all three; the database is kept
 make restart   # stop, then start; picks up backend and web changes
@@ -20,7 +21,6 @@ The web app is at http://localhost:3000. The dev server runs in the background a
 `db/seed` holds a hand-written demo dataset: three users (one with nobody assigned yet) and 15 people with milestones, prayer burdens and comments, covering every business rule in `CLAUDE.md`. It is opt-in and never part of the migrations.
 
 ```sh
-pip install -r tests/requirements.txt
 make seed      # starts the db and loads demo data; needs SEED_USER_PASSWORD in .env
 make reseed    # wipe and reload
 ```
