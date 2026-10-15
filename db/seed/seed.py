@@ -67,15 +67,19 @@ def seed(conn, password_hash, username_prefix=DEMO_PREFIX):
             person_id = cur.fetchone()[0]
             ids.people[p.key] = person_id
 
-            # create_person doesn't take these; update_person ignores NULLs.
-            last_contact = _days_ago(p.last_contact_days_ago) if p.last_contact_days_ago is not None else None
-            cur.execute(
-                "SELECT update_person(p_id => %s, p_last_contact_date => %s, p_is_active => %s)",
-                (person_id, last_contact, p.is_active),
-            )
+            # create_person doesn't take this; update_person ignores NULLs.
+            cur.execute("SELECT update_person(p_id => %s, p_is_active => %s)", (person_id, p.is_active))
 
             for shepherd in p.shepherds:
                 cur.execute("SELECT assign_person(%s, %s)", (ids.users[shepherd], person_id))
+
+            # Logged by the first shepherd. Fractional days are allowed so the
+            # demo can sit between the contact-rule boundaries (dataset.py).
+            if p.last_contact_days_ago is not None:
+                cur.execute(
+                    "SELECT log_contact(%s, %s, now() - %s * interval '1 day')",
+                    (person_id, ids.users[p.shepherds[0]], p.last_contact_days_ago),
+                )
 
         for m in dataset.MILESTONES:
             cur.execute(

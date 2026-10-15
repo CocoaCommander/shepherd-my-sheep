@@ -51,6 +51,8 @@ public:
         if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
         if (field == "createComment") return resolveCreateComment(args, userId);
         if (field == "deleteComment") return resolveDeleteComment(args, userId);
+        if (field == "logContact") return resolveLogContact(args, userId);
+        if (field == "deleteContact") return resolveDeleteContact(args, userId);
 
         throw BadInput("Unknown mutation: " + field);
     }
@@ -172,7 +174,10 @@ private:
         return person;
     }
 
-    /** Only the fields present in `input` change. */
+    /**
+     * Only the fields present in `input` change. The deprecated
+     * `lastContactDate` logs a contact on that date for older clients.
+     */
     oatpp::Any resolveUpdatePerson(const Args& args, const std::string& userId) {
         auto id    = args.req("id");
         auto input = args.object("input");
@@ -186,12 +191,15 @@ private:
                         "p_name              := $2::varchar, "
                         "p_age               := $3::int, "
                         "p_year_met          := $4::int, "
-                        "p_last_contact_date := $5::date, "
-                        "p_is_active         := $6::boolean, "
-                        "p_status_id         := $7::uuid)",
+                        "p_is_active         := $5::boolean, "
+                        "p_status_id         := $6::uuid)",
                         id, nullable(input.opt("name")), nullable(input.opt("age")), nullable(input.opt("yearMet")),
-                        nullable(input.opt("lastContactDate")), nullable(input.opt("isActive")),
-                        nullable(input.opt("statusId")));
+                        nullable(input.opt("isActive")), nullable(input.opt("statusId")));
+
+        if (auto lastContactDate = input.opt("lastContactDate")) {
+            txn.exec_params("SELECT * FROM log_contact($1::uuid, $2::uuid, $3::date::timestamptz)", id, userId,
+                            *lastContactDate);
+        }
 
         auto person = fetchPersonDetail(txn, id);
         txn.commit();
@@ -389,5 +397,52 @@ private:
         txn.commit();
 
         return oatpp::Boolean(true);
+    }
+
+    // ── Contacts ────────────────────────────────────────────
+
+    /**
+     * Records that the caller made contact (business rule 6). A follow-up
+     * on a 'new contact' moves them to 'active' in the same transaction.
+     * Returns the person so the client gets the new contact state.
+     */
+    oatpp::Any resolveLogContact(const Args& args, const std::string& userId) {
+        auto input       = args.object("input");
+        auto personId    = input.req("personId");
+        auto contactedAt = input.opt("contactedAt");
+        auto isFollowUp  = input.opt("isFollowUp");
+        auto note        = input.opt("note");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+        requireShepherd(txn, userId, personId);
+
+        // A null time or flag falls back to now / false inside log_contact.
+        txn.exec_params("SELECT * FROM log_contact($1::uuid, $2::uuid, $3::timestamptz, $4::boolean, $5)", personId,
+                        userId, nullable(contactedAt), nullable(isFollowUp), nullable(note));
+
+        auto person = fetchPersonDetail(txn, personId);
+        txn.commit();
+        return person;
+    }
+
+    /** Any shepherd of the person may remove a logged contact, e.g. to undo a mistake. */
+    oatpp::Any resolveDeleteContact(const Args& args, const std::string& userId) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto owner = txn.exec_params("SELECT person_id FROM contact_log WHERE id = $1", id);
+        if (owner.empty() || !isShepherd(txn, userId, owner[0]["person_id"].c_str())) {
+            throw NotFound("Contact not found");
+        }
+        std::string personId = owner[0]["person_id"].c_str();
+
+        txn.exec_params("SELECT * FROM delete_contact($1)", id);
+
+        auto person = fetchPersonDetail(txn, personId);
+        txn.commit();
+        return person;
     }
 };

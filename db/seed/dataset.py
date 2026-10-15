@@ -12,6 +12,12 @@ The data deliberately covers every business rule in CLAUDE.md:
   - a prayer burden with zero comments   → "aisha_settling"
   - standalone and burden-linked comments
   - a person shared by two shepherds     → "maria", "david", "elena"
+  - every contact state (business rule 6). Contact offsets stay clear of
+    the 72-hour, 7-day and "due soon" boundaries so states are stable:
+      on track     → "maria", "rachel", "just_met" (new, never contacted)
+      due soon     → "david", "hannah", "aisha"
+      overdue      → "elena", "james", "priya", "marcus", "ben"
+      not tracked  → "kenji", "lucy", "omar", "sofia"
 """
 
 from typing import NamedTuple
@@ -30,7 +36,7 @@ class Person(NamedTuple):
     shepherds: tuple[str, ...]
     age: int | None = None
     years_since_met: int | None = None
-    last_contact_days_ago: int | None = None
+    last_contact_days_ago: float | None = None  # logged as one contact; None = never contacted
     is_active: bool = True
 
 
@@ -67,17 +73,17 @@ USERS = [
 PEOPLE = [
     # Daniel and Grace share these three.
     Person("maria", "Maria Santos", "active", ("shepherd", "coleader"), 34, 6, 3),
-    Person("david", "David Mensah", "active", ("shepherd", "coleader"), 52, 10, 7),
+    Person("david", "David Mensah", "active", ("shepherd", "coleader"), 52, 10, 6.5),
     Person("elena", "Elena Petrova", "active", ("shepherd", "coleader"), 29, 2, 21),
     # Daniel only.
     Person("james", "James Whitfield", "active", ("shepherd",), 27, 3, 10),
-    Person("aisha", "Aisha Bello", "new contact", ("shepherd",), 22, 0, 2),
+    Person("aisha", "Aisha Bello", "new contact", ("shepherd",), 22, 0, 2.5),
     Person("just_met", "Tom Becker", "new contact", ("shepherd",), years_since_met=0),
     Person("priya", "Priya Natarajan", "active", ("shepherd",), 41, 8, 14),
     Person("kenji", "Kenji Watanabe", "inactive", ("shepherd",), 30, 5, 120, is_active=False),
     Person("lucy", "Lucy Hartmann", "lost contact", ("shepherd",), 19, 4, 540, is_active=False),
     Person("marcus", "Marcus Reid", "new contact", ("shepherd",), 35, 1, 30),
-    Person("hannah", "Hannah Cho", "active", ("shepherd",), None, 3, 5),
+    Person("hannah", "Hannah Cho", "active", ("shepherd",), None, 3, 5.5),
     Person("omar", "Omar Haddad", "inactive", ("shepherd",), 45, 7, 200, is_active=False),
     # Grace only.
     Person("rachel", "Rachel Adeyemi", "active", ("coleader",), 24, 2, 4),

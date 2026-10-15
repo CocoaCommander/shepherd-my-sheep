@@ -857,3 +857,163 @@ class TestSearchUsers:
         assert person["id"] == person_id
         assert {s["id"] for s in person["shepherds"]} == {owner_id, friend_id}
         assert person_id in [p["id"] for p in gql(MY_PEOPLE, {}, friend)["myPeople"]]
+
+
+# ── Contact cadence (business rule 6) ────────────────────────
+
+LOG_CONTACT = """
+mutation LogContact($input: LogContactInput!) {
+  logContact(input: $input) {
+    id contactState contactDueAt lastContactedAt lastContactDate status { name }
+    contacts { id isFollowUp note contactedBy { id } }
+  }
+}"""
+
+DELETE_CONTACT = """
+mutation DeleteContact($id: UUID!) {
+  deleteContact(id: $id) { id contactState contacts { id } }
+}"""
+
+CONTACT_ALERTS = "query { contactAlerts { id name contactState contactDueAt } }"
+
+
+class TestContactCadence:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    @pytest.fixture()
+    def backdate(self, db_connection):
+        """Makes a person look like they were added `days` ago (committed: the API reads it)."""
+
+        def _backdate(person_id, days):
+            with db_connection.cursor() as cur:
+                cur.execute(
+                    "UPDATE person SET created_at = now() - %s * interval '1 day' WHERE id = %s", (days, person_id)
+                )
+
+        return _backdate
+
+    def test_new_person_starts_on_track(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["new contact"])
+        person = gql(
+            PERSON.replace("isActive", "isActive contactState contactDueAt contacts { id }"), {"id": person_id}, token
+        )["person"]
+        assert person["contactState"] == "ON_TRACK"
+        assert person["contactDueAt"] is not None
+        assert person["contacts"] == []  # may be empty
+
+    def test_new_user_has_no_alerts(self, make_user):
+        token, _, _ = make_user()
+        assert gql(CONTACT_ALERTS, token=token)["contactAlerts"] == []
+
+    def test_log_contact_returns_updated_state(self, make_user, statuses, backdate):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        backdate(person_id, 10)
+        assert [p["id"] for p in gql(CONTACT_ALERTS, token=token)["contactAlerts"]] == [person_id]
+
+        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "Phone call"}}, token)["logContact"]
+        assert person["contactState"] == "ON_TRACK"
+        assert person["lastContactedAt"] is not None
+        [contact] = person["contacts"]
+        assert (contact["isFollowUp"], contact["note"], contact["contactedBy"]["id"]) == (False, "Phone call", user_id)
+        assert gql(CONTACT_ALERTS, token=token)["contactAlerts"] == []
+
+    def test_follow_up_promotes_new_contact(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["new contact"])
+        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "isFollowUp": True}}, token)["logContact"]
+        assert person["status"]["name"] == "active"
+        assert person["contacts"][0]["isFollowUp"] is True
+
+    def test_alerts_most_urgent_first(self, make_user, statuses, backdate):
+        token, _, _ = make_user()
+        week_late = create_person(token, statuses["active"], name="Week late")
+        month_late = create_person(token, statuses["active"], name="Month late")
+        due_soon = create_person(token, statuses["new contact"], name="Due soon")
+        create_person(token, statuses["inactive"], name="Not tracked")
+        backdate(week_late, 8)
+        backdate(month_late, 30)
+        backdate(due_soon, 2.5)
+
+        alerts = gql(CONTACT_ALERTS, token=token)["contactAlerts"]
+        assert [(p["id"], p["contactState"]) for p in alerts] == [
+            (month_late, "OVERDUE"),
+            (week_late, "OVERDUE"),
+            (due_soon, "DUE_SOON"),
+        ]
+
+    def test_shared_person_alerts_every_shepherd_and_clears_for_all(self, make_user, statuses, backdate):
+        owner, _, _ = make_user()
+        coleader, coleader_id, _ = make_user()
+        person_id = create_person(owner, statuses["active"])
+        gql(
+            "mutation A($personId: UUID!, $userId: UUID!) { assignPerson(personId: $personId, userId: $userId) { id } }",
+            {"personId": person_id, "userId": coleader_id},
+            owner,
+        )
+        backdate(person_id, 10)
+        for token in (owner, coleader):
+            assert [p["id"] for p in gql(CONTACT_ALERTS, token=token)["contactAlerts"]] == [person_id]
+
+        gql(LOG_CONTACT, {"input": {"personId": person_id}}, coleader)
+        for token in (owner, coleader):
+            assert gql(CONTACT_ALERTS, token=token)["contactAlerts"] == []
+
+    def test_delete_contact_restores_previous_state(self, make_user, statuses, backdate):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        backdate(person_id, 10)
+        logged = gql(LOG_CONTACT, {"input": {"personId": person_id}}, token)["logContact"]
+        person = gql(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, token)["deleteContact"]
+        assert person["contactState"] == "OVERDUE"
+        assert person["contacts"] == []
+
+    def test_stranger_cannot_log_or_delete_contacts(self, make_user, statuses):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        person_id = create_person(owner, statuses["active"])
+        error = gql_error_full(LOG_CONTACT, {"input": {"personId": person_id}}, stranger)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+
+        logged = gql(LOG_CONTACT, {"input": {"personId": person_id}}, owner)["logContact"]
+        error = gql_error_full(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, stranger)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert (
+            error["message"]
+            == gql_error_full(DELETE_CONTACT, {"id": "00000000-0000-0000-0000-000000000000"}, stranger)["message"]
+        )
+
+    @pytest.mark.parametrize("contacted_at", ["2999-01-01T00:00:00Z", "not a time"])
+    def test_bad_contact_time_rejected(self, make_user, statuses, contacted_at):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        error = gql_error_full(LOG_CONTACT, {"input": {"personId": person_id, "contactedAt": contacted_at}}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+
+    def test_backdated_contact(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "contactedAt": "2026-01-05T10:00:00Z"}}, token)[
+            "logContact"
+        ]
+        assert person["lastContactDate"] == "2026-01-05"
+        assert person["contactState"] == "OVERDUE"
+
+    def test_deprecated_last_contact_date_logs_a_contact(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        gql(
+            "mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }",
+            {"id": person_id, "input": {"lastContactDate": "2026-01-05"}},
+            token,
+        )
+        person = gql(
+            "query P($id: UUID!) { person(id: $id) { lastContactDate contacts { id } } }", {"id": person_id}, token
+        )["person"]
+        assert person["lastContactDate"] == "2026-01-05"
+        assert len(person["contacts"]) == 1

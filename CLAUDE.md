@@ -17,6 +17,7 @@ These rules must be followed across the entire codebase:
 3. **A person may have zero prayer burdens** — prayer burdens are added over time, not required.
 4. **A prayer burden may have zero comments** — prayer burdens can be assigned directly to a person without any comment. Comments are optional discussion on a burden.
 5. **A comment may or may not link to a prayer burden** — comments can be standalone notes on a person, or linked to a specific prayer burden.
+6. **Contact cadence** — every `active` person must be contacted at least every 7 days; a `new contact` must be followed up within 72 hours (counted from when they were added if no contact is logged yet). Logging a follow-up moves a `new contact` to `active`. `inactive` and `lost contact` people are not tracked. A person's contact state (overdue / due soon / on track / not tracked) belongs to the person, so every shepherd sees the alert and any shepherd's contact clears it. The rule lives in the `person_contact_state` view; contacts are logged in `contact_log`, and a person may have none.
 
 ## Environment Variables
 

@@ -36,15 +36,39 @@ type Person {
   name: String!
   age: Int                        # nullable — may not be known
   yearMet: Int                    # nullable
-  lastContactDate: Date           # nullable
+  lastContactDate: Date @deprecated(reason: "Use lastContactedAt.")  # date part of lastContactedAt
+  lastContactedAt: DateTime       # nullable — latest logged contact
+  contactDueAt: DateTime          # nullable — null when contactState is NOT_TRACKED
+  contactState: ContactState!
   isActive: Boolean!
   status: Status!
   shepherds: [User!]!             # who is caring for this person
   milestones: [MilestonePerson!]! # may be empty for a new contact
   prayerBurdens: [PrayerBurden!]! # may be empty
   comments: [Comment!]!           # may be empty
+  contacts: [ContactLog!]!        # may be empty; newest first. Loaded only by person / mutations returning Person
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+# Contact cadence (business rule 6): 'active' people are due every 7 days,
+# a 'new contact' within 72 hours (counted from when they were added if no
+# contact is logged). Due soon = within 48h (active) or 24h (new contact)
+# of the deadline. Other statuses are NOT_TRACKED.
+enum ContactState {
+  OVERDUE
+  DUE_SOON
+  ON_TRACK
+  NOT_TRACKED
+}
+
+type ContactLog {
+  id: UUID!
+  contactedBy: User               # nullable — unknown for imported history, or the user was deleted
+  contactedAt: DateTime!
+  isFollowUp: Boolean!
+  note: String                    # nullable
+  createdAt: DateTime!
 }
 
 type Status {
@@ -105,6 +129,9 @@ type Query {
   person(id: UUID!): Person       # nullable — may not exist
   myPeople: [Person!]!            # may be empty
 
+  # Your people who are OVERDUE or DUE_SOON, most urgent first — may be empty.
+  contactAlerts: [Person!]!
+
   # Lookups
   statuses: [Status!]!
   milestones: [Milestone!]!
@@ -143,6 +170,11 @@ type Mutation {
   # Comments
   createComment(input: CreateCommentInput!): Comment!
   deleteComment(id: UUID!): Boolean!
+
+  # Contacts — both return the person with their updated contact state.
+  # A follow-up on a 'new contact' moves them to 'active'.
+  logContact(input: LogContactInput!): Person!
+  deleteContact(id: UUID!): Person!
 }
 
 # ── Inputs ───────────────────────────────────────────────────
@@ -169,7 +201,7 @@ input UpdatePersonInput {
   name: String                    # all optional — only update what's provided
   age: Int
   yearMet: Int
-  lastContactDate: Date
+  lastContactDate: Date @deprecated(reason: "Use logContact.")  # logs a contact on that date
   isActive: Boolean
   statusId: UUID
 }
@@ -190,4 +222,11 @@ input CreateCommentInput {
   personId: UUID!
   prayerBurdenId: UUID            # optional — null means standalone note
   content: String!
+}
+
+input LogContactInput {
+  personId: UUID!
+  contactedAt: DateTime           # optional — defaults to now; may not be in the future
+  isFollowUp: Boolean             # optional — defaults to false
+  note: String                    # optional
 }

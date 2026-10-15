@@ -440,3 +440,98 @@ class TestComments:
                 (person_row[0],),
             )
             assert cur.fetchone()[0] == 0
+
+
+# ── log_contact / delete_contact (business rule 6) ───────────
+
+
+def sp_log_contact(cur, person_id, user_id=None, contacted_at=None, is_follow_up=None, note=None):
+    cur.execute(
+        "SELECT * FROM log_contact(%s, %s, %s, %s, %s)",
+        (person_id, user_id, contacted_at, is_follow_up, note),
+    )
+    return cur.fetchone()
+
+
+def status_of(cur, person_id):
+    cur.execute("SELECT s.name FROM person p JOIN status s ON s.id = p.status_id WHERE p.id = %s", (person_id,))
+    return cur.fetchone()[0]
+
+
+class TestLogContact:
+    def test_defaults_to_now_and_not_a_follow_up(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Contacted")[0]
+            row = sp_log_contact(cur, person_id)
+            cur.execute(
+                "SELECT contacted_at = now(), is_follow_up, user_id, note FROM contact_log WHERE id = %s", (row[0],)
+            )
+            assert cur.fetchone() == (True, False, None, None)
+
+    def test_follow_up_promotes_new_contact_to_active(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            sp_log_contact(cur, person_id, is_follow_up=True)
+            assert status_of(cur, person_id) == "active"
+
+    def test_plain_contact_does_not_promote(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            sp_log_contact(cur, person_id, is_follow_up=False)
+            assert status_of(cur, person_id) == "new contact"
+
+    @pytest.mark.parametrize("status_name", ["inactive", "lost contact", "active"])
+    def test_follow_up_leaves_other_statuses_alone(self, db, status_name):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Other", status_name=status_name)[0]
+            sp_log_contact(cur, person_id, is_follow_up=True)
+            assert status_of(cur, person_id) == status_name
+
+    def test_records_who_and_note(self, db):
+        with db.cursor() as cur:
+            user_id = sp_create_user(cur, username="contactor")[0]
+            person_id = sp_create_person(cur)[0]
+            row = sp_log_contact(cur, person_id, user_id, note="Coffee after church")
+            cur.execute("SELECT user_id, note FROM contact_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (user_id, "Coffee after church")
+
+    def test_backdated_contact_allowed(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            cur.execute(
+                "SELECT contacted_at < now() - interval '2 days' FROM log_contact(%s, NULL, now() - interval '3 days')",
+                (person_id,),
+            )
+            assert cur.fetchone()[0]
+
+    def test_future_contact_rejected(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute("SELECT * FROM log_contact(%s, NULL, now() + interval '1 hour')", (person_id,))
+
+    def test_small_clock_skew_allowed(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            cur.execute("SELECT * FROM log_contact(%s, NULL, now() + interval '1 minute')", (person_id,))
+
+    def test_missing_person_raises(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException):
+                sp_log_contact(cur, "00000000-0000-0000-0000-000000000000")
+
+
+class TestDeleteContact:
+    def test_delete_contact(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            row = sp_log_contact(cur, person_id)
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            assert cur.fetchone()[0] is True
+            cur.execute("SELECT count(*) FROM contact_log WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_delete_nonexistent_contact_raises(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException):
+                cur.execute("SELECT delete_contact(%s)", ("00000000-0000-0000-0000-000000000000",))

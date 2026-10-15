@@ -1,10 +1,10 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatDate } from '../format'
+import { formatDateTime } from '../format'
 import * as G from '../generated/graphql'
 import { PersonPage } from './PersonPage'
 
@@ -16,7 +16,8 @@ const PERSON_ID = 'person-1'
 const ME = { __typename: 'User', id: 'user-me', name: 'Me Shepherd', username: 'me' }
 const ST_ACTIVE = { __typename: 'Status', id: 'st-1', name: 'Active' }
 const ST_AWAY = { __typename: 'Status', id: 'st-2', name: 'Away' }
-const STATUSES = [ST_ACTIVE, ST_AWAY]
+const ST_NEW = { __typename: 'Status', id: 'st-3', name: 'new contact' }
+const STATUSES = [ST_ACTIVE, ST_AWAY, ST_NEW]
 
 function person(overrides: Record<string, unknown> = {}) {
   return {
@@ -25,32 +26,34 @@ function person(overrides: Record<string, unknown> = {}) {
     name: 'Sam Sheep',
     age: 30,
     yearMet: 2020,
-    lastContactDate: '2026-01-02',
+    lastContactedAt: '2026-01-02 09:00:00+00',
+    contactDueAt: '2026-01-09 09:00:00+00',
+    contactState: G.ContactState.Overdue,
     isActive: true,
     status: ST_ACTIVE,
     shepherds: [],
     milestones: [],
     prayerBurdens: [],
     comments: [],
+    contacts: [],
     ...overrides,
   }
 }
 
 // UpdatePerson selects only PersonSummary; the cache merges it by id.
 function summary(overrides: Record<string, unknown> = {}) {
-  const { name, age, yearMet, lastContactDate, isActive, status } = person(overrides) as Record<
-    string,
-    unknown
-  >
+  const p = person(overrides) as Record<string, unknown>
   return {
     __typename: 'Person',
     id: PERSON_ID,
-    name,
-    age,
-    yearMet,
-    lastContactDate,
-    isActive,
-    status,
+    name: p.name,
+    age: p.age,
+    yearMet: p.yearMet,
+    lastContactedAt: p.lastContactedAt,
+    contactDueAt: p.contactDueAt,
+    contactState: p.contactState,
+    isActive: p.isActive,
+    status: p.status,
   }
 }
 
@@ -86,6 +89,16 @@ function renderPage(first: object, extra: MockedResponse[] = []) {
       result: { data: { statuses: STATUSES } },
       maxUsageCount: Number.POSITIVE_INFINITY,
     },
+    {
+      request: { query: G.ContactAlertsDocument },
+      result: { data: { contactAlerts: [] } },
+      maxUsageCount: Number.POSITIVE_INFINITY,
+    },
+    {
+      request: { query: G.MyPeopleDocument },
+      result: { data: { myPeople: [] } },
+      maxUsageCount: Number.POSITIVE_INFINITY,
+    },
     ...extra,
   ]
   render(
@@ -117,8 +130,6 @@ describe('edit person form', () => {
     expect(await screen.findByLabelText('Status')).toHaveValue('st-2')
     expect(screen.getByLabelText(/^Age/)).toHaveValue(30)
     expect(screen.getByLabelText(/^Year met/)).toHaveValue(2020)
-    expect(screen.getByLabelText(/^Last contact/)).toHaveAttribute('type', 'date')
-    expect(screen.getByLabelText(/^Last contact/)).toHaveValue('2026-01-02')
     expect(screen.getByLabelText('Active')).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
@@ -130,17 +141,22 @@ describe('edit person form', () => {
     expect(screen.getByLabelText('Name')).toBeRequired()
     expect(screen.getByLabelText(/^Age/)).toBeRequired()
     expect(screen.getByLabelText(/^Year met/)).toBeRequired()
-    expect(screen.getByLabelText(/^Last contact/)).toBeRequired()
   })
 
-  it('opens with blank, non-required fields for a person with no age, year met or last contact', async () => {
+  it('has no last contact field: contacts are logged, not edited', async () => {
     const user = userEvent.setup()
-    renderPage(person({ age: null, yearMet: null, lastContactDate: null }))
+    renderPage(person())
+    await openForm(user)
+    expect(screen.queryByLabelText(/^Last contact/)).not.toBeInTheDocument()
+  })
+
+  it('opens with blank, non-required fields for a person with no age or year met', async () => {
+    const user = userEvent.setup()
+    renderPage(person({ age: null, yearMet: null }))
     await openForm(user)
     expect(screen.getByLabelText(/^Age/)).toHaveDisplayValue('')
     expect(screen.getByLabelText(/^Year met/)).toHaveDisplayValue('')
-    expect(screen.getByLabelText(/^Last contact/)).toHaveDisplayValue('')
-    for (const label of [/^Age/, /^Year met/, /^Last contact/]) {
+    for (const label of [/^Age/, /^Year met/]) {
       expect(screen.getByLabelText(label)).not.toBeRequired()
     }
   })
@@ -180,17 +196,16 @@ describe('edit person form', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
-  it('fills in empty optional fields, sending numbers and the date string', async () => {
+  it('fills in empty optional fields, sending numbers', async () => {
     const user = userEvent.setup()
-    const { mock, result } = updateMock({ age: 40, yearMet: 2024, lastContactDate: '2026-09-01' })
-    renderPage(person({ age: null, yearMet: null, lastContactDate: null }), [mock])
+    const { mock, result } = updateMock({ age: 40, yearMet: 2024 })
+    renderPage(person({ age: null, yearMet: null }), [mock])
     await openForm(user)
     await user.type(screen.getByLabelText(/^Age/), '40')
     await user.type(screen.getByLabelText(/^Year met/), '2024')
-    fireEvent.change(screen.getByLabelText(/^Last contact/), { target: { value: '2026-09-01' } })
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText(formatDate('2026-09-01'))).toBeInTheDocument()
+    expect(await screen.findByText('2024')).toBeInTheDocument()
     expect(result).toHaveBeenCalledTimes(1)
   })
 
@@ -248,37 +263,109 @@ describe('edit person form', () => {
 })
 
 describe('contacted today', () => {
+  // Local noon, 2026-10-14.
+  const NOW = new Date(2026, 9, 14, 12, 0, 0)
+
   function freezeToday() {
     vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date(2026, 9, 14, 12, 0, 0)) // local noon, 2026-10-14
+    vi.setSystemTime(NOW)
   }
 
-  it('records today as the last contact date', async () => {
+  /** LogContact returns the summary plus the logged contact's id. */
+  function logMock(isFollowUp: boolean, updated: Record<string, unknown> = {}) {
+    const result = vi.fn(() => ({
+      data: {
+        logContact: {
+          ...summary({
+            lastContactedAt: NOW.toISOString(),
+            contactDueAt: new Date(NOW.getTime() + 7 * 86_400_000).toISOString(),
+            contactState: G.ContactState.OnTrack,
+            ...updated,
+          }),
+          contacts: [{ __typename: 'ContactLog', id: 'contact-new' }],
+        },
+      },
+    }))
+    return {
+      result,
+      mock: {
+        request: {
+          query: G.LogContactDocument,
+          variables: { input: { personId: PERSON_ID, isFollowUp } },
+        },
+        result,
+      } as MockedResponse,
+    }
+  }
+
+  it('logs a contact now and shows the new state, with an Undo', async () => {
     freezeToday()
     const user = userEvent.setup()
-    const { mock, result } = updateMock({ lastContactDate: '2026-10-14' })
+    const { mock, result } = logMock(false)
     renderPage(person(), [mock])
+    expect(await screen.findByText(/^Overdue/)).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
 
-    expect(await screen.findByText(formatDate('2026-10-14'))).toBeInTheDocument()
+    expect(await screen.findByText('Contact logged.')).toBeInTheDocument()
+    expect(screen.getByText(formatDateTime(NOW.toISOString()))).toBeInTheDocument()
+    expect(screen.getByText('On track')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
     expect(result).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'Contacted today' })).not.toBeInTheDocument()
+  })
+
+  it('undo deletes the contact just logged', async () => {
+    freezeToday()
+    const user = userEvent.setup()
+    const { mock } = logMock(false)
+    const undone = vi.fn(() => ({
+      data: { deleteContact: { ...summary(), contacts: [] } },
+    }))
+    const undoMock: MockedResponse = {
+      request: { query: G.DeleteContactDocument, variables: { id: 'contact-new' } },
+      result: undone,
+    }
+    renderPage(person(), [mock, undoMock])
+    await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
+    await user.click(await screen.findByRole('button', { name: 'Undo' }))
+
+    expect(await screen.findByRole('button', { name: 'Contacted today' })).toBeInTheDocument()
+    expect(screen.getByText(/^Overdue/)).toBeInTheDocument()
+    expect(undone).toHaveBeenCalledTimes(1)
   })
 
   it('works for a person who has never been contacted', async () => {
     freezeToday()
     const user = userEvent.setup()
-    const { mock, result } = updateMock({ lastContactDate: '2026-10-14' })
-    renderPage(person({ lastContactDate: null }), [mock])
+    const { mock, result } = logMock(false)
+    renderPage(person({ lastContactedAt: null }), [mock])
     await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
 
-    expect(await screen.findByText(formatDate('2026-10-14'))).toBeInTheDocument()
+    expect(await screen.findByText('Contact logged.')).toBeInTheDocument()
     expect(result).toHaveBeenCalledTimes(1)
   })
 
-  it('is hidden when the last contact is already today', async () => {
+  it('offers a follow-up for a new contact, which moves them to active without an Undo', async () => {
     freezeToday()
-    renderPage(person({ lastContactDate: '2026-10-14' }))
+    const user = userEvent.setup()
+    const { mock, result } = logMock(true, { status: ST_ACTIVE })
+    renderPage(person({ status: ST_NEW, contactState: G.ContactState.DueSoon }), [mock])
+    await user.click(await screen.findByRole('button', { name: 'Followed up today' }))
+
+    expect(await screen.findByText('Active', { selector: '.badge' })).toBeInTheDocument()
+    expect(result).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Followed up today' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer a follow-up to someone who is already active', async () => {
+    renderPage(person())
+    await screen.findByRole('button', { name: 'Contacted today' })
+    expect(screen.queryByRole('button', { name: 'Followed up today' })).not.toBeInTheDocument()
+  })
+
+  it('is hidden when an active person was already contacted today', async () => {
+    freezeToday()
+    renderPage(person({ lastContactedAt: NOW.toISOString(), contactState: G.ContactState.OnTrack }))
     await screen.findByRole('button', { name: 'Edit details' })
     expect(screen.queryByRole('button', { name: 'Contacted today' })).not.toBeInTheDocument()
   })
