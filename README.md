@@ -39,7 +39,7 @@ Every language has a linter or formatter, run through [pre-commit](https://pre-c
 | SQL migrations | SQLFluff, squawk |
 | Python tests | Ruff |
 | Dockerfile / Swift | hadolint, SwiftLint (pinned Docker images) |
-| Secrets | gitleaks |
+| Secrets | gitleaks; a hook and CI job that reject committed `.env` files |
 
 One-time setup (needs Docker running):
 

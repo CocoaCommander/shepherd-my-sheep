@@ -46,6 +46,25 @@ jobs:
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1
           git /repo --redact --config /repo/.gitleaks.toml
 
+  # Also enforced by the forbid-env-files pre-commit hook, but that only sees
+  # the final tree; this checks every commit, so a .env added and then deleted
+  # within a branch is still caught.
+  env-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: no .env files in history
+        run: |
+          found=$(git log --all --pretty=format: --name-only \
+            | grep -E '(^|/)\.env(\..+)?$' | grep -vE '(^|/)\.env\.example$' | sort -u)
+          if [ -n "$found" ]; then
+            echo "::error::.env files must never be committed (only .env.example is allowed):"
+            echo "$found"
+            exit 1
+          fi
+
   clang-tidy:
     runs-on: ubuntu-latest
     steps:

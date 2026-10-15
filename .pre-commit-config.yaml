@@ -18,6 +18,15 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
+  - repo: local
+    hooks:
+      # .env holds real credentials; .env.example is the committed template.
+      - id: forbid-env-files
+        name: forbid .env files
+        entry: .env files must never be committed (only .env.example is allowed)
+        language: fail
+        files: (^|/)\.env(\..+)?$
+        exclude: (^|/)\.env\.example$
 
   # ── C++ ────────────────────────────────────────────────────
   # clang-tidy runs in Docker (docker build --target lint backend), not here:
