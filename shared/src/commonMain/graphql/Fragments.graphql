@@ -16,6 +16,9 @@ fragment PersonSummary on Person {
   name
   age
   yearMet
+  # Deprecated in favour of lastContactedAt (business rule 6). Kept until
+  # the shared module adopts the contact fields; see personal_notes/todo.md.
+  # eslint-disable-next-line @graphql-eslint/no-deprecated
   lastContactDate
   isActive
   status {
