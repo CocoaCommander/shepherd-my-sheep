@@ -25,6 +25,7 @@ public:
     oatpp::Any resolve(const std::string& field, const Args& args, const std::string& userId) {
         if (field == "me") return resolveMe(userId);
         if (field == "myPeople") return resolveMyPeople(userId);
+        if (field == "contactAlerts") return resolveContactAlerts(userId);
         if (field == "person") return resolvePerson(args, userId);
         if (field == "statuses") return resolveStatuses();
         if (field == "milestones") return resolveMilestones();
@@ -110,6 +111,29 @@ private:
                                           + "JOIN user_person up ON up.person_id = p.id "
                                             "WHERE up.user_id = $1 "
                                             "ORDER BY p.name",
+                                      userId);
+        txn.commit();
+
+        auto list = oatpp::Vector<oatpp::Object<PersonDto>>::createShared();
+        for (const auto& row : result) {
+            list->push_back(rowToPerson(row));
+        }
+        return list;
+    }
+
+    /**
+     * Your people who are overdue or due soon (business rule 6), most
+     * urgent first. Every shepherd of a shared person sees the alert. May
+     * be empty.
+     */
+    oatpp::Any resolveContactAlerts(const std::string& userId) {
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto result = txn.exec_params(std::string(PERSON_SELECT)
+                                          + "JOIN user_person up ON up.person_id = p.id "
+                                            "WHERE up.user_id = $1 AND cs.contact_state IN ('OVERDUE', 'DUE_SOON') "
+                                            "ORDER BY cs.contact_due_at, p.name",
                                       userId);
         txn.commit();
 

@@ -23,13 +23,16 @@ function person(shepherds: object[]) {
     name: 'Sam Sheep',
     age: null,
     yearMet: null,
-    lastContactDate: null,
+    lastContactedAt: null,
+    contactDueAt: null,
+    contactState: 'NOT_TRACKED',
     isActive: true,
     status: { __typename: 'Status', id: 'st-1', name: 'Active' },
     shepherds,
     milestones: [],
     prayerBurdens: [],
     comments: [],
+    contacts: [],
   }
 }
 

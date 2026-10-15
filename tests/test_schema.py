@@ -93,3 +93,46 @@ class TestUpdatedAtTrigger:
             updated = cur.fetchone()[0]
 
             assert updated >= original
+
+
+# ── Contact log (business rule 6) ────────────────────────────
+
+
+class TestContactLog:
+    def test_last_contact_date_column_is_gone(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM information_schema.columns "
+                "WHERE table_name = 'person' AND column_name = 'last_contact_date'"
+            )
+            assert cur.fetchone()[0] == 0
+
+    def test_contacted_at_is_a_timestamp(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT data_type FROM information_schema.columns "
+                "WHERE table_name = 'contact_log' AND column_name = 'contacted_at'"
+            )
+            assert cur.fetchone()[0] == "timestamp with time zone"
+
+    def test_deleting_person_deletes_contacts(self, db):
+        with db.cursor() as cur:
+            cur.execute("INSERT INTO person (name, status_id) VALUES ('Gone', %s) RETURNING id", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO contact_log (person_id) VALUES (%s)", (person_id,))
+            cur.execute("DELETE FROM person WHERE id = %s", (person_id,))
+            cur.execute("SELECT count(*) FROM contact_log WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_deleting_user_keeps_their_contacts(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO \"user\" (name, username, password_hash) VALUES ('U', 'cl_user', 'x') RETURNING id"
+            )
+            user_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO person (name, status_id) VALUES ('Kept', %s) RETURNING id", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO contact_log (person_id, user_id) VALUES (%s, %s)", (person_id, user_id))
+            cur.execute('DELETE FROM "user" WHERE id = %s', (user_id,))
+            cur.execute("SELECT user_id FROM contact_log WHERE person_id = %s", (person_id,))
+            assert cur.fetchone() == (None,)

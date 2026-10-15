@@ -13,6 +13,9 @@ erDiagram
     user ||--o{ comment : "writes"
     prayer_burden |o--o{ comment : "discussed in"
 
+    person ||--o{ contact_log : "contacted"
+    user |o--o{ contact_log : "made contact"
+
     status {
         uuid id PK
         varchar name UK
@@ -33,7 +36,6 @@ erDiagram
         varchar name
         int age
         int year_met
-        date last_contact_date
         boolean is_active
         uuid status_id FK
     }
@@ -62,4 +64,12 @@ erDiagram
         uuid person_id FK
         uuid prayer_burden_id FK
         text content
+    }
+    contact_log {
+        uuid id PK
+        uuid person_id FK
+        uuid user_id FK
+        timestamptz contacted_at
+        boolean is_follow_up
+        text note
     }

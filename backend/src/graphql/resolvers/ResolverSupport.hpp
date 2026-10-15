@@ -164,15 +164,22 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
     return dto;
 }
 
-inline const char* PERSON_SELECT = "SELECT p.id, p.name, p.age, p.year_met, p.last_contact_date, p.is_active, "
-                                   "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name "
-                                   "FROM person p JOIN status s ON s.id = p.status_id ";
+// Contact columns come from the person_contact_state view (business rule 6).
+inline const char* PERSON_SELECT = "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
+                                   "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name, "
+                                   "       cs.last_contacted_at::date AS last_contact_date, cs.last_contacted_at, "
+                                   "       cs.contact_due_at, cs.contact_state "
+                                   "FROM person p JOIN status s ON s.id = p.status_id "
+                                   "JOIN person_contact_state cs ON cs.person_id = p.id ";
 
 inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     auto dto             = PersonDto::createShared();
     dto->id              = row["id"].c_str();
     dto->name            = row["name"].c_str();
     dto->lastContactDate = textOrNull(row["last_contact_date"]);
+    dto->lastContactedAt = textOrNull(row["last_contacted_at"]);
+    dto->contactDueAt    = textOrNull(row["contact_due_at"]);
+    dto->contactState    = row["contact_state"].c_str();
     dto->isActive        = row["is_active"].as<bool>();
     dto->createdAt       = row["created_at"].c_str();
     dto->updatedAt       = row["updated_at"].c_str();
@@ -246,11 +253,32 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row) {
     return dto;
 }
 
+// Prefix: "contactor_" for the user who made contact (may be null).
+inline const char* CONTACT_LOG_SELECT =
+    "SELECT cl.id, cl.person_id, cl.contacted_at, cl.is_follow_up, cl.note, cl.created_at, "
+    "       u.id AS contactor_id, u.name AS contactor_name, u.username AS contactor_username, "
+    "       u.created_at AS contactor_created_at, u.updated_at AS contactor_updated_at "
+    "FROM contact_log cl "
+    "LEFT JOIN \"user\" u ON u.id = cl.user_id ";
+
+inline ContactLogDto::Wrapper rowToContactLog(const pqxx::row& row) {
+    auto dto         = ContactLogDto::createShared();
+    dto->id          = row["id"].c_str();
+    dto->contactedAt = row["contacted_at"].c_str();
+    dto->isFollowUp  = row["is_follow_up"].as<bool>();
+    dto->note        = textOrNull(row["note"]);
+    dto->createdAt   = row["created_at"].c_str();
+    if (!row["contactor_id"].is_null()) {
+        dto->contactedBy = rowToUser(row, "contactor_");
+    }
+    return dto;
+}
+
 // ── Lookups ─────────────────────────────────────────────────
 
 /**
  * A person with every nested list loaded. Lists are empty, not null,
- * when there is nothing to show (business rules 2–4).
+ * when there is nothing to show (business rules 2–4, and no contacts yet).
  */
 inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& personId) {
     auto rows = txn.exec_params(std::string(PERSON_SELECT) + "WHERE p.id = $1", personId);
@@ -288,6 +316,12 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     for (const auto& row :
          txn.exec_params(std::string(COMMENT_SELECT) + "WHERE c.person_id = $1 ORDER BY c.created_at DESC", personId)) {
         person->comments->push_back(rowToComment(row));
+    }
+
+    person->contacts = oatpp::Vector<oatpp::Object<ContactLogDto>>::createShared();
+    for (const auto& row : txn.exec_params(
+             std::string(CONTACT_LOG_SELECT) + "WHERE cl.person_id = $1 ORDER BY cl.contacted_at DESC", personId)) {
+        person->contacts->push_back(rowToContactLog(row));
     }
 
     return person;

@@ -11,12 +11,17 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - Once a follow-up appointment has happened, the person becomes a **regular contact** (assumed: status moves from `new contact` to `active`, and the weekly rule applies from then on).
 - Inactive and lost-contact people are not tracked by this rule.
 
-- [ ] Add the rule to the Business Rules list in `CLAUDE.md` once the wording is settled.
-- [ ] **Decide how "contact" and "follow-up" are recorded.** `lastContactDate` is a `Date`, so it can't measure 72 hours. Likely needs a timestamp, or a contact log (who, when, was it a follow-up).
-- [ ] Backend: derive each person's contact state (overdue / due soon / on track / not tracked) and the date it is due. Promote `new contact` to `active` when a follow-up is logged.
-- [ ] Alerts: in-app first (header bell plus banner on the home page). Decide later whether to push or email.
-- [ ] Open question: what counts as a new contact with no contact logged yet (e.g. Tom Becker in the seed data)? Design currently treats it as overdue ("Log first contact").
-- [ ] Open question: should a shared person (two shepherds) alert both, or only whoever contacted them last?
+- [x] Add the rule to the Business Rules list in `CLAUDE.md` (rule 6).
+- [x] **Decide how "contact" and "follow-up" are recorded.** A `contact_log` table (who, when as `timestamptz`, follow-up flag, note) replaces `person.last_contact_date`. Migration `V003__contact_log.sql` backfills existing dates.
+- [x] Backend: derive each person's contact state (overdue / due soon / on track / not tracked) and the date it is due. The `person_contact_state` view; GraphQL `contactState`, `contactDueAt`, `lastContactedAt`, `contacts`, `contactAlerts`, `logContact`, `deleteContact`. A follow-up promotes `new contact` to `active`.
+- [x] Alerts: in-app first. Header bell with a count, and a "needs contacting" banner on My people until Home is built. Decide later whether to push or email.
+- [x] Decided: a new contact with nothing logged has 72 hours from when they were added (`person.created_at`). Tom Becker is on track at first. **The Home design shows "Log first contact" as overdue; update it to match.**
+- [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
+- [ ] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync).
+- [ ] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one.
+- [ ] Undo of a follow-up doesn't undo the promotion to `active`; the web app only offers Undo on a plain contact.
+- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
+- [ ] Existing dev databases need `make reset` to pick up V003 (migrations only run on a fresh volume).
 
 ## Screens (web + mWeb/mobile)
 

@@ -9,6 +9,10 @@
   --error: #b42318;
   --badge-bg: #e6efe9;
   --badge-text: #2d5a3f;
+  --due-bg: #fdf1dc;
+  --due-text: #8a5300;
+  --overdue-bg: #fde7e5;
+  --overdue-text: #a1271c;
   --radius: 10px;
   color-scheme: light;
   font-family:
@@ -32,6 +36,10 @@
     --error: #f97066;
     --badge-bg: #26382d;
     --badge-text: #a6d4b5;
+    --due-bg: #3d2e12;
+    --due-text: #f5c56b;
+    --overdue-bg: #45201d;
+    --overdue-text: #ff9d94;
     color-scheme: dark;
   }
 }
@@ -314,6 +322,53 @@ textarea {
 .badge-muted {
   background: var(--border);
   color: var(--muted);
+}
+
+/* Contact cadence (business rule 6). */
+.badge-due {
+  background: var(--due-bg);
+  color: var(--due-text);
+}
+.badge-overdue {
+  background: var(--overdue-bg);
+  color: var(--overdue-text);
+}
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.bell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.bell-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  text-align: center;
+  background: var(--overdue-bg);
+  color: var(--overdue-text);
+}
+
+.alert-banner {
+  border-color: var(--due-text);
+  background: var(--due-bg);
+}
+.alert-banner summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--due-text);
+}
+.alert-banner .list {
+  margin-top: 12px;
 }
 
 .title-row {

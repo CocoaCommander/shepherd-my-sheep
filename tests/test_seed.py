@@ -28,10 +28,10 @@ class TestSeed:
         conn, ids = seeded_db
         person = ids.people["just_met"]
         with conn.cursor() as cur:
-            for table in ("milestone_person", "prayer_burden", "comment"):
+            for table in ("milestone_person", "prayer_burden", "comment", "contact_log"):
                 assert count(cur, f"SELECT count(*) FROM {table} WHERE person_id = %s", person) == 0
-            cur.execute("SELECT age, last_contact_date FROM person WHERE id = %s", (person,))
-            assert cur.fetchone() == (None, None)
+            cur.execute("SELECT age FROM person WHERE id = %s", (person,))
+            assert cur.fetchone() == (None,)
 
     def test_burden_with_no_comments(self, seeded_db):
         conn, ids = seeded_db
@@ -89,3 +89,35 @@ class TestSeed:
                 (list(ids.people.values()),),
             )
             assert cur.fetchone()[0]
+
+    def test_every_contact_state_covered(self, seeded_db):
+        """The states listed in dataset.py's docstring (business rule 6)."""
+        conn, ids = seeded_db
+        expected = {
+            "ON_TRACK": {"maria", "rachel", "just_met"},
+            "DUE_SOON": {"david", "hannah", "aisha"},
+            "OVERDUE": {"elena", "james", "priya", "marcus", "ben"},
+            "NOT_TRACKED": {"kenji", "lucy", "omar", "sofia"},
+        }
+        key_by_id = {str(v): k for k, v in ids.people.items()}
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT person_id, contact_state FROM person_contact_state WHERE person_id = ANY(%s::uuid[])",
+                (list(ids.people.values()),),
+            )
+            actual = {}
+            for person_id, state in cur.fetchall():
+                actual.setdefault(state, set()).add(key_by_id[str(person_id)])
+        assert actual == expected
+
+    def test_contacts_are_logged_by_a_shepherd(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM contact_log cl "
+                "WHERE cl.person_id = ANY(%s::uuid[]) "
+                "AND NOT EXISTS (SELECT 1 FROM user_person up "
+                "                WHERE up.person_id = cl.person_id AND up.user_id = cl.user_id)",
+                (list(ids.people.values()),),
+            )
+            assert cur.fetchone()[0] == 0

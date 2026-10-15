@@ -2,11 +2,13 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MyPeopleDocument,
+  useContactAlertsQuery,
   useCreatePersonMutation,
   useMyPeopleQuery,
   useStatusesQuery,
 } from '../generated/graphql'
 import { friendlyMessage } from '../errors'
+import { ContactStateBadge } from './ContactStateBadge'
 import { Header } from './Header'
 
 export function PeoplePage() {
@@ -17,6 +19,8 @@ export function PeoplePage() {
       <Header />
       <main className="page stack">
         <h1>My people</h1>
+
+        <ContactAlertsBanner />
 
         {loading && <p className="muted">Loading…</p>}
         {error && (
@@ -36,8 +40,11 @@ export function PeoplePage() {
               <li key={person.id}>
                 <Link to={`/people/${person.id}`} className="list-row">
                   <span>{person.name}</span>
-                  <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
-                    {person.status.name}
+                  <span className="badges">
+                    <ContactStateBadge person={person} />
+                    <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
+                      {person.status.name}
+                    </span>
                   </span>
                 </Link>
               </li>
@@ -48,6 +55,35 @@ export function PeoplePage() {
         <AddPersonForm />
       </main>
     </>
+  )
+}
+
+/**
+ * People who are overdue or due soon (business rule 6), most urgent first.
+ * Stands in for the Home page's "needs contacting" section until it's built.
+ */
+function ContactAlertsBanner() {
+  const { data } = useContactAlertsQuery()
+  const alerts = data?.contactAlerts ?? []
+  if (alerts.length === 0) return null
+
+  const count = alerts.length
+  return (
+    <details className="card alert-banner" open>
+      <summary>
+        {count} {count === 1 ? 'person needs' : 'people need'} contacting
+      </summary>
+      <ul className="list">
+        {alerts.map((person) => (
+          <li key={person.id}>
+            <Link to={`/people/${person.id}`} className="list-row">
+              <span>{person.name}</span>
+              <ContactStateBadge person={person} />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }
 

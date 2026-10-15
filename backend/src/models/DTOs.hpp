@@ -125,6 +125,18 @@ class MilestonePersonDto : public oatpp::DTO {
     DTO_FIELD(String, createdAt);
 };
 
+class ContactLogDto : public oatpp::DTO {
+    DTO_INIT(ContactLogDto, DTO)
+
+    DTO_FIELD(String, typename_, "__typename") = "ContactLog";
+    DTO_FIELD(String, id);
+    DTO_FIELD(oatpp::Object<UserDto>, contactedBy);  // nullable
+    DTO_FIELD(String, contactedAt);
+    DTO_FIELD(Boolean, isFollowUp);
+    DTO_FIELD(String, note);  // nullable
+    DTO_FIELD(String, createdAt);
+};
+
 class PersonDto : public oatpp::DTO {
     DTO_INIT(PersonDto, DTO)
 
@@ -133,7 +145,10 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(String, name);
     DTO_FIELD(Int32, age);               // nullable
     DTO_FIELD(Int32, yearMet);           // nullable
-    DTO_FIELD(String, lastContactDate);  // nullable
+    DTO_FIELD(String, lastContactDate);  // nullable; deprecated, date part of lastContactedAt
+    DTO_FIELD(String, lastContactedAt);  // nullable
+    DTO_FIELD(String, contactDueAt);     // nullable — null when NOT_TRACKED
+    DTO_FIELD(String, contactState);     // ContactState enum value
     DTO_FIELD(Boolean, isActive);
     DTO_FIELD(oatpp::Object<StatusDto>, status);
     DTO_FIELD(String, createdAt);
@@ -145,6 +160,7 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(oatpp::Vector<oatpp::Object<MilestonePersonDto>>, milestones);
     DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>, prayerBurdens);
     DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>, comments);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<ContactLogDto>>, contacts);
 };
 
 // ── Auth ────────────────────────────────────────────────────
@@ -189,7 +205,7 @@ class UpdatePersonInput : public oatpp::DTO {
     DTO_FIELD(String, name);  // nullable — only update if provided
     DTO_FIELD(Int32, age);
     DTO_FIELD(Int32, yearMet);
-    DTO_FIELD(String, lastContactDate);
+    DTO_FIELD(String, lastContactDate);  // deprecated — logs a contact on that date
     DTO_FIELD(Boolean, isActive);
     DTO_FIELD(String, statusId);
 };
@@ -216,6 +232,15 @@ class CreateCommentInput : public oatpp::DTO {
     DTO_FIELD(String, personId);
     DTO_FIELD(String, prayerBurdenId);  // nullable — null means standalone note
     DTO_FIELD(String, content);
+};
+
+class LogContactInput : public oatpp::DTO {
+    DTO_INIT(LogContactInput, DTO)
+
+    DTO_FIELD(String, personId);
+    DTO_FIELD(String, contactedAt);  // nullable — defaults to now
+    DTO_FIELD(Boolean, isFollowUp);  // nullable — defaults to false
+    DTO_FIELD(String, note);         // nullable
 };
 
 #include OATPP_CODEGEN_END(DTO)

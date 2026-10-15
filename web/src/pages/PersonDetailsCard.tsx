@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApolloClient } from '@apollo/client'
-import { formatDate, todayIsoDate } from '../format'
+import { formatDateTime, isToday } from '../format'
 import {
+  ContactAlertsDocument,
   MyPeopleDocument,
+  useDeleteContactMutation,
   useDeletePersonMutation,
+  useLogContactMutation,
   useStatusesQuery,
   useUnassignPersonMutation,
   useUpdatePersonMutation,
@@ -13,6 +16,7 @@ import {
 } from '../generated/graphql'
 import { ActionButton } from './ActionButton'
 import { AddShepherd } from './AddShepherd'
+import { ContactStateBadge } from './ContactStateBadge'
 import { ErrorMessage } from './ErrorMessage'
 
 type Person = NonNullable<PersonQuery['person']>
@@ -25,8 +29,11 @@ export function PersonDetailsCard({ person, meId }: { person: Person; meId: stri
     <section className="card stack">
       <div className="title-row">
         <h1>{person.name}</h1>
-        <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
-          {person.status.name}
+        <span className="badges">
+          <ContactStateBadge person={person} />
+          <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
+            {person.status.name}
+          </span>
         </span>
       </div>
 
@@ -40,13 +47,13 @@ export function PersonDetailsCard({ person, meId }: { person: Person; meId: stri
             <Fact label="Year met" value={person.yearMet} />
             <Fact
               label="Last contact"
-              value={person.lastContactDate && formatDate(person.lastContactDate)}
+              value={person.lastContactedAt && formatDateTime(person.lastContactedAt)}
             />
             <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
           </dl>
           <Shepherds person={person} meId={meId} />
           <div className="card-actions">
-            <ContactedTodayButton person={person} />
+            <LogContactButtons person={person} />
             <button type="button" className="link" onClick={() => setEditing(true)}>
               Edit details
             </button>
@@ -73,7 +80,10 @@ function Fact({ label, value }: { label: string; value: string | number | null |
   )
 }
 
-const reloadMyPeople = { refetchQueries: [{ query: MyPeopleDocument }] }
+// The alert list depends on status and contacts, so it reloads with My people.
+const reloadMyPeople = {
+  refetchQueries: [{ query: MyPeopleDocument }, { query: ContactAlertsDocument }],
+}
 
 /**
  * For leaving this page for good: the person is gone, or no longer ours.
@@ -184,26 +194,74 @@ function DeletePersonButton({ person }: { person: Person }) {
   )
 }
 
-function ContactedTodayButton({ person }: { person: Person }) {
-  const [updatePerson, { loading, error }] = useUpdatePersonMutation()
-  const today = todayIsoDate()
+/**
+ * Logs a contact now (business rule 6). A new contact also gets "Followed up
+ * today", which moves them to active. A plain contact can be undone right
+ * after; a follow-up can't, since undoing it wouldn't undo the status change.
+ */
+function LogContactButtons({ person }: { person: Person }) {
+  const [logContact, logState] = useLogContactMutation(reloadMyPeople)
+  const [deleteContact, undoState] = useDeleteContactMutation(reloadMyPeople)
+  const [undoId, setUndoId] = useState<string | null>(null)
 
-  if (person.lastContactDate === today) return null
-
-  async function handleClick() {
+  async function log(isFollowUp: boolean) {
     try {
-      await updatePerson({ variables: { id: person.id, input: { lastContactDate: today } } })
+      const result = await logContact({
+        variables: { input: { personId: person.id, isFollowUp } },
+      })
+      // contacts are newest first, so [0] is the one just logged.
+      const logged = result.data?.logContact.contacts[0]?.id
+      setUndoId(isFollowUp || !logged ? null : logged)
     } catch {
       // Shown from the mutation's `error` below.
     }
   }
 
+  async function undo() {
+    if (!undoId) return
+    try {
+      await deleteContact({ variables: { id: undoId } })
+      setUndoId(null)
+    } catch {
+      // Shown from the mutation's `error` below.
+    }
+  }
+
+  if (undoId) {
+    return (
+      <span className="action">
+        <span className="muted">Contact logged.</span>{' '}
+        <button type="button" className="link" disabled={undoState.loading} onClick={undo}>
+          {undoState.loading ? 'Undoing…' : 'Undo'}
+        </button>
+        <ErrorMessage error={undoState.error} />
+      </span>
+    )
+  }
+
+  const isNewContact = person.status.name === 'new contact'
+  if (!isNewContact && person.lastContactedAt && isToday(person.lastContactedAt)) return null
+
   return (
     <span className="action">
-      <button type="button" className="link" disabled={loading} onClick={handleClick}>
-        {loading ? 'Saving…' : 'Contacted today'}
+      <button type="button" className="link" disabled={logState.loading} onClick={() => log(false)}>
+        {logState.loading ? 'Saving…' : 'Contacted today'}
       </button>
-      <ErrorMessage error={error} />
+      {isNewContact && (
+        <>
+          {' · '}
+          <button
+            type="button"
+            className="link"
+            disabled={logState.loading}
+            onClick={() => log(true)}
+            title="Logs a follow-up and moves them to active"
+          >
+            Followed up today
+          </button>
+        </>
+      )}
+      <ErrorMessage error={logState.error} />
     </span>
   )
 }
@@ -215,13 +273,12 @@ const toNumber = (value: string) => (value === '' ? null : Number(value))
 function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void }) {
   const { data: statusData } = useStatusesQuery()
   // The result carries PersonSummary, which the cache merges into this person.
-  const [updatePerson, { loading, error }] = useUpdatePersonMutation()
+  const [updatePerson, { loading, error }] = useUpdatePersonMutation(reloadMyPeople)
 
   const [name, setName] = useState(person.name)
   const [statusId, setStatusId] = useState(person.status.id)
   const [age, setAge] = useState(toText(person.age))
   const [yearMet, setYearMet] = useState(toText(person.yearMet))
-  const [lastContactDate, setLastContactDate] = useState(toText(person.lastContactDate))
   const [isActive, setIsActive] = useState(person.isActive)
 
   /** Only what the user changed, so a concurrent edit by another shepherd isn't overwritten. */
@@ -231,9 +288,6 @@ function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void
     if (statusId !== person.status.id) input.statusId = statusId
     if (toNumber(age) !== person.age) input.age = toNumber(age)
     if (toNumber(yearMet) !== person.yearMet) input.yearMet = toNumber(yearMet)
-    if ((lastContactDate || null) !== person.lastContactDate) {
-      input.lastContactDate = lastContactDate || null
-    }
     if (isActive !== person.isActive) input.isActive = isActive
     return input
   }
@@ -297,19 +351,6 @@ function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void
           />
         </label>
       </div>
-      <label>
-        <span>
-          Last contact{' '}
-          {person.lastContactDate === null && <span className="muted">(optional)</span>}
-        </span>
-        <input
-          type="date"
-          max={todayIsoDate()}
-          value={lastContactDate}
-          onChange={(e) => setLastContactDate(e.target.value)}
-          required={person.lastContactDate !== null}
-        />
-      </label>
       <label className="checkbox">
         <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
         Active

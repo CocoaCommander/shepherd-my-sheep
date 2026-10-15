@@ -6,7 +6,9 @@ fragment PersonSummary on Person {
   name
   age
   yearMet
-  lastContactDate
+  lastContactedAt
+  contactDueAt
+  contactState
   isActive
   status {
     id
@@ -24,6 +26,13 @@ query Me {
 
 query MyPeople {
   myPeople {
+    ...PersonSummary
+  }
+}
+
+# Overdue and due-soon people (business rule 6), most urgent first.
+query ContactAlerts {
+  contactAlerts {
     ...PersonSummary
   }
 }
@@ -197,6 +206,26 @@ mutation AssignPerson($personId: UUID!, $userId: UUID!) {
     shepherds {
       id
       name
+    }
+  }
+}
+
+# Returns the person with their new contact state (and status, since a
+# follow-up promotes a new contact to active). contacts[0] is the newest.
+mutation LogContact($input: LogContactInput!) {
+  logContact(input: $input) {
+    ...PersonSummary
+    contacts {
+      id
+    }
+  }
+}
+
+mutation DeleteContact($id: UUID!) {
+  deleteContact(id: $id) {
+    ...PersonSummary
+    contacts {
+      id
     }
   }
 }
