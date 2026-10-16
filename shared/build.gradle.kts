@@ -14,6 +14,9 @@ kotlin {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
+
+        // Runs commonTest on the JVM: ./gradlew :shared:testAndroidHostTest
+        withHostTestBuilder {}
     }
 
     listOf(
@@ -33,6 +36,11 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.coroutines.core)
             implementation(libs.koin.core)
+        }
+
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.coroutines.test)
         }
 
         androidMain.dependencies {

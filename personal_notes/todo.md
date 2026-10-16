@@ -69,7 +69,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 
 ## Next up
 
-- [ ] **Fix duplicate CORS header on preflight.** An OPTIONS request gets
+- [x] **Fix duplicate CORS header on preflight.** (#27) An OPTIONS request gets
   `Access-Control-Allow-Origin` twice: `CorsRequestInterceptor` adds the
   headers, then `CorsResponseInterceptor` adds them again
   (`backend/src/middleware/CorsMiddleware.hpp`). Browsers reject that, so

@@ -110,6 +110,13 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
         execute(apolloClient.mutation(UnassignPersonMutation(personId = personId, userId = userId)))
             .unassignPerson.personDetail.toModel()
 
+    // ── Users ───────────────────────────────────────────────
+
+    override suspend fun searchUsers(query: String): List<UserSummary> =
+        execute(apolloClient.query(SearchUsersQuery(query = query))).searchUsers.map {
+            UserSummary(id = it.id, name = it.name, username = it.username)
+        }
+
     // ── Lookups ─────────────────────────────────────────────
 
     override suspend fun getStatuses(): List<Status> =
@@ -147,7 +154,9 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
 
     override suspend fun getActivePrayerBurdens(personId: String?): List<PrayerBurden> =
         execute(apolloClient.query(ActivePrayerBurdensQuery(personId = Optional.presentIfNotNull(personId))))
-            .activePrayerBurdens.map { it.prayerBurdenFields.toModel() }
+            .activePrayerBurdens.map {
+                it.prayerBurdenFields.toModel().copy(person = PersonRef(id = it.person.id, name = it.person.name))
+            }
 
     override suspend fun createPrayerBurden(personId: String, content: String): PrayerBurden = execute(
         apolloClient.mutation(
@@ -198,7 +207,7 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
             else -> throw ShepherdException.Network(exception)
         }
 
-        response.errors?.firstOrNull()?.let { throw ShepherdException.Api(it.message) }
-        return response.data ?: throw ShepherdException.Api("Empty response")
+        response.errors?.firstOrNull()?.let { throw apiException(it.extensions?.get("code") as? String, it.message) }
+        return response.data ?: throw apiException(null, "Empty response")
     }
 }

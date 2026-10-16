@@ -34,8 +34,22 @@ query Milestones {
   }
 }
 
+query SearchUsers($query: String!) {
+  searchUsers(query: $query) {
+    id
+    name
+    username
+  }
+}
+
+# `person` is selected here and not in PrayerBurdenFields: only
+# activePrayerBurdens fills it, and other operations would get null.
 query ActivePrayerBurdens($personId: UUID) {
   activePrayerBurdens(personId: $personId) {
     ...PrayerBurdenFields
+    person {
+      id
+      name
+    }
   }
 }
