@@ -18,12 +18,14 @@ add_executable(unit_tests
     JWTServiceTest.cpp
     PasswordHasherTest.cpp
     ErrorMappingTest.cpp
+    CorsMiddlewareTest.cpp
 )
 
 target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
 target_link_libraries(unit_tests PRIVATE
     GTest::gtest
+    oatpp
     PkgConfig::SODIUM
     jwt-cpp::jwt-cpp
     OpenSSL::SSL
