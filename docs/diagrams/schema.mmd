@@ -15,6 +15,7 @@ erDiagram
 
     person ||--o{ contact_log : "contacted"
     user |o--o{ contact_log : "made contact"
+    contact_log |o--o| comment : "noted in"
 
     status {
         uuid id PK
@@ -63,6 +64,7 @@ erDiagram
         uuid user_id FK
         uuid person_id FK
         uuid prayer_burden_id FK
+        uuid contact_log_id FK
         text content
     }
     contact_log {
@@ -71,5 +73,4 @@ erDiagram
         uuid user_id FK
         timestamptz contacted_at
         boolean is_follow_up
-        text note
     }

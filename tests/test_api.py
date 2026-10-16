@@ -872,12 +872,13 @@ mutation LogContact($input: LogContactInput!) {
   logContact(input: $input) {
     id contactState contactDueAt lastContactedAt lastContactDate status { name }
     contacts { id isFollowUp note contactedBy { id } }
+    comments { content prayerBurden { id } author { id } }
   }
 }"""
 
 DELETE_CONTACT = """
 mutation DeleteContact($id: UUID!) {
-  deleteContact(id: $id) { id contactState contacts { id } }
+  deleteContact(id: $id) { id contactState contacts { id } comments { content } }
 }"""
 
 CONTACT_ALERTS = "query { contactAlerts { id name contactState contactDueAt } }"
@@ -928,6 +929,23 @@ class TestContactCadence:
         [contact] = person["contacts"]
         assert (contact["isFollowUp"], contact["note"], contact["contactedBy"]["id"]) == (False, "Phone call", user_id)
         assert gql(CONTACT_ALERTS, token=token)["contactAlerts"] == []
+
+    def test_contact_note_is_a_standalone_comment_removed_on_undo(self, make_user, statuses):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "Coffee"}}, token)["logContact"]
+        [note] = person["comments"]
+        assert (note["content"], note["prayerBurden"], note["author"]["id"]) == ("Coffee", None, user_id)
+
+        person = gql(DELETE_CONTACT, {"id": person["contacts"][0]["id"]}, token)["deleteContact"]
+        assert person["comments"] == []
+
+    def test_contact_without_note_adds_no_comment(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "  "}}, token)["logContact"]
+        assert person["contacts"][0]["note"] is None
+        assert person["comments"] == []
 
     def test_follow_up_promotes_new_contact(self, make_user, statuses):
         token, _, _ = make_user()

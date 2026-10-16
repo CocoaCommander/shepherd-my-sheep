@@ -19,7 +19,7 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
 - [ ] Build it. Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
-- [ ] Existing dev databases need `make reset` to pick up V003 (migrations only run on a fresh volume).
+- [ ] Existing dev databases need `make reset` to pick up V003 and V004 (migrations only run on a fresh volume).
 
 ## Screens (web + mWeb/mobile)
 
@@ -63,21 +63,62 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [x] Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
 - [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
 
+## Design gaps (canvas vs API)
+
+Found 2026-10-16 by checking the "Card & Gallery Views" canvas against
+`schema.graphql`, the migrations and the resolvers. Undo of a follow-up
+(contact cadence, above) and the recently-released query (Prayer list)
+were already listed and aren't repeated here.
+
+- [x] **Decide where contact notes show.** The Review "Log your contact"
+  note goes to `contact_log.note`, but "Last note" (Home, Review) and the
+  Person page Notes read `comment`. Either `logContact` also creates a
+  standalone comment, or the screens merge contact notes into the feed.
+  Decided 2026-10-16: it becomes a standalone comment linked to the
+  contact (`comment.contact_log_id`, one per contact); undoing the contact
+  deletes it. `contact_log.note` is gone; `ContactLog.note` reads the
+  linked comment. Migration `V004__contact_notes.sql`.
+- [ ] **Per-person summaries on list queries.** `myPeople` and
+  `contactAlerts` only run `rowToPerson`, so nested lists are empty
+  (`operations.graphql` says never select them there). Home, My people
+  and Review need, per person: milestone progress, active burden count,
+  shepherds ("Shared with Grace Lin") and the latest note with its time.
+  Add batched loads, or summary fields (`milestoneCount`,
+  `activeBurdenCount`, `latestComment`) to `Person`.
+- [ ] **Undo a prayer-burden release.** The Prayer list toast offers Undo,
+  but `release_prayer_burden` is one-way. Add an
+  `unrelease_prayer_burden` function (new migration) and an
+  `unreleasePrayerBurden(id)` mutation.
+- [ ] **`PrayerBurden.comments` is never populated.** Nothing sets it, yet
+  it's declared non-null. The Prayer list needs the count ("Comment (4)")
+  and the latest comment with author and time; fill it in
+  `activePrayerBurdens` (and wherever burdens are returned).
+- [ ] **Person status on burdens.** `activePrayerBurdens` returns the
+  person as `{id, name}` only; each Prayer list card shows a status pill.
+
 ## Brand
 
 - [ ] **Logo: simple vector sheep in brand green** (`#3b6e4f` body, `#2d5a3f` head and legs). Used in every header and on the sign-in screen across all mockups. Turn it into a real SVG asset for web, then the favicon, Android launcher icon and iOS app icon.
 
 ## Next up
 
-Ordered by priority.
+Ordered by priority (reordered 2026-10-16 after the design
+gap check).
 
-- [x] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync). Confirmed 2026-10-16.
-- [x] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one. Confirmed 2026-10-16.
-- [x] `backend/src/main.cpp` falls back to `0.0.0.0` / `8080` when
-  `API_HOST` / `API_PORT` are unset, against the no-defaults rule.
-  Validate them in `AppComponent::validateEnv()` with the rest. (#31)
-- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
-- [x] **Home** (based on option B, care-first): people who need contacting, up top. Web and mWeb mocked up. (#32)
+- [x] Click through the merged web app in a browser (`cd web && npm run
+  dev`, http://localhost:3000). Tests pass on main, but nobody has clicked
+  through the merged build yet.
+- [x] Decide where contact notes show (Design gaps). Blocks the Home,
+  Review and Person builds, so settle it before they start.
+- [ ] Per-person summaries on `myPeople` / `contactAlerts` (Design
+  gaps). Every list screen in the canvas needs them.
+- [ ] Finish the contact-cadence backend: Undo of a follow-up reverts
+  the promotion, and the clock counts from a status move
+  (`person.status_changed_at`). Needed by the My people board and
+  Review Undo.
+- [ ] Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
+  person status on burdens, recently released query (Design gaps and
+  Prayer list).
 - [ ] No rate limiting on `searchUsers` or login.
   - Strategy (decided 2026-10-16): **token bucket**, which is the
     "leaky bucket as a meter" (same maths). It allows a small burst and
@@ -95,9 +136,15 @@ Ordered by priority.
   - Depends on the logging follow-up below: `peer_address` isn't
     populated today, so per-IP limits need the client address first
     (and `X-Forwarded-For` from a trusted proxy if one is put in front).
-- [ ] Click through the merged web app in a browser (`cd web && npm run
-  dev`, http://localhost:3000). Tests pass on main, but nobody has clicked
-  through the merged build yet.
+- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
+  Do this after the API changes above settle, so the shared module
+  only catches up once.
+- [x] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync). Confirmed 2026-10-16.
+- [x] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one. Confirmed 2026-10-16.
+- [x] `backend/src/main.cpp` falls back to `0.0.0.0` / `8080` when
+  `API_HOST` / `API_PORT` are unset, against the no-defaults rule.
+  Validate them in `AppComponent::validateEnv()` with the rest. (#31)
+- [x] **Home** (based on option B, care-first): people who need contacting, up top. Web and mWeb mocked up. (#32)
 
 ## Mobile apps
 
@@ -140,6 +187,8 @@ Ordered by priority.
   `/graphql` to a hardcoded `http://localhost:8080`, so changing `API_PORT`
   in `.env` breaks the web app in dev. Read `API_PORT` from `.env` (no
   fallback) the way the Makefile does.
+- [ ] Regenerate `docs/diagrams/schema.svg` from `schema.mmd`. The PNG
+  shows `comment.contact_log_id` (V004); the SVG doesn't yet.
 
 ## Done
 

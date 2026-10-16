@@ -67,7 +67,7 @@ type ContactLog {
   contactedBy: User               # nullable — unknown for imported history, or the user was deleted
   contactedAt: DateTime!
   isFollowUp: Boolean!
-  note: String                    # nullable
+  note: String                    # nullable — the standalone note (Comment) written with it; gone if the contact is deleted
   createdAt: DateTime!
 }
 
@@ -228,5 +228,5 @@ input LogContactInput {
   personId: UUID!
   contactedAt: DateTime           # optional — defaults to now; may not be in the future
   isFollowUp: Boolean             # optional — defaults to false
-  note: String                    # optional
+  note: String                    # optional — saved as a standalone note (Comment) on the person, linked to this contact
 }

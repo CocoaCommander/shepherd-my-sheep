@@ -254,12 +254,14 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row) {
 }
 
 // Prefix: "contactor_" for the user who made contact (may be null).
+// The note is the standalone comment written with the contact, if any.
 inline const char* CONTACT_LOG_SELECT =
-    "SELECT cl.id, cl.person_id, cl.contacted_at, cl.is_follow_up, cl.note, cl.created_at, "
+    "SELECT cl.id, cl.person_id, cl.contacted_at, cl.is_follow_up, n.content AS note, cl.created_at, "
     "       u.id AS contactor_id, u.name AS contactor_name, u.username AS contactor_username, "
     "       u.created_at AS contactor_created_at, u.updated_at AS contactor_updated_at "
     "FROM contact_log cl "
-    "LEFT JOIN \"user\" u ON u.id = cl.user_id ";
+    "LEFT JOIN \"user\" u ON u.id = cl.user_id "
+    "LEFT JOIN comment n ON n.contact_log_id = cl.id ";
 
 inline ContactLogDto::Wrapper rowToContactLog(const pqxx::row& row) {
     auto dto         = ContactLogDto::createShared();
