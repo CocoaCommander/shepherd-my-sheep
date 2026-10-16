@@ -136,3 +136,47 @@ class TestContactLog:
             cur.execute('DELETE FROM "user" WHERE id = %s', (user_id,))
             cur.execute("SELECT user_id FROM contact_log WHERE person_id = %s", (person_id,))
             assert cur.fetchone() == (None,)
+
+    def test_contact_note_lives_in_comment(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM information_schema.columns WHERE table_name = 'contact_log' AND column_name = 'note'"
+            )
+            assert cur.fetchone()[0] == 0
+
+    def test_deleting_contact_deletes_its_note(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO \"user\" (name, username, password_hash) VALUES ('U', 'note_user', 'x') RETURNING id"
+            )
+            user_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO person (name, status_id) VALUES ('Noted', %s) RETURNING id", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO contact_log (person_id, user_id) VALUES (%s, %s) RETURNING id", (person_id, user_id)
+            )
+            contact_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO comment (user_id, person_id, content, contact_log_id) VALUES (%s, %s, 'Hi', %s)",
+                (user_id, person_id, contact_id),
+            )
+            cur.execute("DELETE FROM contact_log WHERE id = %s", (contact_id,))
+            cur.execute("SELECT count(*) FROM comment WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_one_note_per_contact(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO \"user\" (name, username, password_hash) VALUES ('U', 'note_user2', 'x') RETURNING id"
+            )
+            user_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO person (name, status_id) VALUES ('Noted', %s) RETURNING id", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO contact_log (person_id, user_id) VALUES (%s, %s) RETURNING id", (person_id, user_id)
+            )
+            contact_id = cur.fetchone()[0]
+            insert = "INSERT INTO comment (user_id, person_id, content, contact_log_id) VALUES (%s, %s, 'Hi', %s)"
+            cur.execute(insert, (user_id, person_id, contact_id))
+            with pytest.raises(psycopg2.errors.UniqueViolation):
+                cur.execute(insert, (user_id, person_id, contact_id))

@@ -463,10 +463,8 @@ class TestLogContact:
         with db.cursor() as cur:
             person_id = sp_create_person(cur, "Contacted")[0]
             row = sp_log_contact(cur, person_id)
-            cur.execute(
-                "SELECT contacted_at = now(), is_follow_up, user_id, note FROM contact_log WHERE id = %s", (row[0],)
-            )
-            assert cur.fetchone() == (True, False, None, None)
+            cur.execute("SELECT contacted_at = now(), is_follow_up, user_id FROM contact_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (True, False, None)
 
     def test_follow_up_promotes_new_contact_to_active(self, db):
         with db.cursor() as cur:
@@ -487,13 +485,38 @@ class TestLogContact:
             sp_log_contact(cur, person_id, is_follow_up=True)
             assert status_of(cur, person_id) == status_name
 
-    def test_records_who_and_note(self, db):
+    def test_records_who(self, db):
         with db.cursor() as cur:
             user_id = sp_create_user(cur, username="contactor")[0]
             person_id = sp_create_person(cur)[0]
-            row = sp_log_contact(cur, person_id, user_id, note="Coffee after church")
-            cur.execute("SELECT user_id, note FROM contact_log WHERE id = %s", (row[0],))
-            assert cur.fetchone() == (user_id, "Coffee after church")
+            row = sp_log_contact(cur, person_id, user_id)
+            cur.execute("SELECT user_id FROM contact_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (user_id,)
+
+    def test_note_becomes_a_standalone_comment(self, db):
+        with db.cursor() as cur:
+            user_id = sp_create_user(cur, username="contactor")[0]
+            person_id = sp_create_person(cur)[0]
+            row = sp_log_contact(cur, person_id, user_id, note="  Coffee after church ")
+            cur.execute(
+                "SELECT user_id, person_id, prayer_burden_id, content FROM comment WHERE contact_log_id = %s", (row[0],)
+            )
+            assert cur.fetchall() == [(user_id, person_id, None, "Coffee after church")]
+
+    @pytest.mark.parametrize("note", [None, "", "   "])
+    def test_no_note_no_comment(self, db, note):
+        with db.cursor() as cur:
+            user_id = sp_create_user(cur, username="contactor")[0]
+            person_id = sp_create_person(cur)[0]
+            sp_log_contact(cur, person_id, user_id, note=note)
+            cur.execute("SELECT count(*) FROM comment WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_note_without_user_rejected(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                sp_log_contact(cur, person_id, note="Who wrote this?")
 
     def test_backdated_contact_allowed(self, db):
         with db.cursor() as cur:
@@ -530,6 +553,16 @@ class TestDeleteContact:
             assert cur.fetchone()[0] is True
             cur.execute("SELECT count(*) FROM contact_log WHERE person_id = %s", (person_id,))
             assert cur.fetchone()[0] == 0
+
+    def test_delete_contact_removes_its_note_only(self, db):
+        with db.cursor() as cur:
+            user_id = sp_create_user(cur, username="contactor")[0]
+            person_id = sp_create_person(cur)[0]
+            row = sp_log_contact(cur, person_id, user_id, note="Undo me")
+            cur.execute("SELECT * FROM create_comment(%s, %s, %s)", (user_id, person_id, "Keep me"))
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            cur.execute("SELECT content FROM comment WHERE person_id = %s", (person_id,))
+            assert cur.fetchall() == [("Keep me",)]
 
     def test_delete_nonexistent_contact_raises(self, db):
         with db.cursor() as cur:

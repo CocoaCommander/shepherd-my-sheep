@@ -19,7 +19,7 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
 - [ ] Build it. Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
-- [ ] Existing dev databases need `make reset` to pick up V003 (migrations only run on a fresh volume).
+- [ ] Existing dev databases need `make reset` to pick up V003 and V004 (migrations only run on a fresh volume).
 
 ## Screens (web + mWeb/mobile)
 
@@ -70,10 +70,14 @@ Found 2026-10-16 by checking the "Card & Gallery Views" canvas against
 (contact cadence, above) and the recently-released query (Prayer list)
 were already listed and aren't repeated here.
 
-- [ ] **Decide where contact notes show.** The Review "Log your contact"
+- [x] **Decide where contact notes show.** The Review "Log your contact"
   note goes to `contact_log.note`, but "Last note" (Home, Review) and the
   Person page Notes read `comment`. Either `logContact` also creates a
   standalone comment, or the screens merge contact notes into the feed.
+  Decided 2026-10-16: it becomes a standalone comment linked to the
+  contact (`comment.contact_log_id`, one per contact); undoing the contact
+  deletes it. `contact_log.note` is gone; `ContactLog.note` reads the
+  linked comment. Migration `V004__contact_notes.sql`.
 - [ ] **Per-person summaries on list queries.** `myPeople` and
   `contactAlerts` only run `rowToPerson`, so nested lists are empty
   (`operations.graphql` says never select them there). Home, My people
@@ -104,7 +108,7 @@ gap check).
 - [x] Click through the merged web app in a browser (`cd web && npm run
   dev`, http://localhost:3000). Tests pass on main, but nobody has clicked
   through the merged build yet.
-- [ ] Decide where contact notes show (Design gaps). Blocks the Home,
+- [x] Decide where contact notes show (Design gaps). Blocks the Home,
   Review and Person builds, so settle it before they start.
 - [ ] Per-person summaries on `myPeople` / `contactAlerts` (Design
   gaps). Every list screen in the canvas needs them.
@@ -183,6 +187,8 @@ gap check).
   `/graphql` to a hardcoded `http://localhost:8080`, so changing `API_PORT`
   in `.env` breaks the web app in dev. Read `API_PORT` from `.env` (no
   fallback) the way the Makefile does.
+- [ ] Regenerate `docs/diagrams/schema.svg` from `schema.mmd`. The PNG
+  shows `comment.contact_log_id` (V004); the SVG doesn't yet.
 
 ## Done
 
