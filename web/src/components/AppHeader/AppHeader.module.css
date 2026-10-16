@@ -1,0 +1,90 @@
+.header {
+  composes: base from '../shared.module.css';
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sms-space-12);
+  padding: 8px var(--sms-space-32);
+  background: var(--sms-surface);
+  border-bottom: 1px solid var(--sms-border);
+  color: var(--sms-ink);
+  font-size: 14px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sms-space-8);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--sms-ink);
+  text-decoration: none;
+}
+
+.right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-20);
+}
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-20);
+}
+.nav a {
+  color: var(--sms-muted);
+  text-decoration: none;
+  padding: var(--sms-space-10) 0;
+  border-bottom: 2px solid transparent;
+}
+.nav a:hover {
+  text-decoration: underline;
+}
+/* react-router's NavLink sets aria-current="page" on the current link. */
+.nav a[aria-current='page'] {
+  font-weight: 600;
+  color: var(--sms-brand-strong);
+  border-bottom-color: var(--sms-brand);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-12);
+  color: var(--sms-muted);
+}
+
+.bell {
+  composes: control from '../shared.module.css';
+  position: relative;
+  width: var(--sms-size-touch);
+  height: var(--sms-size-touch);
+  padding: 0;
+  border: 0;
+  border-radius: var(--sms-radius-lg);
+  background: none;
+  color: var(--sms-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.bellCount {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--sms-danger);
+  color: var(--sms-on-brand);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

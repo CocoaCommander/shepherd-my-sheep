@@ -1,0 +1,102 @@
+/*
+ * Shepherd My Sheep design tokens, copied from the design system's tokens.json.
+ * Light theme only. Every name carries an `sms-` prefix so it can't collide with
+ * the older palette (and its dark mode) in src/index.css.
+ */
+:root {
+  /* Ground and surfaces */
+  --sms-bg: #f6f5f2;
+  --sms-surface: #ffffff;
+  --sms-surface-sunken: #ece9e3;
+  --sms-border: #e2e0db;
+  --sms-border-control: #cfd6d1;
+  --sms-border-dashed: #b9b6ae;
+  --sms-border-dashed-soft: #b5bbb7;
+
+  /* Text */
+  --sms-ink: #1f2328;
+  --sms-ink-2: #3d4247;
+  --sms-muted: #5f646a;
+  --sms-muted-icon: #8b9298;
+  --sms-on-brand: #ffffff;
+
+  /* Brand */
+  --sms-brand: #3b6e4f;
+  --sms-brand-strong: #2d5a3f;
+  --sms-brand-tint: #e6efe9;
+  --sms-brand-wash: #eef4f0;
+  --sms-brand-wash-2: #f1f7f3;
+  --sms-brand-border: #cfe0d5;
+  --sms-brand-ring: #8fb9a0;
+
+  /* Urgency */
+  --sms-danger: #a13a0a;
+  --sms-danger-ink: #7a2a05;
+  --sms-danger-body: #5a3a28;
+  --sms-danger-tint: #fbeee6;
+  --sms-danger-border: #e6bfa3;
+  --sms-warn: #b98a12;
+  --sms-warn-ink: #6b4c00;
+  --sms-warn-ink-2: #5c4200;
+  --sms-warn-tint: #fbf0cf;
+  --sms-warn-wash: #fbf3dc;
+  --sms-warn-border: #e8d9a8;
+
+  /* Statuses */
+  --sms-info-ink: #244a7c;
+  --sms-info-tint: #e3ebf6;
+  --sms-info-dot: #4a78b8;
+  --sms-inactive-ink: #6b5018;
+  --sms-inactive-tint: #f3ecdc;
+  --sms-inactive-dot: #b0842a;
+  --sms-lost-ink: #4a4e53;
+  --sms-lost-tint: #e9e8e6;
+  --sms-lost-dot: #7b8085;
+
+  /* Avatar tints */
+  --sms-av-blue-ink: #2a4a78;
+  --sms-av-sand: #f3eadb;
+  --sms-av-sand-ink: #6b4a1b;
+  --sms-av-rose: #f3e4ea;
+  --sms-av-rose-ink: #7a3550;
+  --sms-av-violet: #ebe7f4;
+  --sms-av-violet-ink: #4a3f7a;
+
+  /* Type */
+  --sms-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Spacing */
+  --sms-space-4: 4px;
+  --sms-space-6: 6px;
+  --sms-space-8: 8px;
+  --sms-space-10: 10px;
+  --sms-space-12: 12px;
+  --sms-space-14: 14px;
+  --sms-space-16: 16px;
+  --sms-space-18: 18px;
+  --sms-space-20: 20px;
+  --sms-space-24: 24px;
+  --sms-space-28: 28px;
+  --sms-space-32: 32px;
+  --sms-space-56: 56px;
+
+  /* Radius */
+  --sms-radius-xs: 3px;
+  --sms-radius-sm: 4px;
+  --sms-radius-md: 6px;
+  --sms-radius-lg: 8px;
+  --sms-radius-xl: 10px;
+  --sms-radius-2xl: 12px;
+  --sms-radius-pill: 999px;
+  --sms-radius-circle: 50%;
+
+  /* Shadow: the toast is the only elevation; everything else uses borders. */
+  --sms-shadow-toast: 0 6px 20px rgba(31, 35, 40, 0.25);
+  --sms-shadow-avatar-ring: 0 0 0 1px #e2e0db;
+
+  /* Size */
+  --sms-size-touch: 44px;
+  --sms-size-input: 48px;
+  --sms-size-cta: 50px;
+  --sms-size-content: 1216px;
+}

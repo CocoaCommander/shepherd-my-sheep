@@ -1,0 +1,75 @@
+/* StatusPill: a person's pastoral status. */
+.pill {
+  composes: base from '../shared.module.css';
+  display: inline-block;
+  border-radius: var(--sms-radius-pill);
+  padding: 1px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.new {
+  background: var(--sms-info-tint);
+  color: var(--sms-info-ink);
+}
+.active {
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}
+.inactive {
+  background: var(--sms-inactive-tint);
+  color: var(--sms-inactive-ink);
+}
+.lost {
+  background: var(--sms-lost-tint);
+  color: var(--sms-lost-ink);
+}
+
+/* DueTag: contact timing on a person card. */
+.tag {
+  composes: base from '../shared.module.css';
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--sms-radius-lg);
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.overdue {
+  background: var(--sms-danger);
+  color: var(--sms-on-brand);
+}
+.soon {
+  background: var(--sms-warn-tint);
+  color: var(--sms-warn-ink);
+}
+.ok {
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}
+
+/* CountPill: the number beside a section title. */
+.count {
+  composes: base from '../shared.module.css';
+  display: inline-block;
+  border-radius: var(--sms-radius-pill);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--sms-surface);
+  color: var(--sms-ink-2);
+}
+.countDanger {
+  background: var(--sms-danger);
+  color: var(--sms-on-brand);
+}
+.countWarn {
+  background: var(--sms-warn-tint);
+  color: var(--sms-warn-ink);
+}
+.countOk {
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}

@@ -1,0 +1,46 @@
+.stat {
+  composes: base from '../shared.module.css';
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-14);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-14) var(--sms-space-16);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  color: var(--sms-ink-2);
+  font-size: 14px;
+  text-decoration: none;
+}
+.stat:hover {
+  text-decoration: underline;
+}
+.number {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+.label {
+  display: block;
+  font-weight: 600;
+}
+.rule {
+  display: block;
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+
+.danger {
+  background: var(--sms-danger-tint);
+  border-color: var(--sms-danger-border);
+  color: var(--sms-danger-ink);
+}
+.warn {
+  background: var(--sms-warn-wash);
+  border-color: var(--sms-warn-border);
+  color: var(--sms-warn-ink-2);
+}
+.ok {
+  background: var(--sms-brand-wash);
+  border-color: var(--sms-brand-border);
+  color: var(--sms-brand-strong);
+}

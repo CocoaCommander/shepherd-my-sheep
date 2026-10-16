@@ -1,0 +1,64 @@
+/* The Home overdue banner. */
+.alert {
+  composes: base from '../shared.module.css';
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sms-space-16);
+  background: var(--sms-danger-tint);
+  border: 1px solid var(--sms-danger-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-16) var(--sms-space-20);
+  color: var(--sms-danger-body);
+  font-size: 14px;
+}
+.main {
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-14);
+}
+.icon {
+  flex: none;
+  display: flex;
+  color: var(--sms-danger);
+}
+.title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--sms-danger-ink);
+}
+
+/* Form-level errors. */
+.inline {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: var(--sms-space-10);
+  border-radius: var(--sms-radius-xl);
+  padding: var(--sms-space-12) var(--sms-space-14);
+  color: var(--sms-danger-ink);
+}
+.inline .main {
+  align-items: flex-start;
+  gap: var(--sms-space-10);
+}
+.inline .icon {
+  color: inherit;
+  padding-top: 2px;
+}
+.inline .title {
+  font-size: 14px;
+}
+
+/* Confirmation. */
+.success {
+  background: var(--sms-brand-wash);
+  border-color: var(--sms-brand-border);
+  color: var(--sms-brand-strong);
+  font-weight: 600;
+}
+.success .title {
+  color: inherit;
+  font-size: 14px;
+}

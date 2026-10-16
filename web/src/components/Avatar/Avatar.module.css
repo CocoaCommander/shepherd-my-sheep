@@ -1,0 +1,71 @@
+.avatar {
+  composes: base from '../shared.module.css';
+  width: 44px;
+  height: 44px;
+  border-radius: var(--sms-radius-circle);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 15px;
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}
+
+.sm {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+.lg {
+  width: 48px;
+  height: 48px;
+  font-size: 16px;
+}
+.xl {
+  width: 64px;
+  height: 64px;
+  font-size: 22px;
+}
+
+.blue {
+  background: var(--sms-info-tint);
+  color: var(--sms-av-blue-ink);
+}
+.sand {
+  background: var(--sms-av-sand);
+  color: var(--sms-av-sand-ink);
+}
+.rose {
+  background: var(--sms-av-rose);
+  color: var(--sms-av-rose-ink);
+}
+.violet {
+  background: var(--sms-av-violet);
+  color: var(--sms-av-violet-ink);
+}
+
+/* The stack of shepherds in a card footer. */
+.stack {
+  composes: base from '../shared.module.css';
+  display: flex;
+  align-items: center;
+}
+.stackItem {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--sms-radius-circle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  border: 2px solid var(--sms-surface);
+  box-shadow: var(--sms-shadow-avatar-ring);
+}
+.stackItem + .stackItem {
+  margin-left: -8px;
+}

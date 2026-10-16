@@ -1,0 +1,134 @@
+.field {
+  composes: base from '../shared.module.css';
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--sms-ink);
+}
+/* index.css makes every <label> a column flex box; restate what this one needs. */
+.label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+}
+.input,
+.select {
+  box-sizing: border-box;
+  min-height: var(--sms-size-input);
+  border: 1px solid var(--sms-border-control);
+  border-radius: var(--sms-radius-lg);
+  padding: 0 var(--sms-space-12);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--sms-ink);
+  background: var(--sms-surface);
+  width: 100%;
+  margin: 0;
+}
+.input:focus-visible,
+.select:focus-visible {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+.select {
+  min-height: var(--sms-size-touch);
+  width: auto;
+  padding: 0 var(--sms-space-10);
+}
+.help {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--sms-muted);
+}
+.error .input,
+.error .group {
+  border-color: var(--sms-danger);
+}
+.error .help {
+  color: var(--sms-danger);
+}
+
+/* Password input joined with its Show/Hide button. */
+.group {
+  display: flex;
+  border: 1px solid var(--sms-border-control);
+  border-radius: var(--sms-radius-lg);
+  background: var(--sms-surface);
+  overflow: hidden;
+}
+.group .input {
+  border: 0;
+  flex: 1;
+  min-width: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.group .input:focus-visible {
+  outline-offset: -3px;
+}
+.toggle {
+  composes: control from '../shared.module.css';
+  border: 0;
+  border-left: 1px solid var(--sms-border);
+  border-radius: 0;
+  background: var(--sms-surface);
+  color: var(--sms-brand-strong);
+  min-width: 64px;
+  padding: 0 var(--sms-space-14);
+}
+.toggle:focus-visible {
+  outline-offset: -3px;
+}
+
+/* Search box with a leading magnifier. */
+.search {
+  composes: base from '../shared.module.css';
+  display: flex;
+  /* It's a <label>, which index.css turns into a column. */
+  flex-direction: row;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 400;
+  gap: var(--sms-space-8);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-lg);
+  padding: 0 var(--sms-space-12);
+  min-height: var(--sms-size-touch);
+  width: 240px;
+  max-width: 100%;
+  color: var(--sms-muted);
+}
+.search:focus-within {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+.searchInput {
+  border: 0;
+  outline: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  color: var(--sms-ink);
+}
+/* The box shows focus (focus-within above); beat index.css's input:focus and the shared ring. */
+.search .searchInput:focus,
+.search .searchInput:focus-visible {
+  outline: 0;
+}
+
+/* A select with its label inline before it. */
+.selectLabel {
+  composes: base from '../shared.module.css';
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sms-space-8);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--sms-muted);
+}

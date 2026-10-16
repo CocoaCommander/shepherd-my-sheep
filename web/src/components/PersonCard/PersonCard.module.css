@@ -1,0 +1,130 @@
+.card {
+  composes: base from '../shared.module.css';
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-18);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-14);
+  font-size: 14px;
+  color: var(--sms-ink);
+  min-width: 0;
+}
+.overdue {
+  border-color: var(--sms-danger-border);
+}
+.soon {
+  border-color: var(--sms-warn-border);
+}
+.mini {
+  border-radius: var(--sms-radius-xl);
+  padding: var(--sms-space-12);
+  gap: var(--sms-space-10);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-12);
+}
+.mini .head {
+  gap: 10px;
+}
+.who {
+  min-width: 0;
+  flex: 1;
+}
+.name {
+  display: block;
+  margin: 0;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini .name {
+  font-size: 14px;
+}
+.name a {
+  color: inherit;
+  text-decoration: none;
+}
+.name a:hover {
+  text-decoration: underline;
+}
+.sub {
+  color: var(--sms-muted);
+  font-size: 13px;
+}
+.miniSub {
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+.overdueText {
+  color: var(--sms-danger);
+}
+
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sms-space-8);
+}
+.lastContact {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.miniPray {
+  font-size: 12px;
+  gap: 4px;
+}
+
+.foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sms-space-8);
+  border-top: 1px solid var(--sms-border);
+  padding-top: var(--sms-space-12);
+  margin-top: auto;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-8);
+  align-items: center;
+  margin-top: auto;
+}
+.aside {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+
+/* The dashed tile that ends a gallery. */
+.add {
+  composes: base from '../shared.module.css';
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sms-space-8);
+  min-height: 200px;
+  padding: var(--sms-space-18);
+  background: none;
+  border: 1.5px dashed var(--sms-border-dashed);
+  border-radius: var(--sms-radius-2xl);
+  color: var(--sms-brand-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.add:hover {
+  text-decoration: underline;
+}
