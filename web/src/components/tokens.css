@@ -10,6 +10,8 @@
   --sms-surface-sunken: #ece9e3;
   --sms-border: #e2e0db;
   --sms-border-control: #cfd6d1;
+  /* Text inputs, selects, the search box and the switch track: 3:1 so the control is identifiable (WCAG 1.4.11). */
+  --sms-border-input: #898e8d;
   --sms-border-dashed: #b9b6ae;
   --sms-border-dashed-soft: #b5bbb7;
 
@@ -27,7 +29,8 @@
   --sms-brand-wash: #eef4f0;
   --sms-brand-wash-2: #f1f7f3;
   --sms-brand-border: #cfe0d5;
-  --sms-brand-ring: #8fb9a0;
+  /* Focus ring: 3.02:1 on bg, 3.30:1 on surface (WCAG 1.4.11). Was #8fb9a0, about 2:1. */
+  --sms-brand-ring: #749583;
 
   /* Urgency */
   --sms-danger: #a13a0a;

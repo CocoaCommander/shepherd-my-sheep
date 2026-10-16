@@ -109,7 +109,8 @@
   width: 40px;
   height: 24px;
   border-radius: 12px;
-  background: var(--sms-border-control);
+  /* The off track and its white knob both need 3:1 to show the off state (WCAG 1.4.11). */
+  background: var(--sms-border-input);
   position: relative;
   display: inline-block;
   flex: none;

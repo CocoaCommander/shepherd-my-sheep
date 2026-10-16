@@ -15,7 +15,7 @@
 .select {
   box-sizing: border-box;
   min-height: var(--sms-size-input);
-  border: 1px solid var(--sms-border-control);
+  border: 1px solid var(--sms-border-input);
   border-radius: var(--sms-radius-lg);
   padding: 0 var(--sms-space-12);
   font: inherit;
@@ -52,7 +52,7 @@
 /* Password input joined with its Show/Hide button. */
 .group {
   display: flex;
-  border: 1px solid var(--sms-border-control);
+  border: 1px solid var(--sms-border-input);
   border-radius: var(--sms-radius-lg);
   background: var(--sms-surface);
   overflow: hidden;
@@ -92,7 +92,7 @@
   font-weight: 400;
   gap: var(--sms-space-8);
   background: var(--sms-surface);
-  border: 1px solid var(--sms-border);
+  border: 1px solid var(--sms-border-input);
   border-radius: var(--sms-radius-lg);
   padding: 0 var(--sms-space-12);
   min-height: var(--sms-size-touch);
