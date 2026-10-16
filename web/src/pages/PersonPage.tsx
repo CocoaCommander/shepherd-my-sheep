@@ -34,7 +34,7 @@ export function PersonPage() {
     <>
       <Header />
       <main className="page stack">
-        <Link to="/" className="back">
+        <Link to="/people" className="back">
           ← My people
         </Link>
 

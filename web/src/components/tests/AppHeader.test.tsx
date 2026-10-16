@@ -51,6 +51,40 @@ describe('AppHeader', () => {
     expect(header).toHaveTextContent('Shepherd My Sheep')
     expect(within(header).queryByRole('navigation')).not.toBeInTheDocument()
     expect(within(header).getByRole('button', { name: 'Exit review' })).toBeInTheDocument()
+    expect(within(header).queryByRole('button', { name: 'Menu' })).not.toBeInTheDocument()
+  })
+
+  it('folds the nav and actions behind a Menu button for phones, keeping alerts out', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <AppHeader
+          nav={<Link to="/prayer">Prayer list</Link>}
+          alerts={<Bell count={2} label="2 people need contacting" />}
+          actions={<Button variant="text">Sign out</Button>}
+        />
+      </MemoryRouter>,
+    )
+    // CSS hides it at desktop width, and jsdom doesn't apply the phone media query, so it
+    // has no computed accessible name here; find it by its label instead.
+    const menu = screen.getByLabelText('Menu')
+    expect(menu.tagName).toBe('BUTTON')
+    const panel = document.getElementById(menu.getAttribute('aria-controls')!)!
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
+    expect(panel).toContainElement(screen.getByRole('navigation', { name: 'Main' }))
+    expect(panel).toContainElement(screen.getByRole('button', { name: 'Sign out' }))
+    expect(panel).not.toContainElement(
+      screen.getByRole('button', { name: '2 people need contacting' }),
+    )
+
+    await user.click(menu)
+    expect(menu).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{Escape}')
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(menu)
+    await user.click(screen.getByRole('link', { name: 'Prayer list' }))
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
   })
 })
 

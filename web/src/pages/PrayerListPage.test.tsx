@@ -118,9 +118,10 @@ describe('Prayer list page', () => {
 })
 
 describe('Header navigation', () => {
-  it('links to My people and Prayer list', async () => {
+  it('links to Home, My people and Prayer list', async () => {
     renderPage([])
-    expect(await screen.findByRole('link', { name: 'My people' })).toHaveAttribute('href', '/')
+    expect(await screen.findByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'My people' })).toHaveAttribute('href', '/people')
     expect(screen.getByRole('link', { name: 'Prayer list' })).toHaveAttribute('href', '/prayer')
   })
 

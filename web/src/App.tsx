@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
+import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { PersonPage } from './pages/PersonPage'
@@ -11,6 +12,14 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/"
+        element={
+          <RequireAuth>
+            <HomePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/people"
         element={
           <RequireAuth>
             <PeoplePage />

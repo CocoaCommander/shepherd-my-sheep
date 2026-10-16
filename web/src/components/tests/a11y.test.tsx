@@ -39,9 +39,9 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
                 <NavLink to="/prayer">Prayer list</NavLink>
               </>
             }
+            alerts={<C.Bell count={4} label="4 people need contacting" />}
             actions={
               <>
-                <C.Bell count={4} label="4 people need contacting" />
                 <span>Daniel Okafor</span>
                 <C.Button variant="text">Sign out</C.Button>
               </>

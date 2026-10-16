@@ -1,5 +1,5 @@
-import type { ElementType, ReactNode } from 'react'
-import { BellIcon, SheepMark } from '../icons'
+import { useId, useState, type ElementType, type MouseEvent, type ReactNode } from 'react'
+import { BellIcon, ListIcon, SheepMark } from '../icons'
 import { cx, type PolymorphicProps } from '../utils'
 import styles from './AppHeader.module.css'
 
@@ -25,27 +25,62 @@ export function Brand<E extends ElementType = 'span'>({
  * The white top bar on every screen: brand on the left, then navigation and account actions.
  * Put it outside <main>. In focused flows such as Review, leave out `nav` and pass one
  * secondary Button (Exit review) as `actions`.
+ *
+ * Below 720px, `nav` and `actions` fold behind a Menu button while `alerts` (the Bell) stays
+ * in the bar. The menu closes when a link in it is followed, or on Escape.
  */
 export function AppHeader({
   brand = <Brand />,
   nav,
   navLabel = 'Main',
+  alerts,
   actions,
+  menuLabel = 'Menu',
   className,
 }: {
   brand?: ReactNode
   /** Links; mark the current one with aria-current="page" (NavLink does this). */
   nav?: ReactNode
   navLabel?: string
-  /** Bell, signed-in name, Sign out. */
+  /** The Bell. Shown at every width: after the nav on desktop, beside Menu on phones. */
+  alerts?: ReactNode
+  /** Signed-in name, Sign out. */
   actions?: ReactNode
+  menuLabel?: string
   className?: string
 }) {
+  const [open, setOpen] = useState(false)
+  const panelId = useId()
+  // Only a header with navigation folds; a focused flow's single action always shows.
+  const folds = Boolean(nav)
+
+  function closeOnLink(event: MouseEvent) {
+    if ((event.target as HTMLElement).closest('a')) setOpen(false)
+  }
+
   return (
-    <header className={cx(styles.header, className)}>
+    <header
+      className={cx(styles.header, folds && styles.folds, open && styles.open, className)}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && open) setOpen(false)
+      }}
+    >
       {brand}
+      {alerts && <div className={styles.alerts}>{alerts}</div>}
+      {folds && (
+        <button
+          type="button"
+          className={styles.menuButton}
+          aria-label={menuLabel}
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <ListIcon size={20} />
+        </button>
+      )}
       {(nav || actions) && (
-        <div className={styles.right}>
+        <div id={panelId} className={styles.right} onClick={closeOnLink}>
           {nav && (
             <nav aria-label={navLabel} className={styles.nav}>
               {nav}

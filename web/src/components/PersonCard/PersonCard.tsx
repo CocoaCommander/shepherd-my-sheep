@@ -128,7 +128,7 @@ export function CareCard({
         className,
       )}
     >
-      <div className={styles.head}>
+      <div className={cx(styles.head, styles.careHead)}>
         <Avatar name={name} size="lg" tint={avatarTint} />
         <div className={styles.who}>
           <Name name={name} renderName={renderName} headingLevel={headingLevel} />

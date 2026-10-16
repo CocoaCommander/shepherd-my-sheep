@@ -66,7 +66,7 @@ function renderPage(shepherds: object[], extra: MockedResponse[] = []) {
       <MemoryRouter initialEntries={[`/people/${PERSON_ID}`]}>
         <Routes>
           <Route path="/people/:id" element={<PersonPage />} />
-          <Route path="/" element={<p>People list stub</p>} />
+          <Route path="/people" element={<p>People list stub</p>} />
         </Routes>
       </MemoryRouter>
     </MockedProvider>,

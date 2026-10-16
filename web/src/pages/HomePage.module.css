@@ -1,0 +1,169 @@
+/*
+ * Home: one responsive layout for desktop and mobile web. Breakpoints match AppHeader's:
+ * below 1000px the three-up grids go to two, below 720px everything is one column.
+ */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-32) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-28);
+}
+
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--sms-space-16);
+}
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.date {
+  margin: 4px 0 0;
+  color: var(--sms-muted);
+}
+.muted {
+  color: var(--sms-muted);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sms-space-16);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-10);
+}
+.sectionTitle {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.hint {
+  color: var(--sms-muted);
+}
+.grid,
+.gridWide {
+  display: grid;
+  gap: var(--sms-space-16);
+}
+.grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* Overdue cards get more room, two to a row. */
+.gridWide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.empty,
+.notTracked {
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-24);
+}
+.notTracked {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-14) var(--sms-space-18);
+}
+.notTracked p {
+  margin: 0;
+}
+.link {
+  color: var(--sms-brand-strong);
+  font-weight: 600;
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.link:focus-visible {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 999px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-20) var(--sms-space-16) 40px;
+    gap: var(--sms-space-20);
+  }
+  .title {
+    font-size: 24px;
+  }
+  .date {
+    margin-top: 2px;
+  }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sms-space-10);
+  }
+  .grid,
+  .gridWide {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hint {
+    display: none;
+  }
+  /* Thumb-sized: the banner action and each card's main action fill the width. */
+  .bannerAction {
+    width: 100%;
+  }
+  .primaryAction {
+    flex: 1;
+    min-height: var(--sms-size-input);
+  }
+  .notTracked {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sms-space-6);
+    padding: var(--sms-space-14);
+  }
+  .link {
+    display: flex;
+    align-items: center;
+    min-height: var(--sms-size-touch);
+  }
+  .toast {
+    left: var(--sms-space-16);
+    right: var(--sms-space-16);
+  }
+}
