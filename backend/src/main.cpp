@@ -3,6 +3,7 @@
 #include "oatpp/network/tcp/server/ConnectionProvider.hpp"
 
 #include "AppComponent.hpp"
+#include "Log.hpp"
 #include "graphql/GraphQLController.hpp"
 #include "middleware/CorsMiddleware.hpp"
 #include "middleware/RequestLogger.hpp"
@@ -47,10 +48,10 @@ void run() {
 
     // Log CORS config on startup
     const char* corsOrigin = std::getenv("CORS_ORIGIN");
-    std::cout << "Shepherd API running on http://" << host << ":" << port << std::endl;
-    std::cout << "GraphQL endpoint: POST /graphql" << std::endl;
-    std::cout << "CORS allowed origin: " << (corsOrigin ? corsOrigin : "(none — browser requests will be blocked)")
-              << std::endl;
+    Log::info("Shepherd API running on http://" + host + ":" + std::to_string(port));
+    Log::info("GraphQL endpoint: POST /graphql");
+    Log::info(std::string("CORS allowed origin: ")
+              + (corsOrigin ? corsOrigin : "(none — browser requests will be blocked)"));
 
     server.run();
 }

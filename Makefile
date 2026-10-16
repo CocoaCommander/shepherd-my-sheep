@@ -7,7 +7,7 @@ DEV_DIR := .dev
 WEB_PID := $(DEV_DIR)/web.pid
 WEB_LOG := $(DEV_DIR)/web.log
 
-.PHONY: help deps check-deps start stop restart reset db seed reseed test test-seed
+.PHONY: help deps check-deps start stop restart reset logs db seed reseed test test-seed
 
 help: ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
@@ -51,6 +51,14 @@ reset: check-deps ## wipe the database, start everything fresh and load demo dat
 	docker compose down -v
 	@$(MAKE) --no-print-directory start
 	$(ENV) python3 -m db.seed
+
+# Compose labels API and Postgres lines with the container name; the web
+# log gets a matching label. Ctrl-C stops both followers.
+logs: ## follow API, Postgres and web dev server logs together
+	@mkdir -p $(DEV_DIR) && touch $(WEB_LOG)
+	@tail -n 20 -F $(WEB_LOG) 2>/dev/null | awk '{ print "web           | " $$0; fflush() }' & \
+		trap 'pkill -P $$$$ 2>/dev/null' EXIT INT TERM; \
+		docker compose logs -f --tail 20 api db
 
 db: ## start Postgres
 	docker compose up -d --wait db

@@ -76,7 +76,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   a web app on a different origin from the API would fail every request.
   Local dev is unaffected (Vite proxies `/graphql`, same origin). Fix: skip
   OPTIONS in the response interceptor; add a test asserting one header.
-- [ ] **Bring the shared KMP module up to date with the API.**
+- [x] **Bring the shared KMP module up to date with the API.** (#28)
   - Map `errors[].extensions.code` (NOT_FOUND, CONFLICT, BAD_USER_INPUT,
     UNAVAILABLE, INTERNAL) to `ShepherdException` subtypes, like
     `web/src/errors.ts` does. Today everything is `Api(message)`.

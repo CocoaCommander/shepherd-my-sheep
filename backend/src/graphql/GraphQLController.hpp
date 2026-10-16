@@ -10,11 +10,11 @@
 #include "../auth/Authenticator.hpp"
 #include "../auth/JWTService.hpp"
 #include "ErrorMapping.hpp"
+#include "../Log.hpp"
 #include "Operation.hpp"
 #include "resolvers/QueryResolver.hpp"
 #include "resolvers/MutationResolver.hpp"
 
-#include <iostream>
 #include <string>
 
 #include OATPP_CODEGEN_BEGIN(ApiController)
@@ -96,10 +96,10 @@ public:
         } catch (const BadInput& e) {
             return createErrorResponse({"BAD_USER_INPUT", e.what()});
         } catch (const pqxx::sql_error& e) {
-            std::cerr << "[ERROR] SQLSTATE " << e.sqlstate() << ": " << forLog(e.what()) << std::endl;
+            Log::error("SQLSTATE " + e.sqlstate() + ": " + forLog(e.what()));
             return createErrorResponse(classifySqlState(e.sqlstate()));
         } catch (const std::exception& e) {
-            std::cerr << "[ERROR] " << forLog(e.what()) << std::endl;
+            Log::error(forLog(e.what()));
             return createErrorResponse({"INTERNAL", INTERNAL_MESSAGE});
         }
 

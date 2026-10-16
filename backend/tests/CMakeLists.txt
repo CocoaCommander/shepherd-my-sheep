@@ -19,6 +19,7 @@ add_executable(unit_tests
     PasswordHasherTest.cpp
     ErrorMappingTest.cpp
     CorsMiddlewareTest.cpp
+    LogTest.cpp
 )
 
 target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
