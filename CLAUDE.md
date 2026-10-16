@@ -24,7 +24,7 @@ These rules must be followed across the entire codebase:
 All secrets and connection parameters come from `.env` (gitignored). Never hardcode credentials.
 
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` — database connection
-- `API_HOST`, `API_PORT` — server bind address (parameterized for deployment). **Required**: the server exits at startup if either is missing; `API_PORT` must be 1-65535.
+- `API_HOST`, `API_PORT` — server bind address (parameterized for deployment). **Required**: the server exits at startup if either is missing; `API_PORT` must be 1-65535. `API_HOST` may be IPv4 or IPv6: `0.0.0.0` listens on all IPv4 interfaces, `::` on all IPv6 and IPv4.
 - `CORS_ORIGIN` — allowed origin for browser requests (e.g. `http://localhost:3000`). If unset, no origin is allowed (safe default).
 - `JWT_SECRET` — HS256 signing key. Minimum 32 bytes; generate with `openssl rand -base64 48`.
 - `JWT_ISSUER` — `iss` claim, and the value tokens are verified against (e.g. `shepherd-my-sheep`)

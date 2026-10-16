@@ -39,14 +39,17 @@ void run() {
     const auto& host = components.env.apiHost;
     v_uint16    port = components.env.apiPort;
 
+    // UNSPEC lets API_HOST pick the family: 0.0.0.0 is IPv4 only, :: is
+    // IPv6 and (on Linux) IPv4 too. A hostname binds its first address.
     auto connectionProvider =
-        oatpp::network::tcp::server::ConnectionProvider::createShared({host, port, oatpp::network::Address::IP_4});
+        oatpp::network::tcp::server::ConnectionProvider::createShared({host, port, oatpp::network::Address::UNSPEC});
 
     oatpp::network::Server server(connectionProvider, connectionHandler);
 
     // Log CORS config on startup
     const char* corsOrigin = std::getenv("CORS_ORIGIN");
-    Log::info("Shepherd API running on http://" + host + ":" + std::to_string(port));
+    auto        urlHost    = host.find(':') == std::string::npos ? host : "[" + host + "]";
+    Log::info("Shepherd API running on http://" + urlHost + ":" + std::to_string(port));
     Log::info("GraphQL endpoint: POST /graphql");
     Log::info(std::string("CORS allowed origin: ")
               + (corsOrigin ? corsOrigin : "(none — browser requests will be blocked)"));

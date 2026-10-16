@@ -116,6 +116,10 @@ Ordered by priority.
   (auth-middleware, claude-rules-setup, docker-config, implement-security,
   multi-agent-setup). Leave `design-notes` alone: it is locked, probably by
   an active session.
+- [ ] **Vite dev proxy ignores `API_PORT`.** `web/vite.config.ts` proxies
+  `/graphql` to a hardcoded `http://localhost:8080`, so changing `API_PORT`
+  in `.env` breaks the web app in dev. Read `API_PORT` from `.env` (no
+  fallback) the way the Makefile does.
 
 ## Done
 
