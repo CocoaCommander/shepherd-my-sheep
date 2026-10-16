@@ -11,6 +11,12 @@ package com.shepherdmysheep.models
 
 data class User(val id: String, val name: String, val username: String, val createdAt: String, val updatedAt: String)
 
+/** A user as search results show them, without timestamps. */
+data class UserSummary(val id: String, val name: String, val username: String)
+
+/** Just enough of a person to label a row, e.g. on the prayer list. */
+data class PersonRef(val id: String, val name: String)
+
 data class Person(
     val id: String,
     val name: String,
@@ -41,6 +47,8 @@ data class MilestonePerson(
 data class PrayerBurden(
     val id: String,
     val content: String,
+    /** Filled only by getActivePrayerBurdens; elsewhere the parent person is known. */
+    val person: PersonRef? = null,
     val releasedDate: String? = null,
     val comments: List<Comment> = emptyList(),
     val createdAt: String,

@@ -39,6 +39,10 @@ interface ShepherdRepository {
     suspend fun assignPerson(personId: String, userId: String): Person
     suspend fun unassignPerson(personId: String, userId: String): Person
 
+    // Users — matches name or username, excluding the signed-in user.
+    // Queries too short to search return an empty list.
+    suspend fun searchUsers(query: String): List<UserSummary>
+
     // Lookups
     suspend fun getStatuses(): List<Status>
     suspend fun getMilestones(): List<Milestone>
@@ -52,7 +56,7 @@ interface ShepherdRepository {
     ): MilestonePerson
     suspend fun removeMilestone(personId: String, milestoneId: String): Boolean
 
-    // Prayer Burdens
+    // Prayer Burdens — only getActivePrayerBurdens fills PrayerBurden.person.
     suspend fun getActivePrayerBurdens(personId: String? = null): List<PrayerBurden>
     suspend fun createPrayerBurden(personId: String, content: String): PrayerBurden
     suspend fun releasePrayerBurden(id: String): PrayerBurden
