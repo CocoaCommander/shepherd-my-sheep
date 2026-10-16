@@ -8,6 +8,7 @@
 #include "auth/JWTService.hpp"
 #include "Log.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -17,40 +18,9 @@
 class AppComponent {
 public:
 
-    // First member, so the level is set before anything else logs.
-    const bool logLevelSet = [] {
-        Log::setLevel(validateEnv().logLevel);
-        return true;
-    }();
-
-    OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>,
-                           objectMapper)([] { return oatpp::parser::json::mapping::ObjectMapper::createShared(); }());
-
-    OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>,
-                           httpRouter)([] { return oatpp::web::server::HttpRouter::createShared(); }());
-
-    OATPP_CREATE_COMPONENT(std::shared_ptr<DatabasePool>, dbPool)([] {
-        auto env = validateEnv();
-
-        auto connStr = std::string("") + "host=" + env.dbHost + " port=" + env.dbPort + " dbname=" + env.dbName
-                       + " user=" + env.dbUser + " password=" + env.dbPassword;
-
-        return std::make_shared<DatabasePool>(connStr, /*poolSize=*/4);
-    }());
-
-    OATPP_CREATE_COMPONENT(std::shared_ptr<JWTService>, jwtService)([] {
-        auto env = validateEnv();
-
-        return std::make_shared<JWTService>(env.jwtSecret, env.jwtIssuer, env.jwtAccessTtl);
-    }());
-
-private:
-
-    // A JWT_SECRET shorter than the HMAC-SHA256 block gains nothing from
-    // the extra key schedule and is trivially brute-forced offline.
-    static constexpr size_t MIN_JWT_SECRET_BYTES = 32;
-
     struct EnvConfig {
+        std::string apiHost;
+        uint16_t    apiPort;
         std::string dbHost;
         std::string dbPort;
         std::string dbName;
@@ -62,9 +32,44 @@ private:
         LogLevel    logLevel;
     };
 
+    // Read and checked once, before any component is built; exits if
+    // anything is missing or invalid. Also sets the log level, so it must
+    // stay the first member.
+    const EnvConfig env = [] {
+        auto config = validateEnv();
+        Log::setLevel(config.logLevel);
+        return config;
+    }();
+
+    OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>,
+                           objectMapper)([] { return oatpp::parser::json::mapping::ObjectMapper::createShared(); }());
+
+    OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::web::server::HttpRouter>,
+                           httpRouter)([] { return oatpp::web::server::HttpRouter::createShared(); }());
+
+    OATPP_CREATE_COMPONENT(std::shared_ptr<DatabasePool>, dbPool)([this] {
+        auto connStr = std::string("") + "host=" + env.dbHost + " port=" + env.dbPort + " dbname=" + env.dbName
+                       + " user=" + env.dbUser + " password=" + env.dbPassword;
+
+        return std::make_shared<DatabasePool>(connStr, /*poolSize=*/4);
+    }());
+
+    OATPP_CREATE_COMPONENT(std::shared_ptr<JWTService>, jwtService)([this] {
+        return std::make_shared<JWTService>(env.jwtSecret, env.jwtIssuer, env.jwtAccessTtl);
+    }());
+
+private:
+
+    // A JWT_SECRET shorter than the HMAC-SHA256 block gains nothing from
+    // the extra key schedule and is trivially brute-forced offline.
+    static constexpr size_t MIN_JWT_SECRET_BYTES = 32;
+
     static EnvConfig validateEnv() {
         std::vector<std::string> missing;
         std::vector<std::string> invalid;
+
+        auto apiHost = requireEnv("API_HOST", missing);
+        auto apiPort = requireEnv("API_PORT", missing);
 
         auto dbHost     = requireEnv("POSTGRES_HOST", missing);
         auto dbPort     = requireEnv("POSTGRES_PORT", missing);
@@ -81,6 +86,19 @@ private:
         if (!jwtSecret.empty() && jwtSecret.size() < MIN_JWT_SECRET_BYTES) {
             invalid.push_back("JWT_SECRET must be at least " + std::to_string(MIN_JWT_SECRET_BYTES) + " bytes (got "
                               + std::to_string(jwtSecret.size()) + ")");
+        }
+
+        int portNumber = 0;
+        if (!apiPort.empty()) {
+            try {
+                size_t consumed = 0;
+                portNumber      = std::stoi(apiPort, &consumed);
+                if (consumed != apiPort.size() || portNumber < 1 || portNumber > 65535) {
+                    throw std::invalid_argument("not a port");
+                }
+            } catch (const std::exception&) {
+                invalid.push_back("API_PORT must be a port number (1-65535)");
+            }
         }
 
         int ttlSeconds = 0;
@@ -116,6 +134,8 @@ private:
             }
             std::cerr << std::endl;
             std::cerr << "Provided:" << std::endl;
+            std::cerr << "  API_HOST:      " << (apiHost.empty() ? "(not set)" : apiHost) << std::endl;
+            std::cerr << "  API_PORT:      " << (apiPort.empty() ? "(not set)" : apiPort) << std::endl;
             std::cerr << "  POSTGRES_HOST: " << (dbHost.empty() ? "(not set)" : dbHost) << std::endl;
             std::cerr << "  POSTGRES_PORT: " << (dbPort.empty() ? "(not set)" : dbPort) << std::endl;
             std::cerr << "  POSTGRES_DB:   " << (dbName.empty() ? "(not set)" : dbName) << std::endl;
@@ -128,7 +148,12 @@ private:
             std::exit(1);
         }
 
-        return {dbHost, dbPort, dbName, dbUser, dbPassword, jwtSecret, jwtIssuer, ttlSeconds, *logLevel};
+        return {apiHost,    static_cast<uint16_t>(portNumber),
+                dbHost,     dbPort,
+                dbName,     dbUser,
+                dbPassword, jwtSecret,
+                jwtIssuer,  ttlSeconds,
+                *logLevel};
     }
 
     static std::string requireEnv(const char* name, std::vector<std::string>& missing) {

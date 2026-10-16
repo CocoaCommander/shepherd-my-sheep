@@ -36,10 +36,8 @@ void run() {
     connectionHandler->addResponseInterceptor(std::make_shared<CorsResponseInterceptor>());
     connectionHandler->addResponseInterceptor(std::make_shared<ResponseLoggerInterceptor>());
 
-    const char* envHost = std::getenv("API_HOST");
-    const char* envPort = std::getenv("API_PORT");
-    std::string host    = envHost ? envHost : "0.0.0.0";
-    v_uint16    port    = envPort ? static_cast<v_uint16>(std::stoi(envPort)) : 8080;
+    const auto& host = components.env.apiHost;
+    v_uint16    port = components.env.apiPort;
 
     auto connectionProvider =
         oatpp::network::tcp::server::ConnectionProvider::createShared({host, port, oatpp::network::Address::IP_4});
