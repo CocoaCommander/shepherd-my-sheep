@@ -1,0 +1,20 @@
+.toast {
+  composes: base from '../shared.module.css';
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sms-space-14);
+  background: var(--sms-ink);
+  color: var(--sms-on-brand);
+  border-radius: var(--sms-radius-xl);
+  padding: var(--sms-space-10) var(--sms-space-12) var(--sms-space-10) var(--sms-space-16);
+  box-shadow: var(--sms-shadow-toast);
+  font-size: 14px;
+}
+
+/* Top right, 68px under the header and 32px from the edge. */
+.floating {
+  position: fixed;
+  top: 68px;
+  right: var(--sms-space-32);
+  z-index: 10;
+}

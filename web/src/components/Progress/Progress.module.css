@@ -1,0 +1,79 @@
+/* Meter: time since contact against a goal. */
+.meterBlock {
+  composes: base from '../shared.module.css';
+}
+.meterRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sms-space-12);
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--sms-ink);
+}
+.meterLabel {
+  font-weight: 600;
+}
+.meterGoal {
+  color: var(--sms-muted);
+}
+.meter {
+  height: 8px;
+  border-radius: var(--sms-radius-sm);
+  background: var(--sms-surface-sunken);
+  overflow: hidden;
+}
+.fill {
+  display: block;
+  height: 8px;
+  border-radius: var(--sms-radius-sm);
+  background: var(--sms-brand);
+}
+.danger .fill {
+  background: var(--sms-danger);
+}
+.warn .fill {
+  background: var(--sms-warn);
+}
+
+/* Milestones: four segments in fixed order. */
+.milestones {
+  composes: base from '../shared.module.css';
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(var(--sms-steps, 4), minmax(0, 1fr));
+  gap: var(--sms-space-4);
+}
+.step {
+  display: block;
+  height: 6px;
+  border-radius: var(--sms-radius-xs);
+  background: var(--sms-border);
+}
+.step.on {
+  background: var(--sms-brand);
+}
+.compact .step {
+  height: 5px;
+}
+.caption {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+
+/* Stepper: progress through the Review flow. */
+.stepper {
+  composes: base from '../shared.module.css';
+  display: flex;
+  gap: 6px;
+}
+.stepperStep {
+  flex: 1;
+  height: 6px;
+  border-radius: var(--sms-radius-xs);
+  background: var(--sms-surface-sunken);
+}
+.stepperStep.on {
+  background: var(--sms-danger);
+}

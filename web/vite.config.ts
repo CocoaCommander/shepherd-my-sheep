@@ -12,6 +12,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Process CSS Modules so `styles.x` in tests holds the real class name (otherwise it's `{}`).
+    css: { include: [/\.module\.css$/], modules: { classNameStrategy: 'non-scoped' } },
   },
   server: {
     port: 3000,

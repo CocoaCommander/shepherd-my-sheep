@@ -1,0 +1,52 @@
+.button {
+  composes: control from '../shared.module.css';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sms-space-8);
+  min-height: var(--sms-size-touch);
+  padding: 0 var(--sms-space-16);
+  border: 1px solid transparent;
+  border-radius: var(--sms-radius-lg);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.button:hover {
+  text-decoration: none;
+  filter: brightness(0.94);
+}
+
+.primary {
+  background: var(--sms-brand);
+  color: var(--sms-on-brand);
+}
+.secondary {
+  background: var(--sms-surface);
+  color: var(--sms-brand-strong);
+  border-color: var(--sms-border-control);
+}
+.danger {
+  background: var(--sms-danger);
+  color: var(--sms-on-brand);
+}
+.text {
+  background: none;
+  color: var(--sms-brand-strong);
+  padding: 0;
+}
+/* Only inside a Toast. */
+.inverse {
+  min-height: 36px;
+  background: none;
+  color: var(--sms-on-brand);
+  border-color: var(--sms-muted-icon);
+  padding: 0 var(--sms-space-12);
+}
+
+/* The full-width submit button of a form. */
+.lg {
+  min-height: var(--sms-size-cta);
+  font-size: 15px;
+  font-weight: 700;
+  width: 100%;
+}

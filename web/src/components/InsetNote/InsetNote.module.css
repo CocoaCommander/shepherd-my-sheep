@@ -1,0 +1,47 @@
+/* A quiet panel for supporting facts inside a card. */
+.inset {
+  composes: base from '../shared.module.css';
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-lg);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--sms-ink);
+}
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sms-muted);
+  margin-bottom: 2px;
+}
+
+/* Milestone tag: dashed when not recorded, filled with a check when recorded. */
+.tag {
+  composes: base from '../shared.module.css';
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--sms-radius-md);
+  padding: 2px 10px;
+  font-size: 13px;
+  border: 1px dashed var(--sms-border-dashed-soft);
+  color: var(--sms-muted);
+}
+.done {
+  border: 1px solid var(--sms-brand-border);
+  background: var(--sms-brand-wash-2);
+  color: var(--sms-brand-strong);
+  font-weight: 600;
+}
+
+/* Prayer count or burden line, with a heart. */
+.pray {
+  composes: base from '../shared.module.css';
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--sms-brand-strong);
+}
+.prayNone {
+  color: var(--sms-muted);
+}
