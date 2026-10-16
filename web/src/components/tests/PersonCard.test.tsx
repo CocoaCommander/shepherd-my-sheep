@@ -135,7 +135,7 @@ describe('MiniPersonCard', () => {
     )
   })
 
-  it('shows overdue contact time in danger', () => {
+  it('marks overdue contact with colour, an icon and words (WCAG 1.4.1)', () => {
     render(
       <MiniPersonCard
         name="Elena Petrova"
@@ -145,7 +145,55 @@ describe('MiniPersonCard', () => {
         milestones={[]}
       />,
     )
-    expect(screen.getByText('3 weeks ago')).toHaveClass(styles.overdueText)
+    const line = screen.getByText('Overdue:').parentElement!
+    expect(line).toHaveClass(styles.overdueText)
+    expect(line).toHaveTextContent('Overdue: 3 weeks ago')
+    expect(line.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('has no overdue words when on time', () => {
+    render(
+      <MiniPersonCard
+        name="Maria Santos"
+        lastContact="3 days ago"
+        prayerCount={0}
+        milestones={[]}
+      />,
+    )
+    expect(screen.queryByText('Overdue:')).not.toBeInTheDocument()
+  })
+})
+
+describe('heading levels', () => {
+  it('defaults card names to h3', () => {
+    render(<PersonCard name="Ann Lee" status="active" milestones={[]} prayerCount={0} />)
+    expect(screen.getByRole('heading', { level: 3, name: 'Ann Lee' })).toBeInTheDocument()
+  })
+
+  it('lets the page set the level so the outline stays in order', () => {
+    render(
+      <>
+        <PersonCard
+          name="Ann Lee"
+          status="active"
+          milestones={[]}
+          prayerCount={0}
+          headingLevel={2}
+        />
+        <CareCard
+          name="Bo Kim"
+          status="active"
+          urgency="ok"
+          dueLabel="On track"
+          meter={{ value: 1, max: 7, label: '1 day' }}
+          headingLevel={4}
+        />
+        <MiniPersonCard name="Cy Ng" prayerCount={0} milestones={[]} headingLevel={5} />
+      </>,
+    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Ann Lee' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: 'Bo Kim' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 5, name: 'Cy Ng' })).toBeInTheDocument()
   })
 })
 

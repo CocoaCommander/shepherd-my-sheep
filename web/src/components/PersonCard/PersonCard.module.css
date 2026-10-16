@@ -64,6 +64,9 @@
   color: var(--sms-muted);
 }
 .overdueText {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--sms-danger);
 }
 

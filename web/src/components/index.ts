@@ -29,6 +29,7 @@ export {
   MiniPersonCard,
   PersonCard,
   type CareUrgency,
+  type HeadingLevel,
 } from './PersonCard/PersonCard'
 export {
   Meter,

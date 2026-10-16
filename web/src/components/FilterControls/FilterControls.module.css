@@ -20,6 +20,10 @@
 .chipCount {
   opacity: 0.8;
 }
+/* At 80% the white count on brand is 4.49:1, just under 4.5:1 (WCAG 1.4.3). */
+.chip[aria-pressed='true'] .chipCount {
+  opacity: 1;
+}
 
 /* Segmented sort selector. */
 .segmented {
@@ -78,9 +82,14 @@
   align-items: center;
   justify-content: center;
 }
+/*
+ * The design system's brand-tint fill (1.17:1 against surface) and brand-strong icon (1.33:1
+ * against the muted one) leave the pressed state imperceptible (WCAG 1.4.11), so this matches
+ * the segmented control instead.
+ */
 .view[aria-pressed='true'] {
-  background: var(--sms-brand-tint);
-  color: var(--sms-brand-strong);
+  background: var(--sms-brand);
+  color: var(--sms-on-brand);
 }
 
 /* Boolean switch. */

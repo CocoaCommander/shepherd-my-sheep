@@ -1,11 +1,14 @@
 import type { ElementType, ReactNode } from 'react'
 import { Avatar, AvatarStack, type AvatarTint } from '../Avatar/Avatar'
-import { ClockIcon, PlusIcon } from '../icons'
+import { ClockIcon, PlusIcon, WarningIcon } from '../icons'
 import { InsetNote, PrayerCount } from '../InsetNote/InsetNote'
 import { Meter, Milestones, type MeterTone } from '../Progress/Progress'
+import shared from '../shared.module.css'
 import { DueTag, StatusPill, type DueTone } from '../StatusPill/StatusPill'
 import { cx, type PersonStatus, type PolymorphicProps } from '../utils'
 import styles from './PersonCard.module.css'
+
+export type HeadingLevel = 2 | 3 | 4 | 5 | 6
 
 type NameProps = {
   name: string
@@ -14,10 +17,13 @@ type NameProps = {
    * Without it the name is plain text.
    */
   renderName?: (name: string) => ReactNode
+  /** The name's heading level, one below the section it sits in. Defaults to 3. */
+  headingLevel?: HeadingLevel
 }
 
-function Name({ name, renderName }: NameProps) {
-  return <h3 className={styles.name}>{renderName ? renderName(name) : name}</h3>
+function Name({ name, renderName, headingLevel = 3 }: NameProps) {
+  const Heading = `h${headingLevel}` as const
+  return <Heading className={styles.name}>{renderName ? renderName(name) : name}</Heading>
 }
 
 /** The portrait card in the My people gallery. */
@@ -31,6 +37,7 @@ export function PersonCard({
   shepherds,
   prayerCount,
   avatarTint = 'green',
+  headingLevel,
   className,
 }: NameProps & {
   /** e.g. "52 years old · Met 2016". */
@@ -52,7 +59,7 @@ export function PersonCard({
       <div className={styles.head}>
         <Avatar name={name} tint={avatarTint} />
         <div className={styles.who}>
-          <Name name={name} renderName={renderName} />
+          <Name name={name} renderName={renderName} headingLevel={headingLevel} />
           {subtitle && <div className={styles.sub}>{subtitle}</div>}
         </div>
       </div>
@@ -96,6 +103,7 @@ export function CareCard({
   actions,
   aside,
   avatarTint = 'green',
+  headingLevel,
   className,
 }: NameProps & {
   status: PersonStatus
@@ -123,7 +131,7 @@ export function CareCard({
       <div className={styles.head}>
         <Avatar name={name} size="lg" tint={avatarTint} />
         <div className={styles.who}>
-          <Name name={name} renderName={renderName} />
+          <Name name={name} renderName={renderName} headingLevel={headingLevel} />
           <StatusPill status={status} />
         </div>
         <DueTag tone={dueTone[urgency]}>{dueLabel}</DueTag>
@@ -149,11 +157,15 @@ export function MiniPersonCard({
   prayerCount,
   milestones,
   avatarTint = 'green',
+  headingLevel,
   className,
 }: NameProps & {
   /** e.g. "3 days ago". Absent when no contact has been logged. */
   lastContact?: ReactNode
-  /** Shows the contact time in danger. */
+  /**
+   * Shows the contact time in danger with a warning icon, and tells screen readers
+   * "Overdue", so colour isn't the only signal (WCAG 1.4.1).
+   */
   overdue?: boolean
   prayerCount: number
   milestones: readonly string[]
@@ -165,8 +177,14 @@ export function MiniPersonCard({
       <div className={styles.head}>
         <Avatar name={name} size="sm" tint={avatarTint} />
         <div className={styles.who}>
-          <Name name={name} renderName={renderName} />
+          <Name name={name} renderName={renderName} headingLevel={headingLevel} />
           <div className={cx(styles.miniSub, overdue && styles.overdueText)}>
+            {overdue && (
+              <>
+                <WarningIcon size={12} />
+                <span className={shared.srOnly}>Overdue: </span>
+              </>
+            )}
             {lastContact ?? 'No contact yet'}
           </div>
         </div>

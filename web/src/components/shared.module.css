@@ -18,7 +18,9 @@
   margin: 0;
   cursor: pointer;
 }
+/* Covers roots that are themselves links (StatTile, AddPersonTile, Brand) and anything inside. */
 .control:focus-visible,
+.base:focus-visible,
 .base :focus-visible {
   outline: 3px solid var(--sms-brand-ring);
   outline-offset: 2px;

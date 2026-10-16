@@ -28,6 +28,13 @@ describe('BoardColumn', () => {
     expect(column).toHaveTextContent('0')
   })
 
+  it('defaults to h2 and accepts another heading level', () => {
+    const { rerender } = render(<BoardColumn status="active" count={0} />)
+    expect(screen.getByRole('heading', { level: 2, name: 'Active' })).toBeInTheDocument()
+    rerender(<BoardColumn status="active" count={0} headingLevel={3} />)
+    expect(screen.getByRole('heading', { level: 3, name: 'Active' })).toBeInTheDocument()
+  })
+
   it('accepts a custom title', () => {
     render(<BoardColumn status="new" title="Just met" count={2} />)
     expect(screen.getByRole('heading', { name: 'Just met' })).toBeInTheDocument()
