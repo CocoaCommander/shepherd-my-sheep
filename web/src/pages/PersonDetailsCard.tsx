@@ -94,7 +94,7 @@ function useLeavePerson(personId: string) {
   const navigate = useNavigate()
   const client = useApolloClient()
   return () => {
-    navigate('/')
+    navigate('/people')
     client.cache.evict({ id: client.cache.identify({ __typename: 'Person', id: personId }) })
     client.cache.gc()
   }

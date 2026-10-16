@@ -37,7 +37,7 @@ export function isToday(value: string, now: Date = new Date()): boolean {
 }
 
 /** "3 days", "1 day", "5 hours", "under an hour" — for contact due times. */
-function humanSpan(ms: number): string {
+export function humanSpan(ms: number): string {
   const hours = Math.floor(ms / 3_600_000)
   if (hours < 1) return 'under an hour'
   if (hours < 24) return hours === 1 ? '1 hour' : `${hours} hours`

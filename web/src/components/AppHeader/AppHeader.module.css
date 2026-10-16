@@ -56,6 +56,90 @@
   color: var(--sms-muted);
 }
 
+.alerts {
+  display: flex;
+  align-items: center;
+}
+.menuButton {
+  composes: control from '../shared.module.css';
+  display: none;
+  width: var(--sms-size-touch);
+  height: var(--sms-size-touch);
+  padding: 0;
+  border: 0;
+  border-radius: var(--sms-radius-lg);
+  background: none;
+  color: var(--sms-ink);
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * A header with navigation. Desktop: one row, brand then nav, alerts, actions; the panel
+ * gives up its box so its children line up with the alerts. Phones: brand, alerts and Menu
+ * in the bar, and the panel opens beneath it.
+ */
+.folds {
+  column-gap: var(--sms-space-20);
+}
+.folds > :first-child {
+  margin-right: auto;
+}
+.folds .right {
+  display: contents;
+}
+.folds .nav {
+  order: 1;
+}
+.folds .alerts {
+  order: 2;
+}
+.folds .actions {
+  order: 3;
+}
+
+@media (max-width: 719px) {
+  .folds {
+    column-gap: 0;
+    padding: 6px var(--sms-space-8) 6px var(--sms-space-16);
+  }
+  .folds .menuButton {
+    display: flex;
+    order: 3;
+  }
+  .folds .right {
+    display: none;
+  }
+  .folds.open .right {
+    display: flex;
+    order: 4;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sms-space-8);
+    padding: var(--sms-space-8) var(--sms-space-8) var(--sms-space-12) 0;
+    border-top: 1px solid var(--sms-border);
+  }
+  .folds .nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  .folds .nav a {
+    display: flex;
+    align-items: center;
+    min-height: var(--sms-size-touch);
+    padding: 0;
+    border-bottom: 0;
+  }
+  .folds .actions {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    border-top: 1px solid var(--sms-border);
+    padding-top: var(--sms-space-8);
+  }
+}
+
 .bell {
   composes: control from '../shared.module.css';
   position: relative;

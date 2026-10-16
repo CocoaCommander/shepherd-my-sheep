@@ -28,6 +28,13 @@
   align-items: center;
   gap: var(--sms-space-12);
 }
+/* On a narrow card the due tag drops under the name rather than squeezing it. */
+.careHead {
+  flex-wrap: wrap;
+}
+.careHead .who {
+  flex: 1 1 140px;
+}
 .mini .head {
   gap: 10px;
 }
