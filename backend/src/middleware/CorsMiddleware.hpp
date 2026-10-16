@@ -13,7 +13,7 @@
  * 1. CorsRequestInterceptor: intercepts OPTIONS preflight requests and
  *    returns 204 with the appropriate CORS headers immediately.
  *
- * 2. CorsResponseInterceptor: adds CORS headers to every response.
+ * 2. CorsResponseInterceptor: adds CORS headers to every non-OPTIONS response.
  *
  * Allowed origin is read from the CORS_ORIGIN env var. If not set,
  * no Access-Control-Allow-Origin header is added (requests from
@@ -58,6 +58,12 @@ public:
 
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>&  request,
                                                 const std::shared_ptr<OutgoingResponse>& response) override {
+        // Preflight responses already carry CORS headers from CorsRequestInterceptor;
+        // adding them again would duplicate Access-Control-Allow-Origin, which browsers reject.
+        if (request->getStartingLine().method == "OPTIONS") {
+            return response;
+        }
+
         auto origin = getAllowedOrigin();
         if (!origin.empty()) {
             response->putHeader("Access-Control-Allow-Origin", origin);
