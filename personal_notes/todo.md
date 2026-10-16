@@ -17,17 +17,13 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Alerts: in-app first. Header bell with a count, and a "needs contacting" banner on My people until Home is built. Decide later whether to push or email.
 - [x] Decided: a new contact with nothing logged has 72 hours from when they were added (`person.created_at`). Tom Becker is on track at first. **The Home design shows "Log first contact" as overdue; update it to match.**
 - [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
-- [ ] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync).
-- [ ] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one.
 - [ ] Undo of a follow-up doesn't undo the promotion to `active`; the web app only offers Undo on a plain contact.
-- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
 - [ ] Existing dev databases need `make reset` to pick up V003 (migrations only run on a fresh volume).
 
 ## Screens (web + mWeb/mobile)
 
 The app needs both web and mobile-web layouts for every screen, then Android and iOS. Working through them as separate pages on the design canvas.
 
-- [ ] **Home** (based on option B, care-first): people who need contacting, up top. Web and mWeb mocked up.
 - [ ] **Review now** (mocked up for web and mWeb, pending build): opens from "Review now" on Home and steps through overdue people, most urgent first. "Contacted today" logs a time, not just a date, so the 72-hour rule can be measured; Skip logs nothing and leaves the person overdue. Has a new-contact log step and a finished screen.
 - [ ] **My people** (mocked up for web and mWeb, pending build): one page with a **Board / Gallery toggle**.
   - **Board** (default): columns for New contact, Active, Inactive, Lost contact. Each card shows name, last contact, milestone progress, prayer count and its contact-alert state.
@@ -69,29 +65,19 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 
 ## Next up
 
-- [x] **Fix duplicate CORS header on preflight.** (#27) An OPTIONS request gets
-  `Access-Control-Allow-Origin` twice: `CorsRequestInterceptor` adds the
-  headers, then `CorsResponseInterceptor` adds them again
-  (`backend/src/middleware/CorsMiddleware.hpp`). Browsers reject that, so
-  a web app on a different origin from the API would fail every request.
-  Local dev is unaffected (Vite proxies `/graphql`, same origin). Fix: skip
-  OPTIONS in the response interceptor; add a test asserting one header.
-- [x] **Bring the shared KMP module up to date with the API.** (#28)
-  - Map `errors[].extensions.code` (NOT_FOUND, CONFLICT, BAD_USER_INPUT,
-    UNAVAILABLE, INTERNAL) to `ShepherdException` subtypes, like
-    `web/src/errors.ts` does. Today everything is `Api(message)`.
-  - Add `searchUsers` to the operations and repository.
-  - Fetch `person { id name }` on `activePrayerBurdens` for the prayer list.
-  - Add tests (the module has none).
-- [ ] **Dev logs, watchable live on local.** Logs are split today: the API
-  (`backend/src/middleware/RequestLogger.hpp`) goes to `docker compose logs
-  api`, the web dev server to `$(WEB_LOG)` from `make start`, Postgres to
-  its container. Add support for dev logs and a way to watch them as
-  they're generated.
-  - [ ] Add a `make logs` target that follows API, web and Postgres
-    together, labelled by source.
-  - [ ] Decide on log levels (DEBUG in dev, INFO otherwise) set by an env
-    var, and whether to write to a file under the dev dir.
+Ordered by priority.
+
+- [x] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync). Confirmed 2026-10-16.
+- [x] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one. Confirmed 2026-10-16.
+- [ ] `backend/src/main.cpp` falls back to `0.0.0.0` / `8080` when
+  `API_HOST` / `API_PORT` are unset, against the no-defaults rule.
+  Validate them in `AppComponent::validateEnv()` with the rest.
+- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
+- [ ] **Home** (based on option B, care-first): people who need contacting, up top. Web and mWeb mocked up.
+- [ ] No rate limiting on `searchUsers` or login.
+- [ ] Click through the merged web app in a browser (`cd web && npm run
+  dev`, http://localhost:3000). Tests pass on main, but nobody has clicked
+  through the merged build yet.
 
 ## Mobile apps
 
@@ -111,18 +97,52 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 - [ ] `searchUsers` returns the full `User` type, so `createdAt`/`updatedAt`
   are visible to any signed-in user. A slimmer `UserSummary { id name
   username }` would hide them.
-- [ ] No rate limiting on `searchUsers` or login.
 - [ ] `assignPerson`'s "User not found" lets a caller probe whether a user
   id exists (low).
 - [ ] `PrayerBurden.person` is filled only by `activePrayerBurdens`; other
   queries return it null.
+- [ ] **Logging follow-ups from #30.**
+  - [ ] Client address always logs as "unknown": `peer_address` isn't
+    populated on the connection in `RequestLogger.hpp`.
+  - [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
+    parse the env once.
+  - [ ] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
+    character at the cap, and doesn't redact Postgres `DETAIL` text,
+    which can quote user input.
 
 ## Housekeeping
 
-- [ ] Click through the merged web app in a browser (`cd web && npm run
-  dev`, http://localhost:3000). Tests pass on main, but nobody has clicked
-  through the merged build yet.
 - [ ] Remove old worktrees and branches under `.claude/worktrees/`
   (auth-middleware, claude-rules-setup, docker-config, implement-security,
   multi-agent-setup). Leave `design-notes` alone: it is locked, probably by
   an active session.
+- [ ] **Vite dev proxy ignores `API_PORT`.** `web/vite.config.ts` proxies
+  `/graphql` to a hardcoded `http://localhost:8080`, so changing `API_PORT`
+  in `.env` breaks the web app in dev. Read `API_PORT` from `.env` (no
+  fallback) the way the Makefile does.
+
+## Done
+
+- [x] **Fix duplicate CORS header on preflight.** (#27) An OPTIONS request gets
+  `Access-Control-Allow-Origin` twice: `CorsRequestInterceptor` adds the
+  headers, then `CorsResponseInterceptor` adds them again
+  (`backend/src/middleware/CorsMiddleware.hpp`). Browsers reject that, so
+  a web app on a different origin from the API would fail every request.
+  Local dev is unaffected (Vite proxies `/graphql`, same origin). Fix: skip
+  OPTIONS in the response interceptor; add a test asserting one header.
+- [x] **Bring the shared KMP module up to date with the API.** (#28)
+  - Map `errors[].extensions.code` (NOT_FOUND, CONFLICT, BAD_USER_INPUT,
+    UNAVAILABLE, INTERNAL) to `ShepherdException` subtypes, like
+    `web/src/errors.ts` does. Today everything is `Api(message)`.
+  - Add `searchUsers` to the operations and repository.
+  - Fetch `person { id name }` on `activePrayerBurdens` for the prayer list.
+  - Add tests (the module has none).
+- [x] **Dev logs, watchable live on local.** (#30) Logs are split today: the API
+  (`backend/src/middleware/RequestLogger.hpp`) goes to `docker compose logs
+  api`, the web dev server to `$(WEB_LOG)` from `make start`, Postgres to
+  its container. Add support for dev logs and a way to watch them as
+  they're generated.
+  - [x] Add a `make logs` target that follows API, web and Postgres
+    together, labelled by source.
+  - [x] Decide on log levels (DEBUG in dev, INFO otherwise) set by an env
+    var, and whether to write to a file under the dev dir.

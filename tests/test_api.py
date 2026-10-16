@@ -20,8 +20,14 @@ API_PORT = os.getenv("API_PORT")
 if not API_HOST or not API_PORT:
     pytest.skip("API_HOST / API_PORT not set", allow_module_level=True)
 
-# 0.0.0.0 is a bind address, not somewhere to connect to.
-_connect_host = "localhost" if API_HOST == "0.0.0.0" else API_HOST
+# 0.0.0.0 and :: are bind addresses, not somewhere to connect to. Other
+# IPv6 literals need brackets in a URL.
+if API_HOST in ("0.0.0.0", "::"):
+    _connect_host = "localhost"
+elif ":" in API_HOST:
+    _connect_host = f"[{API_HOST}]"
+else:
+    _connect_host = API_HOST
 GRAPHQL_URL = f"http://{_connect_host}:{API_PORT}/graphql"
 
 try:
