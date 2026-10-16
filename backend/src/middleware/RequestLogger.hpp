@@ -3,59 +3,66 @@
 #include "oatpp/web/server/interceptor/RequestInterceptor.hpp"
 #include "oatpp/web/server/interceptor/ResponseInterceptor.hpp"
 
-#include <chrono>
-#include <iomanip>
-#include <iostream>
-#include <sstream>
+#include "../Log.hpp"
+#include "../graphql/ErrorMapping.hpp"
+
+#include <memory>
 #include <string>
 
 /**
  * Request/response logger — two parts:
  *
  * 1. RequestLoggerInterceptor: logs the incoming method, path, and client
- *    address when a request arrives, and stores the start time.
+ *    address when a request arrives, at DEBUG.
  *
- * 2. ResponseLoggerInterceptor: logs the status code and duration (ms)
- *    when the response is sent.
+ * 2. ResponseLoggerInterceptor: logs the status code when the response is
+ *    sent, at a level set by the status (see levelForStatus).
  *
  * Log format:
- *   [2026-08-28 14:30:00] --> POST /graphql (from 192.168.1.5)
- *   [2026-08-28 14:30:00] <-- 200 POST /graphql (12ms)
+ *   [2026-08-28 14:30:00] DEBUG --> POST /graphql (from 192.168.1.5)
+ *   [2026-08-28 14:30:00] INFO  <-- 200 POST /graphql
  *
- * Auth failures and errors are logged at WARN level with extra context.
+ * 401 and 403 also name the client address. The query string is never
+ * logged (it could carry a token), and method and path go through forLog
+ * so a crafted request line can't forge extra log lines.
  */
+
+/** 5xx is ERROR, 4xx is WARN, anything else INFO. */
+inline LogLevel levelForStatus(v_int32 status) {
+    if (status >= 500) return LogLevel::Error;
+    if (status >= 400) return LogLevel::Warn;
+    return LogLevel::Info;
+}
+
+/** "METHOD /path", query string dropped, safe for one log line. */
+inline std::string methodAndPath(const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>& request) {
+    auto method = request->getStartingLine().method.std_str();
+    auto path   = request->getStartingLine().path.std_str();
+    path        = path.substr(0, path.find('?'));
+    return forLog(method, 16) + " " + forLog(path, 200);
+}
+
+inline std::string clientAddress(const std::shared_ptr<oatpp::web::protocol::http::incoming::Request>& request) {
+    auto connection = request->getConnection();
+    if (connection) {
+        auto props    = connection->getInputStreamContext().getProperties();
+        auto peerAddr = props.get("peer_address");
+        if (peerAddr) {
+            return peerAddr->c_str();
+        }
+    }
+    return "unknown";
+}
 
 class RequestLoggerInterceptor : public oatpp::web::server::interceptor::RequestInterceptor {
 public:
 
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>& request) override {
-        auto method = request->getStartingLine().method.std_str();
-        auto path   = request->getStartingLine().path.std_str();
-
-        // Get client address from connection
-        auto        connection = request->getConnection();
-        std::string clientAddr = "unknown";
-        if (connection) {
-            auto props    = connection->getInputStreamContext().getProperties();
-            auto peerAddr = props.get("peer_address");
-            if (peerAddr) {
-                clientAddr = peerAddr->c_str();
-            }
+        if (Log::enabled(LogLevel::Debug)) {
+            Log::debug("--> " + methodAndPath(request) + " (from " + clientAddress(request) + ")");
         }
 
-        std::cout << "[" << timestamp() << "] --> " << method << " " << path << " (from " << clientAddr << ")"
-                  << std::endl;
-
         return nullptr;  // continue processing
-    }
-
-private:
-    static std::string timestamp() {
-        auto               now  = std::chrono::system_clock::now();
-        auto               time = std::chrono::system_clock::to_time_t(now);
-        std::ostringstream oss;
-        oss << std::put_time(std::gmtime(&time), "%Y-%m-%d %H:%M:%S");
-        return oss.str();
     }
 };
 
@@ -64,41 +71,18 @@ public:
 
     std::shared_ptr<OutgoingResponse> intercept(const std::shared_ptr<IncomingRequest>&  request,
                                                 const std::shared_ptr<OutgoingResponse>& response) override {
-        auto method = request->getStartingLine().method.std_str();
-        auto path   = request->getStartingLine().path.std_str();
         auto status = response->getStatus().code;
+        auto level  = levelForStatus(status);
+        if (!Log::enabled(level)) return response;
 
-        std::string level = "INFO";
-        if (status >= 400 && status < 500) level = "WARN";
-        if (status >= 500) level = "ERROR";
-
-        std::cout << "[" << timestamp() << "] <-- " << status << " " << method << " " << path;
+        std::string line = "<-- " + std::to_string(status) + " " + methodAndPath(request);
 
         // Log extra context for auth-related failures
         if (status == 401 || status == 403) {
-            auto        connection = request->getConnection();
-            std::string clientAddr = "unknown";
-            if (connection) {
-                auto props    = connection->getInputStreamContext().getProperties();
-                auto peerAddr = props.get("peer_address");
-                if (peerAddr) {
-                    clientAddr = peerAddr->c_str();
-                }
-            }
-            std::cout << " [" << level << " - unauthorized from " << clientAddr << "]";
+            line += " (unauthorized from " + clientAddress(request) + ")";
         }
 
-        std::cout << std::endl;
-
+        Log::write(level, line);
         return response;
-    }
-
-private:
-    static std::string timestamp() {
-        auto               now  = std::chrono::system_clock::now();
-        auto               time = std::chrono::system_clock::to_time_t(now);
-        std::ostringstream oss;
-        oss << std::put_time(std::gmtime(&time), "%Y-%m-%d %H:%M:%S");
-        return oss.str();
     }
 };

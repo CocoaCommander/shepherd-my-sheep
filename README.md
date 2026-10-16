@@ -11,10 +11,15 @@ make start     # Postgres, the API (rebuilt) and the web dev server
 make stop      # stop all three; the database is kept
 make restart   # stop, then start; picks up backend and web changes
 make reset     # wipe the database, start fresh and load demo data
+make logs      # follow API, Postgres and web logs together; Ctrl-C stops
 make help      # list every target
 ```
 
 The web app is at http://localhost:3000. The dev server runs in the background and logs to `.dev/web.log`.
+
+The API logs to stdout only (`[YYYY-MM-DD HH:MM:SS] LEVEL message`), at the threshold set by `LOG_LEVEL`; Docker keeps it and `make logs` shows it. It writes no log file of its own.
+
+If you already have a `.env`, add `LOG_LEVEL` (see `.env.example`); the API will not start without it.
 
 ## Sample data
 

@@ -6,6 +6,7 @@
 
 #include "db/DatabasePool.hpp"
 #include "auth/JWTService.hpp"
+#include "Log.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -15,6 +16,12 @@
 
 class AppComponent {
 public:
+
+    // First member, so the level is set before anything else logs.
+    const bool logLevelSet = [] {
+        Log::setLevel(validateEnv().logLevel);
+        return true;
+    }();
 
     OATPP_CREATE_COMPONENT(std::shared_ptr<oatpp::data::mapping::ObjectMapper>,
                            objectMapper)([] { return oatpp::parser::json::mapping::ObjectMapper::createShared(); }());
@@ -52,6 +59,7 @@ private:
         std::string jwtSecret;
         std::string jwtIssuer;
         int         jwtAccessTtl;
+        LogLevel    logLevel;
     };
 
     static EnvConfig validateEnv() {
@@ -67,6 +75,8 @@ private:
         auto jwtSecret    = requireEnv("JWT_SECRET", missing);
         auto jwtIssuer    = requireEnv("JWT_ISSUER", missing);
         auto jwtAccessTtl = requireEnv("JWT_ACCESS_TTL", missing);
+
+        auto logLevelName = requireEnv("LOG_LEVEL", missing);
 
         if (!jwtSecret.empty() && jwtSecret.size() < MIN_JWT_SECRET_BYTES) {
             invalid.push_back("JWT_SECRET must be at least " + std::to_string(MIN_JWT_SECRET_BYTES) + " bytes (got "
@@ -84,6 +94,11 @@ private:
             } catch (const std::exception&) {
                 invalid.push_back("JWT_ACCESS_TTL must be a positive integer (seconds)");
             }
+        }
+
+        auto logLevel = parseLogLevel(logLevelName);
+        if (!logLevelName.empty() && !logLevel) {
+            invalid.push_back("LOG_LEVEL must be DEBUG, INFO, WARN or ERROR");
         }
 
         if (!missing.empty() || !invalid.empty()) {
@@ -109,10 +124,11 @@ private:
             std::cerr << "  JWT_SECRET:     " << (jwtSecret.empty() ? "(not set)" : "(set)") << std::endl;
             std::cerr << "  JWT_ISSUER:     " << (jwtIssuer.empty() ? "(not set)" : jwtIssuer) << std::endl;
             std::cerr << "  JWT_ACCESS_TTL: " << (jwtAccessTtl.empty() ? "(not set)" : jwtAccessTtl) << std::endl;
+            std::cerr << "  LOG_LEVEL:      " << (logLevelName.empty() ? "(not set)" : logLevelName) << std::endl;
             std::exit(1);
         }
 
-        return {dbHost, dbPort, dbName, dbUser, dbPassword, jwtSecret, jwtIssuer, ttlSeconds};
+        return {dbHost, dbPort, dbName, dbUser, dbPassword, jwtSecret, jwtIssuer, ttlSeconds, *logLevel};
     }
 
     static std::string requireEnv(const char* name, std::vector<std::string>& missing) {
