@@ -68,6 +68,7 @@ function person(overrides: Record<string, unknown> = {}) {
     yearMet: null,
     lastContactedAt: null,
     contactDueAt: null,
+    createdAt: '2026-10-14 18:26:10.89+00',
     contactState: 'NOT_TRACKED',
     isActive: true,
     status: { __typename: 'Status', id: 'st-1', name: 'Active' },

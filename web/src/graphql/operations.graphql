@@ -94,6 +94,7 @@ query ContactAlerts {
 query Person($id: UUID!) {
   person(id: $id) {
     ...PersonSummary
+    createdAt
     milestones {
       id
       dateAchieved

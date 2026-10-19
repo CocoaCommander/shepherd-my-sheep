@@ -89,3 +89,73 @@ export function contactStateLabel(
       return 'On track'
   }
 }
+
+const HOUR = 3_600_000
+const DAY = 24 * HOUR
+
+/** "under an hour", "1 hour", "5 hours"; rounds down, so it never promises time that isn't left. */
+function hoursText(ms: number): string {
+  const hours = Math.floor(ms / HOUR)
+  if (hours < 1) return 'under an hour'
+  return hours === 1 ? '1 hour' : `${hours} hours`
+}
+
+const daysText = (days: number) => (days === 1 ? '1 day' : `${days} days`)
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
+/** Whole calendar days from `now`'s date to `due`'s date, in the user's time zone. */
+function calendarDaysUntil(due: Date, now: Date): number {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const end = new Date(due.getFullYear(), due.getMonth(), due.getDate())
+  // Rounded, since a DST change makes a day 23 or 25 hours.
+  return Math.round((end.getTime() - start.getTime()) / DAY)
+}
+
+export interface ContactDue {
+  /** Matches DueTag's tones. */
+  tone: 'overdue' | 'soon' | 'ok'
+  /** "Follow-up overdue", "5 hours left", "3 days overdue", "Due today", "On track". */
+  title: string
+  /** "Next contact due in 5 days"; only when on track. */
+  detail?: string
+}
+
+/**
+ * The Person page's contact banner text (business rule 6). The state and due time come from the
+ * server's person_contact_state, so no window is computed here; null when they aren't tracked.
+ */
+export function contactDueLabel(
+  person: { status: { name: string }; contactState: string; contactDueAt?: string | null },
+  now: Date = new Date(),
+): ContactDue | null {
+  const { contactState: state, contactDueAt } = person
+  if (state === 'NOT_TRACKED' || !contactDueAt) return null
+  const due = parseDateTime(contactDueAt)
+
+  // A new contact has hours, not days, to be followed up.
+  if (person.status.name === 'new contact') {
+    const left = hoursText(due.getTime() - now.getTime())
+    switch (state) {
+      case 'OVERDUE':
+        return { tone: 'overdue', title: 'Follow-up overdue' }
+      case 'DUE_SOON':
+        return { tone: 'soon', title: `${capitalize(left)} left` }
+      default:
+        return {
+          tone: 'ok',
+          title: 'On track',
+          detail: `${capitalize(left)} left to log a contact`,
+        }
+    }
+  }
+
+  const days = calendarDaysUntil(due, now)
+  switch (state) {
+    case 'OVERDUE':
+      return { tone: 'overdue', title: days < 0 ? `${daysText(-days)} overdue` : 'Overdue today' }
+    case 'DUE_SOON':
+      return { tone: 'soon', title: days <= 0 ? 'Due today' : `Due in ${daysText(days)}` }
+    default:
+      return { tone: 'ok', title: 'On track', detail: `Next contact due in ${daysText(days)}` }
+  }
+}
