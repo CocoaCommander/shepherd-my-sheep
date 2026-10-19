@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as G from '../generated/graphql'
+import { quickContact } from '../contacts'
 import { HomePage } from './HomePage'
 
 vi.mock('../auth/AuthProvider', () => ({
@@ -156,8 +157,9 @@ describe('HomePage', () => {
     const overdue = await screen.findByRole('region', { name: 'Needs contact now' })
     expect(overdue).toHaveTextContent('14 days overdue')
     expect(overdue).toHaveTextContent('21 days since last contact')
-    expect(overdue).toHaveTextContent('First contact needed')
-    expect(within(overdue).getByRole('button', { name: 'Log first contact' })).toBeInTheDocument()
+    // Adding Tom was his first contact, so what's overdue is the follow-up.
+    expect(overdue).toHaveTextContent('6 hours overdue')
+    expect(within(overdue).getByRole('button', { name: 'Log follow-up' })).toBeInTheDocument()
 
     const soon = section('Coming up')
     expect(soon).toHaveTextContent('Due in 1 day')
@@ -213,7 +215,7 @@ describe('HomePage', () => {
         {
           request: {
             query: G.LogContactDocument,
-            variables: { input: { personId: 'p-elena', isFollowUp: false } },
+            variables: { input: quickContact('p-elena') },
           },
           result: logged,
         },
@@ -249,7 +251,7 @@ describe('HomePage', () => {
         {
           request: {
             query: G.LogContactDocument,
-            variables: { input: { personId: 'p-aisha', isFollowUp: true } },
+            variables: { input: quickContact('p-aisha') },
           },
           result: logged,
         },

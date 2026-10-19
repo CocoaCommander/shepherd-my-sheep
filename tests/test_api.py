@@ -12,6 +12,7 @@ import os
 import urllib.error
 import urllib.request
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 
@@ -255,6 +256,23 @@ class TestPeople:
         person = gql(PERSON, {"id": create_person(token, status_id)}, token)["person"]
         assert person["milestones"] == []
         assert person["prayerBurdens"] == []
+        assert person["comments"] == []
+
+    def test_comment_on_create_is_a_standalone_note_by_the_creator(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        created = gql(
+            CREATE_PERSON, {"input": {"name": "Met", "statusId": status_id, "comment": " Met at the BBQ "}}, token
+        )["createPerson"]
+        person = gql(PERSON, {"id": created["id"]}, token)["person"]
+        assert [pick(c, {"content": 0, "author": {"id": 0}, "prayerBurden": 0}) for c in person["comments"]] == [
+            {"content": "Met at the BBQ", "author": {"id": user_id}, "prayerBurden": None}
+        ]
+
+    @pytest.mark.parametrize("comment", [None, "", "   "])
+    def test_no_comment_on_create_adds_none(self, make_user, status_id, comment):
+        token, _, _ = make_user()
+        created = gql(CREATE_PERSON, {"input": {"name": "Met", "statusId": status_id, "comment": comment}}, token)
+        person = gql(PERSON, {"id": created["createPerson"]["id"]}, token)["person"]
         assert person["comments"] == []
 
     def test_update_accepts_numbers_and_booleans(self, make_user, status_id):
@@ -876,12 +894,32 @@ mutation LogContact($input: LogContactInput!) {
   }
 }"""
 
+
+def contact_input(person_id, **fields):
+    """A LogContactInput as the "Log contact" modal sends it: now, with a note."""
+    return {
+        "personId": person_id,
+        "contactedAt": datetime.now(timezone.utc).isoformat(),
+        "note": "Phone call",
+        **fields,
+    }
+
+
 DELETE_CONTACT = """
 mutation DeleteContact($id: UUID!) {
   deleteContact(id: $id) { id contactState contacts { id } comments { content } }
 }"""
 
 CONTACT_ALERTS = "query { contactAlerts { id name contactState contactDueAt } }"
+
+PERSON_CONTACTS = """
+query P($id: UUID!) {
+  person(id: $id) {
+    contacts { id }
+    comments { content prayerBurden { id } }
+    prayerBurdens { content }
+  }
+}"""
 
 
 class TestContactCadence:
@@ -923,7 +961,7 @@ class TestContactCadence:
         backdate(person_id, 10)
         assert [p["id"] for p in gql(CONTACT_ALERTS, token=token)["contactAlerts"]] == [person_id]
 
-        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "Phone call"}}, token)["logContact"]
+        person = gql(LOG_CONTACT, {"input": contact_input(person_id)}, token)["logContact"]
         assert person["contactState"] == "ON_TRACK"
         assert person["lastContactedAt"] is not None
         [contact] = person["contacts"]
@@ -933,26 +971,74 @@ class TestContactCadence:
     def test_contact_note_is_a_standalone_comment_removed_on_undo(self, make_user, statuses):
         token, user_id, _ = make_user()
         person_id = create_person(token, statuses["active"])
-        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "Coffee"}}, token)["logContact"]
+        person = gql(LOG_CONTACT, {"input": contact_input(person_id, note="Coffee")}, token)["logContact"]
         [note] = person["comments"]
         assert (note["content"], note["prayerBurden"], note["author"]["id"]) == ("Coffee", None, user_id)
 
         person = gql(DELETE_CONTACT, {"id": person["contacts"][0]["id"]}, token)["deleteContact"]
         assert person["comments"] == []
 
-    def test_contact_without_note_adds_no_comment(self, make_user, statuses):
+    @pytest.mark.parametrize("missing", ["contactedAt", "note"])
+    def test_date_and_note_required(self, make_user, statuses, missing):
         token, _, _ = make_user()
         person_id = create_person(token, statuses["active"])
-        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "  "}}, token)["logContact"]
-        assert person["contacts"][0]["note"] is None
-        assert person["comments"] == []
+        input_ = contact_input(person_id)
+        del input_[missing]
+        error = gql_error_full(LOG_CONTACT, {"input": input_}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
 
-    def test_follow_up_promotes_new_contact(self, make_user, statuses):
+    @pytest.mark.parametrize("note", ["", "   "])
+    def test_blank_note_rejected_and_nothing_logged(self, make_user, statuses, note):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        error = gql_error_full(LOG_CONTACT, {"input": contact_input(person_id, note=note)}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        person = gql(PERSON_CONTACTS, {"id": person_id}, token)["person"]
+        assert (person["contacts"], person["comments"]) == ([], [])
+
+    def test_prayer_burden_added_with_contact_and_removed_on_undo(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        logged = gql(LOG_CONTACT, {"input": contact_input(person_id, prayerBurden=" Her new job ")}, token)[
+            "logContact"
+        ]
+        person = gql(PERSON_CONTACTS, {"id": person_id}, token)["person"]
+        [burden] = person["prayerBurdens"]
+        # The note stays a standalone comment (rule 5), not one on the burden.
+        assert burden["content"] == "Her new job"
+        assert [c["prayerBurden"] for c in person["comments"]] == [None]
+
+        gql(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, token)
+        person = gql(PERSON_CONTACTS, {"id": person_id}, token)["person"]
+        assert (person["prayerBurdens"], person["comments"]) == ([], [])
+
+    @pytest.mark.parametrize("prayer_burden", [None, "", "   "])
+    def test_no_prayer_burden_adds_none(self, make_user, statuses, prayer_burden):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        gql(LOG_CONTACT, {"input": contact_input(person_id, prayerBurden=prayer_burden)}, token)
+        assert gql(PERSON_CONTACTS, {"id": person_id}, token)["person"]["prayerBurdens"] == []
+
+    @pytest.mark.parametrize("is_follow_up", [None, False, True])
+    def test_any_contact_follows_up_a_new_contact(self, make_user, statuses, is_follow_up):
+        """Adding someone is the first contact, so the next one logged is the follow-up; isFollowUp is ignored."""
         token, _, _ = make_user()
         person_id = create_person(token, statuses["new contact"])
-        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "isFollowUp": True}}, token)["logContact"]
+        input_ = contact_input(person_id) if is_follow_up is None else contact_input(person_id, isFollowUp=is_follow_up)
+        person = gql(LOG_CONTACT, {"input": input_}, token)["logContact"]
         assert person["status"]["name"] == "active"
         assert person["contacts"][0]["isFollowUp"] is True
+
+        # From now on they are a regular contact: the 7-day rule, and no more follow-ups.
+        person = gql(LOG_CONTACT, {"input": contact_input(person_id)}, token)["logContact"]
+        assert person["contacts"][0]["isFollowUp"] is False
+        assert person["contactState"] == "ON_TRACK"
+
+    def test_contact_for_active_person_is_not_a_follow_up(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        person = gql(LOG_CONTACT, {"input": contact_input(person_id, isFollowUp=True)}, token)["logContact"]
+        assert person["contacts"][0]["isFollowUp"] is False
 
     def test_alerts_most_urgent_first(self, make_user, statuses, backdate):
         token, _, _ = make_user()
@@ -984,7 +1070,7 @@ class TestContactCadence:
         for token in (owner, coleader):
             assert [p["id"] for p in gql(CONTACT_ALERTS, token=token)["contactAlerts"]] == [person_id]
 
-        gql(LOG_CONTACT, {"input": {"personId": person_id}}, coleader)
+        gql(LOG_CONTACT, {"input": contact_input(person_id)}, coleader)
         for token in (owner, coleader):
             assert gql(CONTACT_ALERTS, token=token)["contactAlerts"] == []
 
@@ -992,7 +1078,7 @@ class TestContactCadence:
         token, _, _ = make_user()
         person_id = create_person(token, statuses["active"])
         backdate(person_id, 10)
-        logged = gql(LOG_CONTACT, {"input": {"personId": person_id}}, token)["logContact"]
+        logged = gql(LOG_CONTACT, {"input": contact_input(person_id)}, token)["logContact"]
         person = gql(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, token)["deleteContact"]
         assert person["contactState"] == "OVERDUE"
         assert person["contacts"] == []
@@ -1001,10 +1087,10 @@ class TestContactCadence:
         owner, _, _ = make_user()
         stranger, _, _ = make_user()
         person_id = create_person(owner, statuses["active"])
-        error = gql_error_full(LOG_CONTACT, {"input": {"personId": person_id}}, stranger)
+        error = gql_error_full(LOG_CONTACT, {"input": contact_input(person_id)}, stranger)
         assert error["extensions"]["code"] == "NOT_FOUND"
 
-        logged = gql(LOG_CONTACT, {"input": {"personId": person_id}}, owner)["logContact"]
+        logged = gql(LOG_CONTACT, {"input": contact_input(person_id)}, owner)["logContact"]
         error = gql_error_full(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, stranger)
         assert error["extensions"]["code"] == "NOT_FOUND"
         assert (
@@ -1016,13 +1102,13 @@ class TestContactCadence:
     def test_bad_contact_time_rejected(self, make_user, statuses, contacted_at):
         token, _, _ = make_user()
         person_id = create_person(token, statuses["active"])
-        error = gql_error_full(LOG_CONTACT, {"input": {"personId": person_id, "contactedAt": contacted_at}}, token)
+        error = gql_error_full(LOG_CONTACT, {"input": contact_input(person_id, contactedAt=contacted_at)}, token)
         assert error["extensions"]["code"] == "BAD_USER_INPUT"
 
     def test_backdated_contact(self, make_user, statuses):
         token, _, _ = make_user()
         person_id = create_person(token, statuses["active"])
-        person = gql(LOG_CONTACT, {"input": {"personId": person_id, "contactedAt": "2026-01-05T10:00:00Z"}}, token)[
+        person = gql(LOG_CONTACT, {"input": contact_input(person_id, contactedAt="2026-01-05T10:00:00Z")}, token)[
             "logContact"
         ]
         assert person["lastContactDate"] == "2026-01-05"
@@ -1110,7 +1196,7 @@ class TestPersonSummaries:
         assert person["latestComment"]["createdAt"] is not None
 
         # A contact note is a standalone comment (rule 5), so it becomes the latest; undo brings back the one before.
-        logged = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "Called her"}}, token)["logContact"]
+        logged = gql(LOG_CONTACT, {"input": contact_input(person_id, note="Called her")}, token)["logContact"]
         [person] = gql(MY_PEOPLE_SUMMARY, token=token)["myPeople"]
         assert (person["latestComment"]["content"], person["latestComment"]["prayerBurden"]) == ("Called her", None)
 
@@ -1142,7 +1228,7 @@ class TestPersonSummaries:
         person_id = create_person(token, status_id)
         person = gql(
             "mutation L($input: LogContactInput!) { logContact(input: $input) { " + SUMMARY_FIELDS + " } }",
-            {"input": {"personId": person_id, "note": "Lunch"}},
+            {"input": contact_input(person_id, note="Lunch")},
             token,
         )["logContact"]
         assert person["latestComment"]["content"] == "Lunch"

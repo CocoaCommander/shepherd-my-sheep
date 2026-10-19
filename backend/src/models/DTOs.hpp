@@ -205,6 +205,7 @@ class CreatePersonInput : public oatpp::DTO {
     DTO_FIELD(Int32, age);      // nullable
     DTO_FIELD(Int32, yearMet);  // nullable
     DTO_FIELD(String, statusId);
+    DTO_FIELD(String, comment);  // nullable — saved as a standalone comment
 };
 
 class UpdatePersonInput : public oatpp::DTO {
@@ -246,9 +247,10 @@ class LogContactInput : public oatpp::DTO {
     DTO_INIT(LogContactInput, DTO)
 
     DTO_FIELD(String, personId);
-    DTO_FIELD(String, contactedAt);  // nullable — defaults to now
-    DTO_FIELD(Boolean, isFollowUp);  // nullable — defaults to false
-    DTO_FIELD(String, note);         // nullable
+    DTO_FIELD(String, contactedAt);
+    DTO_FIELD(String, note);          // must not be blank
+    DTO_FIELD(String, prayerBurden);  // nullable
+    DTO_FIELD(Boolean, isFollowUp);   // deprecated — ignored
 };
 
 #include OATPP_CODEGEN_END(DTO)

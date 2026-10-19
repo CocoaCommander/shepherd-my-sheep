@@ -152,6 +152,7 @@ private:
     /**
      * The creator becomes the person's first shepherd in the same
      * transaction; otherwise the new person would be visible to no one.
+     * An optional comment is saved as the creator's standalone note.
      */
     oatpp::Any resolveCreatePerson(const Args& args, const std::string& userId) {
         auto input    = args.object("input");
@@ -159,6 +160,7 @@ private:
         auto statusId = input.req("statusId");
         auto age      = input.opt("age");
         auto yearMet  = input.opt("yearMet");
+        auto comment  = input.opt("comment");
 
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
@@ -168,6 +170,10 @@ private:
         std::string personId = created[0]["id"].c_str();
 
         txn.exec_params("SELECT * FROM assign_person($1, $2)", userId, personId);
+
+        if (comment && !isBlank(*comment)) {
+            txn.exec_params("SELECT id FROM create_comment($1, $2, $3)", userId, personId, trim(*comment));
+        }
 
         auto person = fetchPersonDetail(txn, personId);
         txn.commit();
@@ -402,24 +408,31 @@ private:
     // ── Contacts ────────────────────────────────────────────
 
     /**
-     * Records that the caller made contact (business rule 6). A follow-up
-     * on a 'new contact' moves them to 'active' in the same transaction.
-     * Returns the person so the client gets the new contact state.
+     * Records that the caller made contact (business rule 6), from the
+     * "Log contact" modal: a date and a note are required, a prayer burden
+     * is optional. Contact for a 'new contact' is their follow-up and moves
+     * them to 'active' in the same transaction. Returns the person so the
+     * client gets the new contact state.
      */
     oatpp::Any resolveLogContact(const Args& args, const std::string& userId) {
-        auto input       = args.object("input");
-        auto personId    = input.req("personId");
-        auto contactedAt = input.opt("contactedAt");
-        auto isFollowUp  = input.opt("isFollowUp");
-        auto note        = input.opt("note");
+        auto input        = args.object("input");
+        auto personId     = input.req("personId");
+        auto contactedAt  = input.req("contactedAt");
+        auto note         = input.req("note");
+        auto prayerBurden = input.opt("prayerBurden");
+        // isFollowUp is deprecated and ignored.
+
+        if (isBlank(note)) {
+            throw BadInput("Note must not be blank");
+        }
 
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
-        // A null time or flag falls back to now / false inside log_contact.
-        txn.exec_params("SELECT * FROM log_contact($1::uuid, $2::uuid, $3::timestamptz, $4::boolean, $5)", personId,
-                        userId, nullable(contactedAt), nullable(isFollowUp), nullable(note));
+        // A null follow-up flag lets log_contact decide from the person's status.
+        txn.exec_params("SELECT * FROM log_contact($1::uuid, $2::uuid, $3::timestamptz, NULL, $4, $5)", personId,
+                        userId, contactedAt, note, nullable(prayerBurden));
 
         auto person = fetchPersonDetail(txn, personId);
         txn.commit();

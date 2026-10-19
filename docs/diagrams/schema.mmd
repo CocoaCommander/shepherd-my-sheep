@@ -16,6 +16,7 @@ erDiagram
     person ||--o{ contact_log : "contacted"
     user |o--o{ contact_log : "made contact"
     contact_log |o--o| comment : "noted in"
+    contact_log |o--o| prayer_burden : "raised in"
 
     status {
         uuid id PK
@@ -56,6 +57,7 @@ erDiagram
     prayer_burden {
         uuid id PK
         uuid person_id FK
+        uuid contact_log_id FK
         text content
         timestamptz released_date
     }

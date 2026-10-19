@@ -59,7 +59,8 @@ type Person {
 
 # Contact cadence (business rule 6): 'active' people are due every 7 days,
 # a 'new contact' within 72 hours (counted from when they were added if no
-# contact is logged). Due soon = within 48h (active) or 24h (new contact)
+# contact is logged). Adding someone is the first contact, so any contact
+# logged for a 'new contact' is their follow-up. Due soon = within 48h (active) or 24h (new contact)
 # of the deadline. Other statuses are NOT_TRACKED.
 enum ContactState {
   OVERDUE
@@ -72,8 +73,8 @@ type ContactLog {
   id: UUID!
   contactedBy: User               # nullable — unknown for imported history, or the user was deleted
   contactedAt: DateTime!
-  isFollowUp: Boolean!
-  note: String                    # nullable — the standalone note (Comment) written with it; gone if the contact is deleted
+  isFollowUp: Boolean!            # true for the contact that followed up a 'new contact'
+  note: String                    # nullable — the standalone note (Comment) written with it; gone if the contact is deleted. Null only for imported history
   createdAt: DateTime!
 }
 
@@ -178,7 +179,8 @@ type Mutation {
   deleteComment(id: UUID!): Boolean!
 
   # Contacts — both return the person with their updated contact state.
-  # A follow-up on a 'new contact' moves them to 'active'.
+  # Logging a contact for a 'new contact' is their follow-up and moves them
+  # to 'active'. Deleting a contact also deletes its note and prayer burden.
   logContact(input: LogContactInput!): Person!
   deleteContact(id: UUID!): Person!
 }
@@ -201,6 +203,7 @@ input CreatePersonInput {
   age: Int                        # optional
   yearMet: Int                    # optional
   statusId: UUID!
+  comment: String                 # optional — saved as a standalone note (Comment) by the creator; blank is ignored
 }
 
 input UpdatePersonInput {
@@ -230,9 +233,11 @@ input CreateCommentInput {
   content: String!
 }
 
+# What the "Log contact" modal sends.
 input LogContactInput {
   personId: UUID!
-  contactedAt: DateTime           # optional — defaults to now; may not be in the future
-  isFollowUp: Boolean             # optional — defaults to false
-  note: String                    # optional — saved as a standalone note (Comment) on the person, linked to this contact
+  contactedAt: DateTime!          # clients default it to the device's current time; may not be in the future
+  note: String!                   # what was talked about; must not be blank. Saved as a standalone note (Comment) on the person, linked to this contact
+  prayerBurden: String            # optional — saved as a prayer burden on the person, linked to this contact; blank is ignored
+  isFollowUp: Boolean @deprecated(reason: "Ignored. A contact for a 'new contact' is always their follow-up.")
 }
