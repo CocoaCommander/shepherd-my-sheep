@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { quickContact } from '../contacts'
 import { formatDateTime } from '../format'
 import * as G from '../generated/graphql'
 import { PersonPage } from './PersonPage'
@@ -279,7 +280,7 @@ describe('contacted today', () => {
   }
 
   /** LogContact returns the summary plus the logged contact's id. */
-  function logMock(isFollowUp: boolean, updated: Record<string, unknown> = {}) {
+  function logMock(updated: Record<string, unknown> = {}) {
     const result = vi.fn(() => ({
       data: {
         logContact: {
@@ -298,7 +299,7 @@ describe('contacted today', () => {
       mock: {
         request: {
           query: G.LogContactDocument,
-          variables: { input: { personId: PERSON_ID, isFollowUp } },
+          variables: { input: quickContact(PERSON_ID) },
         },
         result,
       } as MockedResponse,
@@ -308,7 +309,7 @@ describe('contacted today', () => {
   it('logs a contact now and shows the new state, with an Undo', async () => {
     freezeToday()
     const user = userEvent.setup()
-    const { mock, result } = logMock(false)
+    const { mock, result } = logMock()
     renderPage(person(), [mock])
     expect(await screen.findByText(/^Overdue/)).toBeInTheDocument()
     await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
@@ -323,7 +324,7 @@ describe('contacted today', () => {
   it('undo deletes the contact just logged', async () => {
     freezeToday()
     const user = userEvent.setup()
-    const { mock } = logMock(false)
+    const { mock } = logMock()
     const undone = vi.fn(() => ({
       data: { deleteContact: { ...summary(), contacts: [] } },
     }))
@@ -343,7 +344,7 @@ describe('contacted today', () => {
   it('works for a person who has never been contacted', async () => {
     freezeToday()
     const user = userEvent.setup()
-    const { mock, result } = logMock(false)
+    const { mock, result } = logMock()
     renderPage(person({ lastContactedAt: null }), [mock])
     await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
 
@@ -354,7 +355,7 @@ describe('contacted today', () => {
   it('offers a follow-up for a new contact, which moves them to active without an Undo', async () => {
     freezeToday()
     const user = userEvent.setup()
-    const { mock, result } = logMock(true, { status: ST_ACTIVE })
+    const { mock, result } = logMock({ status: ST_ACTIVE })
     renderPage(person({ status: ST_NEW, contactState: G.ContactState.DueSoon }), [mock])
     await user.click(await screen.findByRole('button', { name: 'Followed up today' }))
 

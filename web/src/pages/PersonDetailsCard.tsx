@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApolloClient } from '@apollo/client'
+import { quickContact } from '../contacts'
 import { formatDateTime, isToday } from '../format'
 import {
   ContactAlertsDocument,
@@ -195,7 +196,7 @@ function DeletePersonButton({ person }: { person: Person }) {
 }
 
 /**
- * Logs a contact now (business rule 6). A new contact also gets "Followed up
+ * Logs a contact now (business rule 6). For a new contact it is "Followed up
  * today", which moves them to active. A plain contact can be undone right
  * after; a follow-up can't, since undoing it wouldn't undo the status change.
  */
@@ -207,7 +208,7 @@ function LogContactButtons({ person }: { person: Person }) {
   async function log(isFollowUp: boolean) {
     try {
       const result = await logContact({
-        variables: { input: { personId: person.id, isFollowUp } },
+        variables: { input: quickContact(person.id) },
       })
       // contacts are newest first, so [0] is the one just logged.
       const logged = result.data?.logContact.contacts[0]?.id
@@ -244,22 +245,25 @@ function LogContactButtons({ person }: { person: Person }) {
 
   return (
     <span className="action">
-      <button type="button" className="link" disabled={logState.loading} onClick={() => log(false)}>
-        {logState.loading ? 'Saving…' : 'Contacted today'}
-      </button>
-      {isNewContact && (
-        <>
-          {' · '}
-          <button
-            type="button"
-            className="link"
-            disabled={logState.loading}
-            onClick={() => log(true)}
-            title="Logs a follow-up and moves them to active"
-          >
-            Followed up today
-          </button>
-        </>
+      {isNewContact ? (
+        <button
+          type="button"
+          className="link"
+          disabled={logState.loading}
+          onClick={() => log(true)}
+          title="Logs a follow-up and moves them to active"
+        >
+          {logState.loading ? 'Saving…' : 'Followed up today'}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="link"
+          disabled={logState.loading}
+          onClick={() => log(false)}
+        >
+          {logState.loading ? 'Saving…' : 'Contacted today'}
+        </button>
       )}
       <ErrorMessage error={logState.error} />
     </span>

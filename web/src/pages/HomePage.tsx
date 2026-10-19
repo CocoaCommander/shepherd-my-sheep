@@ -13,6 +13,7 @@ import {
   type CountTone,
   type PersonStatus,
 } from '../components'
+import { quickContact } from '../contacts'
 import { friendlyMessage } from '../errors'
 import { humanSpan, isToday, parseDateTime } from '../format'
 import {
@@ -84,17 +85,17 @@ export function careDetails(person: Person, urgency: CareUrgency, now: Date = ne
 
   let dueLabel: string
   if (urgency === 'overdue') {
-    dueLabel =
-      isNew && last === null ? 'First contact needed' : `${humanSpan(now.getTime() - due)} overdue`
+    dueLabel = `${humanSpan(now.getTime() - due)} overdue`
   } else if (urgency === 'soon') {
     dueLabel = `Due in ${humanSpan(due - now.getTime())}`
   } else {
     dueLabel = 'On track'
   }
 
-  // A follow-up promotes a new contact to active; their first contact doesn't.
-  const action = !isNew ? 'Contacted today' : last === null ? 'Log first contact' : 'Log follow-up'
-  const isFollowUp = isNew && last !== null
+  // Adding someone is their first contact, so any contact logged for a new contact is their
+  // follow-up, which makes them active.
+  const action = isNew ? 'Log follow-up' : 'Contacted today'
+  const isFollowUp = isNew
 
   return {
     meter: { value: sinceStart, max: window, label: meterLabel, goal },
@@ -146,7 +147,7 @@ export function HomePage() {
   async function log(person: Person, isFollowUp: boolean) {
     setPendingId(person.id)
     try {
-      const result = await logContact({ variables: { input: { personId: person.id, isFollowUp } } })
+      const result = await logContact({ variables: { input: quickContact(person.id) } })
       // contacts are newest first, so [0] is the one just logged. A follow-up can't be undone
       // from here, since deleting it wouldn't undo the move to active.
       const logged = result.data?.logContact.contacts[0]?.id ?? null

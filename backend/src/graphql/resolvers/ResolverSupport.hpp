@@ -137,6 +137,18 @@ inline const char* nullable(const std::optional<std::string>& value) {
     return value ? value->c_str() : nullptr;
 }
 
+/** `value` without leading or trailing whitespace. */
+inline std::string trim(const std::string& value) {
+    const char* space = " \t\n\r\f\v";
+    auto        first = value.find_first_not_of(space);
+    if (first == std::string::npos) return "";
+    return value.substr(first, value.find_last_not_of(space) - first + 1);
+}
+
+inline bool isBlank(const std::string& value) {
+    return trim(value).empty();
+}
+
 inline oatpp::String textOrNull(const pqxx::field& field) {
     return field.is_null() ? oatpp::String(nullptr) : oatpp::String(field.c_str());
 }

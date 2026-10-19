@@ -445,10 +445,10 @@ class TestComments:
 # ── log_contact / delete_contact (business rule 6) ───────────
 
 
-def sp_log_contact(cur, person_id, user_id=None, contacted_at=None, is_follow_up=None, note=None):
+def sp_log_contact(cur, person_id, user_id=None, contacted_at=None, is_follow_up=None, note=None, prayer_burden=None):
     cur.execute(
-        "SELECT * FROM log_contact(%s, %s, %s, %s, %s)",
-        (person_id, user_id, contacted_at, is_follow_up, note),
+        "SELECT * FROM log_contact(%s, %s, %s, %s, %s, %s)",
+        (person_id, user_id, contacted_at, is_follow_up, note, prayer_burden),
     )
     return cur.fetchone()
 
@@ -459,7 +459,7 @@ def status_of(cur, person_id):
 
 
 class TestLogContact:
-    def test_defaults_to_now_and_not_a_follow_up(self, db):
+    def test_defaults_to_now_and_not_a_follow_up_for_active(self, db):
         with db.cursor() as cur:
             person_id = sp_create_person(cur, "Contacted")[0]
             row = sp_log_contact(cur, person_id)
@@ -470,6 +470,15 @@ class TestLogContact:
         with db.cursor() as cur:
             person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
             sp_log_contact(cur, person_id, is_follow_up=True)
+            assert status_of(cur, person_id) == "active"
+
+    def test_new_contact_is_followed_up_by_default(self, db):
+        """Adding someone is the first contact, so the next one logged is their follow-up."""
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            row = sp_log_contact(cur, person_id)
+            cur.execute("SELECT is_follow_up FROM contact_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (True,)
             assert status_of(cur, person_id) == "active"
 
     def test_plain_contact_does_not_promote(self, db):
@@ -510,6 +519,23 @@ class TestLogContact:
             person_id = sp_create_person(cur)[0]
             sp_log_contact(cur, person_id, user_id, note=note)
             cur.execute("SELECT count(*) FROM comment WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_prayer_burden_linked_to_contact(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            row = sp_log_contact(cur, person_id, prayer_burden="  Visa renewal ")
+            cur.execute(
+                "SELECT person_id, content, released_date FROM prayer_burden WHERE contact_log_id = %s", (row[0],)
+            )
+            assert cur.fetchall() == [(person_id, "Visa renewal", None)]
+
+    @pytest.mark.parametrize("prayer_burden", [None, "", "   "])
+    def test_no_prayer_burden_none_added(self, db, prayer_burden):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            sp_log_contact(cur, person_id, prayer_burden=prayer_burden)
+            cur.execute("SELECT count(*) FROM prayer_burden WHERE person_id = %s", (person_id,))
             assert cur.fetchone()[0] == 0
 
     def test_note_without_user_rejected(self, db):
@@ -562,6 +588,15 @@ class TestDeleteContact:
             cur.execute("SELECT * FROM create_comment(%s, %s, %s)", (user_id, person_id, "Keep me"))
             cur.execute("SELECT delete_contact(%s)", (row[0],))
             cur.execute("SELECT content FROM comment WHERE person_id = %s", (person_id,))
+            assert cur.fetchall() == [("Keep me",)]
+
+    def test_delete_contact_removes_its_prayer_burden_only(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            row = sp_log_contact(cur, person_id, prayer_burden="Undo me")
+            cur.execute("SELECT * FROM create_prayer_burden(%s, %s)", (person_id, "Keep me"))
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            cur.execute("SELECT content FROM prayer_burden WHERE person_id = %s", (person_id,))
             assert cur.fetchall() == [("Keep me",)]
 
     def test_delete_nonexistent_contact_raises(self, db):

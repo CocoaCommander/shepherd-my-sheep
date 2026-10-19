@@ -19,7 +19,8 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
 - [ ] Build it. Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
-- [ ] Existing dev databases need `make reset` to pick up V003 and V004 (migrations only run on a fresh volume).
+- [ ] Existing dev databases need `make reset` to pick up V003, V004 and V005 (migrations only run on a fresh volume).
+- [x] **Log contact API, from the user story.** (#36) A shepherd adds a person (`createPerson` takes an optional `comment`), and adding them is the first contact. Logging a contact takes a required date and note and an optional prayer burden (`LogContactInput.prayerBurden`, linked by `prayer_burden.contact_log_id`, removed on Undo). Any contact for a `new contact` is their follow-up; `isFollowUp` is deprecated and ignored. Migration `V005__contact_burdens.sql`.
 
 ## Screens (web + mWeb/mobile)
 
@@ -62,6 +63,17 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Decide on later: password reset, "stay signed in", and how a new user lands on an empty Home (business rule 1: zero people).
   - [x] Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
 - [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
+- [ ] **"Log contact" modal** (to design, probably on the design canvas
+  first). The one-tap buttons ("Contacted today" and "Log follow-up" on
+  Home, "Contacted today" / "Followed up today" on the person card) open
+  it instead of logging straight away. Fields: a date (defaults to the
+  device's current date and time), a required note on what was talked
+  about, and an optional prayer burden text field. Sends `logContact`
+  with `contactedAt`, `note` and `prayerBurden`.
+  - [ ] Until it's built, the buttons log a placeholder note
+    (`QUICK_CONTACT_NOTE` in `web/src/contacts.ts`), since the API now
+    requires one. Remove `quickContact` once the modal replaces it.
+  - [ ] Android and iOS need the same modal.
 
 ## Design gaps (canvas vs API)
 
