@@ -108,6 +108,7 @@ class CommentDto : public oatpp::DTO {
     DTO_FIELD(String, id);
     DTO_FIELD(oatpp::Object<UserDto>, author);
     DTO_FIELD(oatpp::Object<PrayerBurdenDto>, prayerBurden);  // nullable — null means standalone note
+    DTO_FIELD(String, contactLogId);  // nullable — set for a note written when logging a contact
     DTO_FIELD(String, content);
     DTO_FIELD(String, createdAt);
     DTO_FIELD(String, updatedAt);

@@ -114,6 +114,7 @@ type Comment {
   author: User!
   person: Person!
   prayerBurden: PrayerBurden      # nullable — comment may be a standalone note
+  contactLogId: UUID              # nullable — set when the note was written by logging a contact (shown as "Logged contact")
   content: String!
   createdAt: DateTime!
   updatedAt: DateTime!
@@ -180,7 +181,9 @@ type Mutation {
 
   # Contacts — both return the person with their updated contact state.
   # Logging a contact for a 'new contact' is their follow-up and moves them
-  # to 'active'. Deleting a contact also deletes its note and prayer burden.
+  # to 'active'. Deleting a contact also deletes its note and prayer burden,
+  # and moves the person back to 'new contact' if this contact promoted them
+  # and they are still 'active'.
   logContact(input: LogContactInput!): Person!
   deleteContact(id: UUID!): Person!
 }

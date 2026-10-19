@@ -569,6 +569,31 @@ class TestLogContact:
             with pytest.raises(psycopg2.errors.RaiseException):
                 sp_log_contact(cur, "00000000-0000-0000-0000-000000000000")
 
+    @pytest.mark.parametrize(
+        "status_name, is_follow_up, promoted",
+        [
+            ("new contact", None, True),
+            ("new contact", True, True),
+            ("new contact", False, False),
+            ("active", True, False),
+            ("inactive", True, False),
+        ],
+    )
+    def test_promoted_only_when_it_promotes(self, db, status_name, is_follow_up, promoted):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Someone", status_name=status_name)[0]
+            row = sp_log_contact(cur, person_id, is_follow_up=is_follow_up)
+            cur.execute("SELECT promoted FROM contact_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (promoted,)
+
+    def test_second_contact_does_not_promote_again(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            sp_log_contact(cur, person_id)
+            row = sp_log_contact(cur, person_id)
+            cur.execute("SELECT is_follow_up, promoted FROM contact_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (False, False)
+
 
 class TestDeleteContact:
     def test_delete_contact(self, db):
@@ -603,3 +628,37 @@ class TestDeleteContact:
         with db.cursor() as cur:
             with pytest.raises(psycopg2.errors.RaiseException):
                 cur.execute("SELECT delete_contact(%s)", ("00000000-0000-0000-0000-000000000000",))
+
+    def test_undoing_the_follow_up_reverts_the_promotion(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            row = sp_log_contact(cur, person_id)
+            assert status_of(cur, person_id) == "active"
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            assert status_of(cur, person_id) == "new contact"
+
+    def test_status_changed_since_is_kept(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            row = sp_log_contact(cur, person_id)
+            cur.execute(
+                "SELECT * FROM update_person(p_id := %s, p_status_id := %s)",
+                (person_id, get_status_id(cur, "inactive")),
+            )
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            assert status_of(cur, person_id) == "inactive"
+
+    def test_undoing_a_later_contact_keeps_them_active(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Newbie", status_name="new contact")[0]
+            sp_log_contact(cur, person_id)
+            row = sp_log_contact(cur, person_id)
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            assert status_of(cur, person_id) == "active"
+
+    def test_undoing_a_plain_contact_leaves_status_alone(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Regular", status_name="active")[0]
+            row = sp_log_contact(cur, person_id)
+            cur.execute("SELECT delete_contact(%s)", (row[0],))
+            assert status_of(cur, person_id) == "active"

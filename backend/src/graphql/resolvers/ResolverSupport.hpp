@@ -195,6 +195,7 @@ inline const char* PERSON_SELECT =
     "JOIN person_contact_state cs ON cs.person_id = p.id "
     "LEFT JOIN LATERAL ("
     "    SELECT c.id AS lc_id, c.content AS lc_content, c.created_at AS lc_created_at, c.updated_at AS lc_updated_at, "
+    "           c.contact_log_id AS lc_contact_log_id, "
     "           u.id AS lc_author_id, u.name AS lc_author_name, u.username AS lc_author_username, "
     "           u.created_at AS lc_author_created_at, u.updated_at AS lc_author_updated_at, "
     "           pb.id AS lc_pb_id, pb.content AS lc_pb_content, pb.released_date AS lc_pb_released_date, "
@@ -280,7 +281,7 @@ inline MilestonePersonDto::Wrapper rowToMilestonePerson(const pqxx::row& row) {
 
 // Prefixes: "author_" for the writer, "pb_" for the linked burden (may be null).
 inline const char* COMMENT_SELECT =
-    "SELECT c.id, c.content, c.created_at, c.updated_at, "
+    "SELECT c.id, c.content, c.created_at, c.updated_at, c.contact_log_id, "
     "       u.id AS author_id, u.name AS author_name, u.username AS author_username, "
     "       u.created_at AS author_created_at, u.updated_at AS author_updated_at, "
     "       pb.id AS pb_id, pb.content AS pb_content, pb.released_date AS pb_released_date, "
@@ -290,12 +291,13 @@ inline const char* COMMENT_SELECT =
     "LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id ";
 
 inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix) {
-    auto dto       = CommentDto::createShared();
-    dto->id        = row[prefix + "id"].c_str();
-    dto->content   = row[prefix + "content"].c_str();
-    dto->createdAt = row[prefix + "created_at"].c_str();
-    dto->updatedAt = row[prefix + "updated_at"].c_str();
-    dto->author    = rowToUser(row, prefix + "author_");
+    auto dto          = CommentDto::createShared();
+    dto->id           = row[prefix + "id"].c_str();
+    dto->content      = row[prefix + "content"].c_str();
+    dto->createdAt    = row[prefix + "created_at"].c_str();
+    dto->updatedAt    = row[prefix + "updated_at"].c_str();
+    dto->contactLogId = textOrNull(row[prefix + "contact_log_id"]);
+    dto->author       = rowToUser(row, prefix + "author_");
     if (!row[prefix + "pb_id"].is_null()) {
         dto->prayerBurden = rowToPrayerBurden(row, prefix + "pb_");
     }
