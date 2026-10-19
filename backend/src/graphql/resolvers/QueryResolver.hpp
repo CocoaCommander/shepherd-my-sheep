@@ -112,12 +112,13 @@ private:
                                             "WHERE up.user_id = $1 "
                                             "ORDER BY p.name",
                                       userId);
-        txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<PersonDto>>::createShared();
         for (const auto& row : result) {
             list->push_back(rowToPerson(row));
         }
+        loadShepherds(txn, list);
+        txn.commit();
         return list;
     }
 
@@ -135,12 +136,13 @@ private:
                                             "WHERE up.user_id = $1 AND cs.contact_state IN ('OVERDUE', 'DUE_SOON') "
                                             "ORDER BY cs.contact_due_at, p.name",
                                       userId);
-        txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<PersonDto>>::createShared();
         for (const auto& row : result) {
             list->push_back(rowToPerson(row));
         }
+        loadShepherds(txn, list);
+        txn.commit();
         return list;
     }
 

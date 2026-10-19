@@ -1041,3 +1041,109 @@ class TestContactCadence:
         )["person"]
         assert person["lastContactDate"] == "2026-01-05"
         assert len(person["contacts"]) == 1
+
+
+# ── Per-person summaries on list queries ─────────────────────
+
+SUMMARY_FIELDS = """
+    id recordedMilestoneIds activeBurdenCount
+    latestComment { content createdAt author { id name } prayerBurden { id } }
+    shepherds { id name }
+"""
+
+MY_PEOPLE_SUMMARY = "query { myPeople { " + SUMMARY_FIELDS + " } }"
+ALERTS_SUMMARY = "query { contactAlerts { " + SUMMARY_FIELDS + " } }"
+
+RECORD_MILESTONE = """
+mutation RecordMilestone($input: RecordMilestoneInput!) { recordMilestone(input: $input) { id } }"""
+
+
+class TestPersonSummaries:
+    @pytest.fixture()
+    def milestone_ids(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM milestone")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    def test_new_person_has_empty_summaries(self, make_user, status_id):
+        token, user_id, _ = make_user(name="Solo Shepherd")
+        person_id = create_person(token, status_id)
+        [person] = gql(MY_PEOPLE_SUMMARY, token=token)["myPeople"]
+        assert person["id"] == person_id
+        assert person["recordedMilestoneIds"] == []  # rule 2
+        assert person["activeBurdenCount"] == 0  # rule 3
+        assert person["latestComment"] is None
+        assert [(s["id"], s["name"]) for s in person["shepherds"]] == [(user_id, "Solo Shepherd")]
+
+    def test_milestones_and_burden_count(self, make_user, status_id, milestone_ids):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        for name in ("baptised", "serving"):
+            gql(RECORD_MILESTONE, {"input": {"personId": person_id, "milestoneId": milestone_ids[name]}}, token)
+        burden_ids = [
+            gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": text}}, token)["createPrayerBurden"]["id"]
+            for text in ("Health", "Work", "Family")
+        ]
+        gql("mutation R($id: UUID!) { releasePrayerBurden(id: $id) { id } }", {"id": burden_ids[0]}, token)
+
+        [person] = gql(MY_PEOPLE_SUMMARY, token=token)["myPeople"]
+        # Out of order: serving without joining a small group.
+        assert sorted(person["recordedMilestoneIds"]) == sorted([milestone_ids["baptised"], milestone_ids["serving"]])
+        assert person["activeBurdenCount"] == 2  # released burdens don't count
+
+    def test_latest_comment_is_newest_of_any_kind(self, make_user, status_id):
+        token, user_id, _ = make_user(name="Writer")
+        person_id = create_person(token, status_id)
+        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": "Exams"}}, token)[
+            "createPrayerBurden"
+        ]["id"]
+
+        gql(CREATE_COMMENT, {"input": {"personId": person_id, "content": "Standalone"}}, token)
+        gql(CREATE_COMMENT, {"input": {"personId": person_id, "prayerBurdenId": burden_id, "content": "On it"}}, token)
+        [person] = gql(MY_PEOPLE_SUMMARY, token=token)["myPeople"]
+        shape = {"content": 0, "author": {"id": 0, "name": 0}, "prayerBurden": {"id": 0}}
+        assert pick(person["latestComment"], shape) == {
+            "content": "On it",
+            "author": {"id": user_id, "name": "Writer"},
+            "prayerBurden": {"id": burden_id},
+        }
+        assert person["latestComment"]["createdAt"] is not None
+
+        # A contact note is a standalone comment (rule 5), so it becomes the latest; undo brings back the one before.
+        logged = gql(LOG_CONTACT, {"input": {"personId": person_id, "note": "Called her"}}, token)["logContact"]
+        [person] = gql(MY_PEOPLE_SUMMARY, token=token)["myPeople"]
+        assert (person["latestComment"]["content"], person["latestComment"]["prayerBurden"]) == ("Called her", None)
+
+        gql(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, token)
+        [person] = gql(MY_PEOPLE_SUMMARY, token=token)["myPeople"]
+        assert person["latestComment"]["content"] == "On it"
+
+    def test_shepherds_on_list_queries(self, make_user, status_id, db_connection):
+        owner, owner_id, _ = make_user(name="Owner")
+        friend, friend_id, _ = make_user(name="Grace")
+        shared = create_person(owner, status_id, name="Shared")
+        mine = create_person(owner, status_id, name="Mine")
+        gql(ASSIGN_PERSON, {"personId": shared, "userId": friend_id}, owner)
+        with db_connection.cursor() as cur:
+            cur.execute("UPDATE person SET created_at = now() - interval '10 days' WHERE id = %s", (shared,))
+
+        people = {p["id"]: p for p in gql(MY_PEOPLE_SUMMARY, token=owner)["myPeople"]}
+        assert [s["id"] for s in people[shared]["shepherds"]] == [friend_id, owner_id]  # by name
+        assert [s["id"] for s in people[mine]["shepherds"]] == [owner_id]
+
+        # Every shepherd sees the alert (rule 6) with the same summary.
+        for token in (owner, friend):
+            [alert] = gql(ALERTS_SUMMARY, token=token)["contactAlerts"]
+            assert alert["id"] == shared
+            assert {s["name"] for s in alert["shepherds"]} == {"Owner", "Grace"}
+
+    def test_mutations_return_summaries(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        person = gql(
+            "mutation L($input: LogContactInput!) { logContact(input: $input) { " + SUMMARY_FIELDS + " } }",
+            {"input": {"personId": person_id, "note": "Lunch"}},
+            token,
+        )["logContact"]
+        assert person["latestComment"]["content"] == "Lunch"
+        assert person["recordedMilestoneIds"] == []

@@ -42,11 +42,17 @@ type Person {
   contactState: ContactState!
   isActive: Boolean!
   status: Status!
-  shepherds: [User!]!             # who is caring for this person
+  # Summaries, loaded everywhere a Person is returned (myPeople and
+  # contactAlerts too), so list screens don't need the nested lists.
+  recordedMilestoneIds: [UUID!]!  # ids of the Milestones recorded, in no set order; may be empty. Steps can be reached out of order
+  activeBurdenCount: Int!         # prayer burdens not yet released; may be 0
+  latestComment: Comment          # nullable — newest comment of any kind (standalone, contact note, or on a burden)
+  shepherds: [User!]!             # who is caring for this person; loaded everywhere a Person is returned
+  # Loaded only by person / mutations returning Person; never select them on myPeople or contactAlerts.
   milestones: [MilestonePerson!]! # may be empty for a new contact
   prayerBurdens: [PrayerBurden!]! # may be empty
   comments: [Comment!]!           # may be empty
-  contacts: [ContactLog!]!        # may be empty; newest first. Loaded only by person / mutations returning Person
+  contacts: [ContactLog!]!        # may be empty; newest first
   createdAt: DateTime!
   updatedAt: DateTime!
 }

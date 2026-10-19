@@ -14,6 +14,24 @@ fragment PersonSummary on Person {
     id
     name
   }
+  recordedMilestoneIds
+  activeBurdenCount
+  latestComment {
+    id
+    content
+    createdAt
+    author {
+      id
+      name
+    }
+    prayerBurden {
+      id
+    }
+  }
+  shepherds {
+    id
+    name
+  }
 }
 
 query Me {
@@ -37,14 +55,12 @@ query ContactAlerts {
   }
 }
 
-# Nested lists are only loaded by `person`; never select them on myPeople.
+# milestones, prayerBurdens, comments and contacts are only loaded by
+# `person` and mutations returning Person; never select them on myPeople
+# or contactAlerts (PersonSummary's counts and latestComment cover those).
 query Person($id: UUID!) {
   person(id: $id) {
     ...PersonSummary
-    shepherds {
-      id
-      name
-    }
     milestones {
       id
       dateAchieved

@@ -10,10 +10,19 @@ The data deliberately covers every business rule in CLAUDE.md:
   - a person with zero milestones,
     burdens and comments                 → "just_met"
   - a prayer burden with zero comments   → "aisha_settling"
-  - standalone and burden-linked comments
-  - a person shared by two shepherds     → "maria", "david", "elena"
-  - every contact state (business rule 6). Contact offsets stay clear of
-    the 72-hour, 7-day and "due soon" boundaries so states are stable:
+  - standalone and burden-linked comments, and contact notes: standalone
+    comments linked to the contact they were written with (rule 5)
+  - a person shared by two shepherds     → "maria", "david", "elena";
+    the latest contact for "maria" and "elena" is by the co-shepherd,
+    which clears the alert for both
+  - milestones reached out of order      → "david", "elena", "rachel", "omar"
+  - a new contact promoted to active by a follow-up → "rachel". She is
+    created as a new contact and log_contact promotes her, as in the app.
+  - new contacts with a first contact but no follow-up yet → "aisha",
+    "marcus", "ben"
+  - every contact state (business rule 6). Each person's latest contact
+    stays clear of the 72-hour, 7-day and "due soon" boundaries so states
+    are stable:
       on track     → "maria", "rachel", "just_met" (new, never contacted)
       due soon     → "david", "hannah", "aisha"
       overdue      → "elena", "james", "priya", "marcus", "ben"
@@ -36,8 +45,15 @@ class Person(NamedTuple):
     shepherds: tuple[str, ...]
     age: int | None = None
     years_since_met: int | None = None
-    last_contact_days_ago: float | None = None  # logged as one contact; None = never contacted
     is_active: bool = True
+
+
+class Contact(NamedTuple):
+    person: str
+    user: str
+    days_ago: float  # fractional, so the demo can sit between the rule-6 boundaries
+    is_follow_up: bool = False
+    note: str | None = None  # saved as a standalone comment linked to the contact
 
 
 class Milestone(NamedTuple):
@@ -72,23 +88,24 @@ USERS = [
 
 PEOPLE = [
     # Daniel and Grace share these three.
-    Person("maria", "Maria Santos", "active", ("shepherd", "coleader"), 34, 6, 3),
-    Person("david", "David Mensah", "active", ("shepherd", "coleader"), 52, 10, 6.5),
-    Person("elena", "Elena Petrova", "active", ("shepherd", "coleader"), 29, 2, 21),
+    Person("maria", "Maria Santos", "active", ("shepherd", "coleader"), 34, 6),
+    Person("david", "David Mensah", "active", ("shepherd", "coleader"), 52, 10),
+    Person("elena", "Elena Petrova", "active", ("shepherd", "coleader"), 29, 2),
     # Daniel only.
-    Person("james", "James Whitfield", "active", ("shepherd",), 27, 3, 10),
-    Person("aisha", "Aisha Bello", "new contact", ("shepherd",), 22, 0, 2.5),
+    Person("james", "James Whitfield", "active", ("shepherd",), 27, 3),
+    Person("aisha", "Aisha Bello", "new contact", ("shepherd",), 22, 0),
     Person("just_met", "Tom Becker", "new contact", ("shepherd",), years_since_met=0),
-    Person("priya", "Priya Natarajan", "active", ("shepherd",), 41, 8, 14),
-    Person("kenji", "Kenji Watanabe", "inactive", ("shepherd",), 30, 5, 120, is_active=False),
-    Person("lucy", "Lucy Hartmann", "lost contact", ("shepherd",), 19, 4, 540, is_active=False),
-    Person("marcus", "Marcus Reid", "new contact", ("shepherd",), 35, 1, 30),
-    Person("hannah", "Hannah Cho", "active", ("shepherd",), None, 3, 5.5),
-    Person("omar", "Omar Haddad", "inactive", ("shepherd",), 45, 7, 200, is_active=False),
+    Person("priya", "Priya Natarajan", "active", ("shepherd",), 41, 8),
+    Person("kenji", "Kenji Watanabe", "inactive", ("shepherd",), 30, 5, is_active=False),
+    Person("lucy", "Lucy Hartmann", "lost contact", ("shepherd",), 19, 4, is_active=False),
+    Person("marcus", "Marcus Reid", "new contact", ("shepherd",), 35, 1),
+    Person("hannah", "Hannah Cho", "active", ("shepherd",), None, 3),
+    Person("omar", "Omar Haddad", "inactive", ("shepherd",), 45, 7, is_active=False),
     # Grace only.
-    Person("rachel", "Rachel Adeyemi", "active", ("coleader",), 24, 2, 4),
-    Person("ben", "Ben Nguyen", "new contact", ("coleader",), 31, 0, 9),
-    Person("sofia", "Sofia Morales", "lost contact", ("coleader",), 38, 9, 900, is_active=False),
+    # Created as a new contact; her follow-up below promotes her (rule 6).
+    Person("rachel", "Rachel Adeyemi", "active", ("coleader",), 24, 2),
+    Person("ben", "Ben Nguyen", "new contact", ("coleader",), 31, 0),
+    Person("sofia", "Sofia Morales", "lost contact", ("coleader",), 38, 9, is_active=False),
 ]
 
 MILESTONES = [
@@ -156,11 +173,36 @@ COMMENTS = [
     Comment("james", "shepherd", "Two interviews this week.", 70, "james_job"),
     Comment("james", "shepherd", "Got the job! Starts on Monday.", 45, "james_job"),
     Comment("priya", "shepherd", "First group night had six mums turn up.", 50, "priya_group"),
-    Comment("kenji", "shepherd", "Moved across town; looking for a church closer to home.", 120),
-    Comment("lucy", "shepherd", "Moved away for university. Number may have changed.", 540),
-    Comment("marcus", "shepherd", "Met at the community dinner. Into cycling.", 30),
     Comment("marcus", "shepherd", "Came along to the Sunday service with a friend.", 16),
     Comment("hannah", "shepherd", "Studying hard.", 12, "hannah_exams"),
     Comment("rachel", "coleader", "Lawyer says the paperwork looks fine.", 10, "rachel_visa"),
-    Comment("ben", "coleader", "New neighbour — invited him to the Christmas carols.", 9),
+]
+
+# Oldest first per person; the latest one sets their contact state (see the
+# module docstring). Notes that were said at a contact live here, not in
+# COMMENTS.
+CONTACTS = [
+    Contact("maria", "shepherd", 10, note="Caught her after church; her mum's scans are next week."),
+    Contact("maria", "coleader", 3),  # the coffee chat, written up on the burden
+    Contact("david", "shepherd", 13.5),
+    Contact("david", "coleader", 6.5, note="Caught up after the men's group."),
+    Contact("elena", "shepherd", 35),
+    Contact("elena", "coleader", 21),
+    Contact("james", "shepherd", 45),
+    Contact("james", "shepherd", 10, note="Settling into the new job and enjoying it."),
+    Contact("aisha", "shepherd", 2.5, note="Met at the welcome lunch. Just moved here for work."),
+    Contact("priya", "shepherd", 21),
+    Contact("priya", "shepherd", 14),
+    Contact("kenji", "shepherd", 120, note="Moved across town; looking for a church closer to home."),
+    Contact("lucy", "shepherd", 540, note="Moved away for university. Number may have changed."),
+    Contact("marcus", "shepherd", 30, note="Met at the community dinner. Into cycling."),
+    Contact("hannah", "shepherd", 12.5),
+    Contact("hannah", "shepherd", 5.5),
+    Contact("omar", "shepherd", 200),
+    Contact("rachel", "coleader", 700, note="Met at the student café night."),
+    Contact("rachel", "coleader", 698, is_follow_up=True, note="Coffee; she wants to try a small group."),
+    Contact("rachel", "coleader", 11),
+    Contact("rachel", "coleader", 4),
+    Contact("ben", "coleader", 9, note="New neighbour — invited him to the Christmas carols."),
+    Contact("sofia", "coleader", 900),
 ]
