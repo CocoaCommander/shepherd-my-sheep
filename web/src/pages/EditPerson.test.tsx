@@ -31,6 +31,9 @@ function person(overrides: Record<string, unknown> = {}) {
     contactState: G.ContactState.Overdue,
     isActive: true,
     status: ST_ACTIVE,
+    recordedMilestoneIds: [],
+    activeBurdenCount: 0,
+    latestComment: null,
     shepherds: [],
     milestones: [],
     prayerBurdens: [],
@@ -54,6 +57,10 @@ function summary(overrides: Record<string, unknown> = {}) {
     contactState: p.contactState,
     isActive: p.isActive,
     status: p.status,
+    recordedMilestoneIds: p.recordedMilestoneIds,
+    activeBurdenCount: p.activeBurdenCount,
+    latestComment: p.latestComment,
+    shepherds: p.shepherds,
   }
 }
 

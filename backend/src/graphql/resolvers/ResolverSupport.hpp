@@ -9,6 +9,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 /**
  * Pieces shared by QueryResolver and MutationResolver: reading GraphQL
@@ -165,12 +166,35 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
 }
 
 // Contact columns come from the person_contact_state view (business rule 6).
-inline const char* PERSON_SELECT = "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
-                                   "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name, "
-                                   "       cs.last_contacted_at::date AS last_contact_date, cs.last_contacted_at, "
-                                   "       cs.contact_due_at, cs.contact_state "
-                                   "FROM person p JOIN status s ON s.id = p.status_id "
-                                   "JOIN person_contact_state cs ON cs.person_id = p.id ";
+// The recorded milestones, the active burden count and the latest comment
+// ("lc_" prefix, null when there are no comments) are summaries, so list
+// queries can show them without loading the nested lists.
+inline const char* PERSON_SELECT =
+    "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
+    "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name, "
+    "       cs.last_contacted_at::date AS last_contact_date, cs.last_contacted_at, "
+    "       cs.contact_due_at, cs.contact_state, "
+    "       (SELECT string_agg(mp.milestone_id::text, ',' ORDER BY mp.milestone_id) "
+    "          FROM milestone_person mp WHERE mp.person_id = p.id) AS milestone_ids, "
+    "       (SELECT count(*) FROM prayer_burden pb "
+    "         WHERE pb.person_id = p.id AND pb.released_date IS NULL) AS active_burden_count, "
+    "       lc.* "
+    "FROM person p JOIN status s ON s.id = p.status_id "
+    "JOIN person_contact_state cs ON cs.person_id = p.id "
+    "LEFT JOIN LATERAL ("
+    "    SELECT c.id AS lc_id, c.content AS lc_content, c.created_at AS lc_created_at, c.updated_at AS lc_updated_at, "
+    "           u.id AS lc_author_id, u.name AS lc_author_name, u.username AS lc_author_username, "
+    "           u.created_at AS lc_author_created_at, u.updated_at AS lc_author_updated_at, "
+    "           pb.id AS lc_pb_id, pb.content AS lc_pb_content, pb.released_date AS lc_pb_released_date, "
+    "           pb.created_at AS lc_pb_created_at, pb.updated_at AS lc_pb_updated_at "
+    "    FROM comment c "
+    "    JOIN \"user\" u ON u.id = c.user_id "
+    "    LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id "
+    "    WHERE c.person_id = p.id "
+    "    ORDER BY c.created_at DESC, c.id DESC LIMIT 1"
+    ") lc ON true ";
+
+inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix = "");
 
 inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     auto dto             = PersonDto::createShared();
@@ -185,6 +209,19 @@ inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     dto->updatedAt       = row["updated_at"].c_str();
     if (!row["age"].is_null()) dto->age = row["age"].as<int>();
     if (!row["year_met"].is_null()) dto->yearMet = row["year_met"].as<int>();
+    dto->activeBurdenCount = row["active_burden_count"].as<int>();
+
+    // Comma-separated UUIDs, or null for none (business rule 2).
+    dto->recordedMilestoneIds = oatpp::Vector<oatpp::String>::createShared();
+    if (!row["milestone_ids"].is_null()) {
+        std::string ids = row["milestone_ids"].c_str();
+        for (size_t start = 0, end; start < ids.size(); start = end + 1) {
+            end = ids.find(',', start);
+            if (end == std::string::npos) end = ids.size();
+            dto->recordedMilestoneIds->push_back(ids.substr(start, end - start));
+        }
+    }
+    if (!row["lc_id"].is_null()) dto->latestComment = rowToComment(row, "lc_");
 
     auto status  = StatusDto::createShared();
     status->id   = row["status_id"].c_str();
@@ -240,17 +277,43 @@ inline const char* COMMENT_SELECT =
     "JOIN \"user\" u ON u.id = c.user_id "
     "LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id ";
 
-inline CommentDto::Wrapper rowToComment(const pqxx::row& row) {
+inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix) {
     auto dto       = CommentDto::createShared();
-    dto->id        = row["id"].c_str();
-    dto->content   = row["content"].c_str();
-    dto->createdAt = row["created_at"].c_str();
-    dto->updatedAt = row["updated_at"].c_str();
-    dto->author    = rowToUser(row, "author_");
-    if (!row["pb_id"].is_null()) {
-        dto->prayerBurden = rowToPrayerBurden(row, "pb_");
+    dto->id        = row[prefix + "id"].c_str();
+    dto->content   = row[prefix + "content"].c_str();
+    dto->createdAt = row[prefix + "created_at"].c_str();
+    dto->updatedAt = row[prefix + "updated_at"].c_str();
+    dto->author    = rowToUser(row, prefix + "author_");
+    if (!row[prefix + "pb_id"].is_null()) {
+        dto->prayerBurden = rowToPrayerBurden(row, prefix + "pb_");
     }
     return dto;
+}
+
+/**
+ * Fills `shepherds` on a list of people with one query, so list screens
+ * can say who else cares for each person. Empty, not null, for nobody.
+ */
+inline void loadShepherds(pqxx::work& txn, const oatpp::Vector<oatpp::Object<PersonDto>>& people) {
+    if (people->empty()) return;
+
+    // libpqxx 6 can't bind a container, so the ids go as one array literal.
+    std::unordered_map<std::string, oatpp::Vector<oatpp::Object<UserDto>>> byPerson;
+    std::string                                                            ids = "{";
+    for (const auto& person : *people) {
+        person->shepherds = oatpp::Vector<oatpp::Object<UserDto>>::createShared();
+        byPerson.emplace(*person->id, person->shepherds);
+        if (ids.size() > 1) ids += ",";
+        ids += *person->id;
+    }
+    ids += "}";
+
+    for (const auto& row : txn.exec_params("SELECT u.id, u.name, u.username, u.created_at, u.updated_at, up.person_id "
+                                           "FROM user_person up JOIN \"user\" u ON u.id = up.user_id "
+                                           "WHERE up.person_id = ANY($1::uuid[]) ORDER BY u.name",
+                                           ids)) {
+        byPerson.at(row["person_id"].c_str())->push_back(rowToUser(row));
+    }
 }
 
 // Prefix: "contactor_" for the user who made contact (may be null).

@@ -154,8 +154,16 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(String, createdAt);
     DTO_FIELD(String, updatedAt);
 
-    // Loaded only by the `person` query. Each may be empty, never null,
-    // when loaded: a new contact has no milestones, burdens or comments.
+    // Summaries, set wherever a person is returned, so list screens don't
+    // need the nested lists.
+    DTO_FIELD(oatpp::Vector<String>, recordedMilestoneIds);  // Milestone ids, in any order; may be empty
+    DTO_FIELD(Int32, activeBurdenCount);
+    DTO_FIELD(oatpp::Object<CommentDto>, latestComment);  // nullable — no comments yet
+
+    // Shepherds are loaded everywhere a person is returned; the rest only
+    // by the `person` query and mutations returning Person. Each may be
+    // empty, never null, when loaded: a new contact has no milestones,
+    // burdens or comments.
     DTO_FIELD(oatpp::Vector<oatpp::Object<UserDto>>, shepherds);
     DTO_FIELD(oatpp::Vector<oatpp::Object<MilestonePersonDto>>, milestones);
     DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>, prayerBurdens);
