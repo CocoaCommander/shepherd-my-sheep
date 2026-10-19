@@ -128,6 +128,10 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
               autoComplete="current-password"
             />
             <C.TextField label="Name" error="Enter your name." />
+            <C.TextField label="Full name" required help="As they introduce themselves." />
+            <C.DateField label="Date" required max="2026-10-19" />
+            <C.TextArea label="Comment" required error="Add a comment on what you talked about." />
+            <C.TextArea label="Prayer note" required={false} />
             <C.SearchInput label="Search by name" />
             <C.Select label="Person">
               <option>Everyone</option>
@@ -152,6 +156,38 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
           <C.Switch checked={false} onChange={noop}>
             Hide details
           </C.Switch>
+        </main>,
+      ),
+    ).toEqual([])
+  })
+
+  it('dialog, steps and the undo toast', async () => {
+    function UndoToast() {
+      const { toastElement } = C.useUndoToast()
+      return toastElement
+    }
+    expect(
+      await violations(
+        <main>
+          <h1>Maria Santos</h1>
+          <C.StepsPanel
+            items={['Log a contact within 72 hours.', 'Maria moves to Active.', 'Contact weekly.']}
+          />
+          <UndoToast />
+          <C.Dialog
+            open
+            onClose={noop}
+            title="Log contact with Maria"
+            footer={
+              <>
+                <C.Button variant="secondary">Cancel</C.Button>
+                <C.Button>Save contact</C.Button>
+              </>
+            }
+          >
+            <p>We will remind you to contact Maria again 7 days after this date.</p>
+            <C.TextArea label="Comment" required />
+          </C.Dialog>
         </main>,
       ),
     ).toEqual([])

@@ -1,0 +1,44 @@
+.panel {
+  composes: base from '../shared.module.css';
+  background: var(--sms-brand-wash-2);
+  border: 1px solid var(--sms-brand-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-16) var(--sms-space-20);
+  color: var(--sms-ink);
+  font-size: 14px;
+}
+.heading {
+  margin: 0 0 var(--sms-space-12);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--sms-brand-strong);
+}
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-10);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+/* The number is drawn by CSS; the <ol> still gives screen readers "1 of 3". */
+.step {
+  display: flex;
+  gap: var(--sms-space-10);
+  counter-increment: step;
+}
+.step::before {
+  content: counter(step);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--sms-radius-circle);
+  background: var(--sms-brand);
+  color: var(--sms-on-brand);
+  font-size: 12px;
+  font-weight: 700;
+}
