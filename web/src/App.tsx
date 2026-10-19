@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
+import { AddPersonPage } from './pages/AddPersonPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { PeoplePage } from './pages/PeoplePage'
@@ -23,6 +24,15 @@ export default function App() {
         element={
           <RequireAuth>
             <PeoplePage />
+          </RequireAuth>
+        }
+      />
+      {/* Before /people/:id, for readers; the router ranks the static segment first anyway. */}
+      <Route
+        path="/people/new"
+        element={
+          <RequireAuth>
+            <AddPersonPage />
           </RequireAuth>
         }
       />

@@ -149,9 +149,11 @@ mutation Register($input: RegisterInput!) {
   }
 }
 
+# contactDueAt is the 72-hour follow-up deadline the confirmation shows (business rule 6).
 mutation CreatePerson($input: CreatePersonInput!) {
   createPerson(input: $input) {
     ...PersonSummary
+    createdAt
   }
 }
 

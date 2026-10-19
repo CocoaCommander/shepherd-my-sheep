@@ -209,6 +209,10 @@ describe('HomePage', () => {
     renderHome([])
     expect(await screen.findByText('No one is assigned to you yet')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    // The header's button and the empty state's both open the Add person page.
+    const addLinks = screen.getAllByRole('link', { name: 'Add person' })
+    expect(addLinks).toHaveLength(2)
+    for (const link of addLinks) expect(link).toHaveAttribute('href', '/people/new')
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
   })
 

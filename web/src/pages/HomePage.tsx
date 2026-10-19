@@ -232,7 +232,13 @@ export function HomePage() {
               })}
             </p>
           </div>
-          <Button as={Link} to="/people" variant="secondary" icon={<PlusIcon />}>
+          <Button
+            as={Link}
+            to="/people/new"
+            variant="secondary"
+            icon={<PlusIcon />}
+            className={styles.addPerson}
+          >
             Add person
           </Button>
         </div>
@@ -248,7 +254,7 @@ export function HomePage() {
             <p className={styles.muted}>
               Add the people you shepherd and this page will show who needs contacting.
             </p>
-            <Button as={Link} to="/people" icon={<PlusIcon />}>
+            <Button as={Link} to="/people/new" icon={<PlusIcon />}>
               Add person
             </Button>
           </section>
