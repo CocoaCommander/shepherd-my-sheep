@@ -31,6 +31,30 @@ export function todayIsoDate(now: Date = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
+/** "2026-10-14 18:26:10.89+00" → "Wed, Oct 14" in the user's locale and time zone. */
+export function formatShortDate(value: string): string {
+  return parseDateTime(value).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/**
+ * A contact date from a date input ("YYYY-MM-DD") → the ISO time to log. Today sends the
+ * current time; an earlier day sends 12:00 local that day, since the time isn't known.
+ */
+export function contactDateToTimestamp(date: string, now: Date = new Date()): string {
+  if (date === todayIsoDate(now)) return now.toISOString()
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(year, month - 1, day, 12).toISOString()
+}
+
+/** "Maria Santos" → "Maria". A single name is returned whole. */
+export function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0]
+}
+
 /** True if the DateTime falls on today's date in the user's time zone. */
 export function isToday(value: string, now: Date = new Date()): boolean {
   return todayIsoDate(parseDateTime(value)) === todayIsoDate(now)

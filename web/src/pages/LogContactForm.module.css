@@ -1,0 +1,18 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sms-space-8);
+}
+
+.intro {
+  margin: 0 0 var(--sms-space-16);
+  color: var(--sms-ink-2);
+  line-height: 1.5;
+}

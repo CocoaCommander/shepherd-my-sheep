@@ -53,6 +53,22 @@ function active(id: string, name: string, daysAgo: number) {
   })
 }
 
+/** The lists LogContact and DeleteContact return besides the summary; one contact if given. */
+function activity(contactId?: string) {
+  const contacts = contactId
+    ? [
+        {
+          __typename: 'ContactLog',
+          id: contactId,
+          contactedAt: at(0),
+          isFollowUp: false,
+          createdAt: at(0),
+        },
+      ]
+    : []
+  return { prayerBurdens: [], comments: [], contacts }
+}
+
 const ELENA = active('p-elena', 'Elena Petrova', 21)
 const JAMES = active('p-james', 'James Whitfield', 10)
 const TOM = person('p-tom', 'Tom Becker', {
@@ -202,12 +218,12 @@ describe('HomePage', () => {
       data: {
         logContact: {
           ...active('p-elena', 'Elena Petrova', 0),
-          contacts: [{ __typename: 'ContactLog', id: 'c-new' }],
+          ...activity('c-new'),
         },
       },
     }))
     const undone = vi.fn(() => ({
-      data: { deleteContact: { ...ELENA, contacts: [] } },
+      data: { deleteContact: { ...ELENA, ...activity() } },
     }))
     renderHome(
       [ELENA],
@@ -241,7 +257,7 @@ describe('HomePage', () => {
       data: {
         logContact: {
           ...active('p-aisha', 'Aisha Bello', 0),
-          contacts: [{ __typename: 'ContactLog', id: 'c-new' }],
+          ...activity('c-new'),
         },
       },
     }))

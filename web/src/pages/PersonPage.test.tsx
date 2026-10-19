@@ -55,6 +55,7 @@ function comment(
     createdAt: '2026-10-14 18:26:10.89+00',
     author: opts.author ?? { __typename: 'User', id: ME.id, name: ME.name },
     prayerBurden: opts.burdenId ? { __typename: 'PrayerBurden', id: opts.burdenId } : null,
+    contactLogId: null,
   }
 }
 

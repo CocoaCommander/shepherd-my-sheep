@@ -279,7 +279,7 @@ describe('contacted today', () => {
     vi.setSystemTime(NOW)
   }
 
-  /** LogContact returns the summary plus the logged contact's id. */
+  /** LogContact returns the summary plus the person's burdens, notes and contacts. */
   function logMock(updated: Record<string, unknown> = {}) {
     const result = vi.fn(() => ({
       data: {
@@ -290,7 +290,17 @@ describe('contacted today', () => {
             contactState: G.ContactState.OnTrack,
             ...updated,
           }),
-          contacts: [{ __typename: 'ContactLog', id: 'contact-new' }],
+          prayerBurdens: [],
+          comments: [],
+          contacts: [
+            {
+              __typename: 'ContactLog',
+              id: 'contact-new',
+              contactedAt: NOW.toISOString(),
+              isFollowUp: false,
+              createdAt: NOW.toISOString(),
+            },
+          ],
         },
       },
     }))
@@ -326,7 +336,7 @@ describe('contacted today', () => {
     const user = userEvent.setup()
     const { mock } = logMock()
     const undone = vi.fn(() => ({
-      data: { deleteContact: { ...summary(), contacts: [] } },
+      data: { deleteContact: { ...summary(), prayerBurdens: [], comments: [], contacts: [] } },
     }))
     const undoMock: MockedResponse = {
       request: { query: G.DeleteContactDocument, variables: { id: 'contact-new' } },
