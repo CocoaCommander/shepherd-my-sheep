@@ -40,7 +40,8 @@ The app needs both web and mobile-web layouts for every screen, then Android and
     - [ ] Possible later: sort options (name, last contact, most overdue).
   - [x] Decided 2026-10-16: milestone progress stays four fixed segments in this order for the demo: baptised, joined small group, serving, leading. Configurable milestones are a separate item below.
 - [ ] **Person page** (mocked up for web and mWeb, pending build), using Maria Santos as the example.
-  - [ ] Header card with a contact-status banner (on track / due / overdue, with a progress bar against the 7-day or 72-hour goal) and a prominent "Contacted today" button. Replaces today's "Contacted today" link in the details card.
+  - [x] Header card with a contact-status banner (on track / due / overdue) and a prominent "Log contact" button that opens the Log contact dialog. Replaces today's "Contacted today" link in the details card. (#40)
+    - [ ] Progress bar against the 7-day or 72-hour goal. Left out because it needs the clock start from `person_contact_state`, not a hard-coded window.
   - [ ] Milestones as a four-step journey (baptised, small group, serving, leading) showing when and any note; unrecorded steps get a "Record" button.
   - [ ] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list.
   - [ ] Notes: standalone notes with an add-note box (comments with no prayer burden).
