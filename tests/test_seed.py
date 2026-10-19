@@ -121,3 +121,84 @@ class TestSeed:
                 (list(ids.people.values()),),
             )
             assert cur.fetchone()[0] == 0
+
+    def test_contact_notes_are_standalone_comments_on_the_contact(self, seeded_db):
+        """Business rule 5: a note written with a contact is linked to it and dated with it."""
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*), bool_and(c.prayer_burden_id IS NULL), bool_and(c.created_at = cl.contacted_at), "
+                "       bool_and(c.user_id = cl.user_id) "
+                "FROM comment c JOIN contact_log cl ON cl.id = c.contact_log_id "
+                "WHERE c.person_id = ANY(%s::uuid[])",
+                (list(ids.people.values()),),
+            )
+            notes, standalone, dated, by_contactor = cur.fetchone()
+        assert notes > 0
+        assert (standalone, dated, by_contactor) == (True, True, True)
+
+    def test_follow_up_promoted_a_new_contact(self, seeded_db):
+        """Business rule 6: a follow-up moves a new contact to active, so no new contact has one."""
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT s.name FROM person p JOIN status s ON s.id = p.status_id WHERE p.id = %s",
+                (ids.people["rachel"],),
+            )
+            assert cur.fetchone() == ("active",)
+            sql = "SELECT count(*) FROM contact_log WHERE person_id = %s AND is_follow_up"
+            assert count(cur, sql, ids.people["rachel"]) == 1
+            assert (
+                count(
+                    cur,
+                    "SELECT count(*) FROM contact_log cl JOIN person p ON p.id = cl.person_id "
+                    "JOIN status s ON s.id = p.status_id "
+                    "WHERE cl.is_follow_up AND s.name = 'new contact' AND p.id = ANY(%s::uuid[])",
+                    list(ids.people.values()),
+                )
+                == 0
+            )
+
+    def test_new_contacts_waiting_on_a_follow_up(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            for key in ("aisha", "marcus", "ben"):
+                assert count(cur, "SELECT count(*) FROM contact_log WHERE person_id = %s", ids.people[key]) > 0
+
+    def test_shared_person_last_contacted_by_co_shepherd(self, seeded_db):
+        """Business rule 6: any shepherd's contact clears the alert for all."""
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT user_id FROM contact_log WHERE person_id = %s ORDER BY contacted_at DESC LIMIT 1",
+                (ids.people["maria"],),
+            )
+            assert cur.fetchone() == (ids.users["coleader"],)
+
+    def test_milestones_reached_out_of_order(self, seeded_db):
+        """Someone has a later step of baptised → small group → serving → leading without an earlier one."""
+        conn, ids = seeded_db
+        order = ["baptised", "joined small group", "serving", "leading"]
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT mp.person_id, array_agg(m.name) FROM milestone_person mp "
+                "JOIN milestone m ON m.id = mp.milestone_id WHERE mp.person_id = ANY(%s::uuid[]) "
+                "GROUP BY mp.person_id",
+                (list(ids.people.values()),),
+            )
+            # In order means the recorded steps are the first few of `order`.
+            gaps = [person_id for person_id, names in cur.fetchall() if set(names) != set(order[: len(names)])]
+        assert ids.people["david"] in gaps
+
+    def test_nobody_added_after_their_history(self, seeded_db):
+        """The 72-hour rule counts from created_at, so it can't come after a person's records."""
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM person p WHERE p.id = ANY(%s::uuid[]) AND p.created_at > LEAST("
+                "  (SELECT min(contacted_at) FROM contact_log WHERE person_id = p.id),"
+                "  (SELECT min(created_at) FROM comment WHERE person_id = p.id),"
+                "  (SELECT min(created_at) FROM prayer_burden WHERE person_id = p.id))",
+                (list(ids.people.values()),),
+            )
+            assert cur.fetchone()[0] == 0

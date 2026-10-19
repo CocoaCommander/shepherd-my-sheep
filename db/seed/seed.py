@@ -2,10 +2,13 @@
 Loads the sample dataset (dataset.py) into a database.
 
 Rows are written through the same stored procedures the backend calls,
-so the seed exercises the real write path. The one exception is
-timestamps: the procedures stamp everything with now(), which would make
-every comment look like it was written in the same second, so seed()
-backdates created_at / released_date afterwards.
+so the seed exercises the real write path, including log_contact
+promoting a new contact to active on a follow-up (business rule 6). The
+one exception is timestamps: the procedures stamp everything with now(),
+which would make every comment look like it was written in the same
+second, so seed() backdates created_at / released_date afterwards. Each
+person's created_at goes back to their earliest contact, burden or
+comment, so nobody looks added after they were first contacted.
 """
 
 from dataclasses import dataclass, field
@@ -58,11 +61,16 @@ def seed(conn, password_hash, username_prefix=DEMO_PREFIX):
             )
             ids.users[u.key] = cur.fetchone()[0]
 
+        # Anyone promoted by a follow-up starts as a new contact; log_contact
+        # moves them to their dataset status, which is checked below.
+        followed_up = {c.person for c in dataset.CONTACTS if c.is_follow_up}
+
         for p in dataset.PEOPLE:
+            initial_status = "new contact" if p.key in followed_up else p.status
             year_met = date.today().year - p.years_since_met if p.years_since_met is not None else None
             cur.execute(
                 "SELECT id FROM create_person(%s, %s, %s, %s)",
-                (p.name, statuses[p.status], p.age, year_met),
+                (p.name, statuses[initial_status], p.age, year_met),
             )
             person_id = cur.fetchone()[0]
             ids.people[p.key] = person_id
@@ -73,13 +81,18 @@ def seed(conn, password_hash, username_prefix=DEMO_PREFIX):
             for shepherd in p.shepherds:
                 cur.execute("SELECT assign_person(%s, %s)", (ids.users[shepherd], person_id))
 
-            # Logged by the first shepherd. Fractional days are allowed so the
-            # demo can sit between the contact-rule boundaries (dataset.py).
-            if p.last_contact_days_ago is not None:
-                cur.execute(
-                    "SELECT log_contact(%s, %s, now() - %s * interval '1 day')",
-                    (person_id, ids.users[p.shepherds[0]], p.last_contact_days_ago),
-                )
+        # Oldest first, as they would have been logged.
+        for c in sorted(dataset.CONTACTS, key=lambda c: -c.days_ago):
+            cur.execute(
+                "SELECT id FROM log_contact(%s, %s, now() - %s * interval '1 day', %s, %s)",
+                (ids.people[c.person], ids.users[c.user], c.days_ago, c.is_follow_up, c.note),
+            )
+            # The note is written at the contact, not at seed time.
+            cur.execute(
+                "UPDATE comment SET created_at = cl.contacted_at, updated_at = cl.contacted_at "
+                "FROM contact_log cl WHERE cl.id = %s AND comment.contact_log_id = cl.id",
+                (cur.fetchone()[0],),
+            )
 
         for m in dataset.MILESTONES:
             cur.execute(
@@ -113,6 +126,27 @@ def seed(conn, password_hash, username_prefix=DEMO_PREFIX):
                 ),
             )
             _backdate(cur, "comment", cur.fetchone()[0], "created_at", c.days_ago)
+
+        for p in dataset.PEOPLE:
+            history = [
+                *(c.days_ago for c in dataset.CONTACTS if c.person == p.key),
+                *(b.days_ago for b in dataset.BURDENS if b.person == p.key),
+                *(c.days_ago for c in dataset.COMMENTS if c.person == p.key),
+            ]
+            if history:
+                cur.execute(
+                    "UPDATE person SET created_at = now() - %s * interval '1 day' - interval '1 hour' WHERE id = %s",
+                    (max(history), ids.people[p.key]),
+                )
+
+        cur.execute(
+            "SELECT p.id, s.name FROM person p JOIN status s ON s.id = p.status_id WHERE p.id = ANY(%s::uuid[])",
+            (list(ids.people.values()),),
+        )
+        actual = dict(cur.fetchall())
+        for p in dataset.PEOPLE:
+            if actual[ids.people[p.key]] != p.status:
+                raise ValueError(f"{p.key} ended up {actual[ids.people[p.key]]!r}, dataset says {p.status!r}")
 
     return ids
 
