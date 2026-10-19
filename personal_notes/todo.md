@@ -78,13 +78,15 @@ were already listed and aren't repeated here.
   contact (`comment.contact_log_id`, one per contact); undoing the contact
   deletes it. `contact_log.note` is gone; `ContactLog.note` reads the
   linked comment. Migration `V004__contact_notes.sql`.
-- [ ] **Per-person summaries on list queries.** `myPeople` and
+- [x] **Per-person summaries on list queries.** (#35) `myPeople` and
   `contactAlerts` only run `rowToPerson`, so nested lists are empty
   (`operations.graphql` says never select them there). Home, My people
   and Review need, per person: milestone progress, active burden count,
   shepherds ("Shared with Grace Lin") and the latest note with its time.
-  Add batched loads, or summary fields (`milestoneCount`,
-  `activeBurdenCount`, `latestComment`) to `Person`.
+  Done 2026-10-19 with summary fields: `recordedMilestoneIds` (not a
+  count: milestones can be reached out of order), `activeBurdenCount`,
+  `latestComment` (newest of any kind), and `shepherds` filled on list
+  queries. The seed was brought in line with rules 5 and 6 in the same PR.
 - [ ] **Undo a prayer-burden release.** The Prayer list toast offers Undo,
   but `release_prayer_burden` is one-way. Add an
   `unrelease_prayer_burden` function (new migration) and an
@@ -110,8 +112,8 @@ gap check).
   through the merged build yet.
 - [x] Decide where contact notes show (Design gaps). Blocks the Home,
   Review and Person builds, so settle it before they start.
-- [ ] Per-person summaries on `myPeople` / `contactAlerts` (Design
-  gaps). Every list screen in the canvas needs them.
+- [x] Per-person summaries on `myPeople` / `contactAlerts` (Design
+  gaps). (#35) Every list screen in the canvas needs them.
 - [ ] Finish the contact-cadence backend: Undo of a follow-up reverts
   the promotion, and the clock counts from a status move
   (`person.status_changed_at`). Needed by the My people board and
