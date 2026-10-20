@@ -10,7 +10,6 @@ import {
   StatTile,
   type CareUrgency,
   type CountTone,
-  type PersonStatus,
 } from '../components'
 import { friendlyMessage } from '../errors'
 import { humanSpan, parseDateTime } from '../format'
@@ -24,15 +23,9 @@ import { useLogContactToast } from './contactToast'
 import { Header } from './Header'
 import styles from './HomePage.module.css'
 import { LogContactDialog } from './LogContactDialog'
+import { STATUS_BY_NAME } from './personStatus'
 
 type Person = MyPeopleQuery['myPeople'][number]
-
-const STATUS_BY_NAME: Record<string, PersonStatus> = {
-  'new contact': 'new',
-  active: 'active',
-  inactive: 'inactive',
-  'lost contact': 'lost',
-}
 
 const isNewContact = (person: Person) => person.status.name === 'new contact'
 

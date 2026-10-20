@@ -1,0 +1,237 @@
+/*
+ * Prayer list: one responsive layout for desktop and mobile web. Below 720px (AppHeader's
+ * breakpoint) each row stacks: avatar, name and status on top, the buttons side by side below.
+ */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-32) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.summary {
+  margin: 4px 0 0;
+  color: var(--sms-muted);
+}
+.muted {
+  color: var(--sms-muted);
+}
+.srOnly {
+  composes: srOnly from '../components/shared.module.css';
+}
+
+.noPeople {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-24);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.noPeople p {
+  margin: 0;
+}
+.sectionTitle {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-12);
+}
+.filterLabel {
+  color: var(--sms-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: 40px var(--sms-space-20);
+  border: 1.5px dashed var(--sms-border-dashed);
+  border-radius: var(--sms-radius-2xl);
+  text-align: center;
+  color: var(--sms-muted);
+}
+
+.list,
+.group {
+  display: flex;
+  flex-direction: column;
+}
+.list {
+  gap: var(--sms-space-20);
+}
+.group {
+  gap: var(--sms-space-10);
+}
+.groupTitle {
+  margin: 0;
+  font-size: 15px;
+  color: var(--sms-ink-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 104px;
+  grid-template-areas:
+    'avatar head actions'
+    'avatar body actions';
+  align-items: start;
+  gap: var(--sms-space-10) var(--sms-space-16);
+  padding: var(--sms-space-18);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.avatar {
+  grid-area: avatar;
+}
+.head {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-8);
+}
+.name {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+.name:hover {
+  text-decoration: underline;
+}
+.name:focus-visible {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+.added {
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-10);
+  min-width: 0;
+}
+.content {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.comment {
+  margin: 0;
+  padding: var(--sms-space-8) var(--sms-space-12);
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-lg);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+
+@media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-20) var(--sms-space-16) 40px;
+    gap: var(--sms-space-14);
+  }
+  .title {
+    font-size: 24px;
+  }
+  .summary {
+    margin-top: 2px;
+  }
+
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sms-space-10);
+  }
+  .sort {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .long,
+  .filterLabel {
+    display: none;
+  }
+  .filter select {
+    flex: 1;
+  }
+
+  .empty {
+    padding: var(--sms-space-32) var(--sms-space-16);
+  }
+
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'avatar head head'
+      'body body body'
+      'actions actions actions';
+    align-items: center;
+    gap: var(--sms-space-12);
+    padding: var(--sms-space-14);
+  }
+  /* Name over "Added", with the status pill at the right. */
+  .head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name pill'
+      'added pill';
+    gap: 0 var(--sms-space-12);
+  }
+  .name {
+    grid-area: name;
+    line-height: 1.3;
+  }
+  .pill {
+    grid-area: pill;
+    white-space: nowrap;
+  }
+  .added {
+    grid-area: added;
+    font-size: 12px;
+  }
+  .actions {
+    flex-direction: row;
+  }
+  .actions > * {
+    flex: 1;
+    min-height: var(--sms-size-input);
+  }
+
+  .toast {
+    left: var(--sms-space-16);
+    right: var(--sms-space-16);
+  }
+}

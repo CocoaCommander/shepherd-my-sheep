@@ -6,6 +6,7 @@ import {
   firstName,
   formatShortDate,
   isToday,
+  timeAgo,
 } from './format'
 
 describe('contactStateLabel', () => {
@@ -129,5 +130,45 @@ describe('formatShortDate', () => {
       day: 'numeric',
     })
     expect(formatShortDate(new Date(2026, 9, 14, 23, 30).toISOString())).toBe(expected)
+  })
+})
+
+describe('timeAgo', () => {
+  const now = new Date('2026-10-14T12:00:00Z')
+  const ago = (days: number, extraHours = 0) =>
+    new Date(now.getTime() - (days * 24 + extraHours) * 3_600_000)
+      .toISOString()
+      .replace('T', ' ')
+      .replace('Z', '+00')
+
+  it('is "today" under a day, and for the future', () => {
+    expect(timeAgo(ago(0), now)).toBe('today')
+    expect(timeAgo(ago(0, 23), now)).toBe('today')
+    expect(timeAgo(ago(-3), now)).toBe('today')
+  })
+
+  it('counts days up to a week', () => {
+    expect(timeAgo(ago(1), now)).toBe('1 day ago')
+    expect(timeAgo(ago(1, 23), now)).toBe('1 day ago')
+    expect(timeAgo(ago(2), now)).toBe('2 days ago')
+    expect(timeAgo(ago(6), now)).toBe('6 days ago')
+  })
+
+  it('says "1 week ago" from 7 to 13 days, then rounds weeks', () => {
+    expect(timeAgo(ago(7), now)).toBe('1 week ago')
+    expect(timeAgo(ago(13), now)).toBe('1 week ago')
+    expect(timeAgo(ago(14), now)).toBe('2 weeks ago')
+    expect(timeAgo(ago(59), now)).toBe('8 weeks ago')
+  })
+
+  it('rounds months from 60 days and years from 365', () => {
+    expect(timeAgo(ago(60), now)).toBe('2 months ago')
+    expect(timeAgo(ago(364), now)).toBe('12 months ago')
+    expect(timeAgo(ago(365), now)).toBe('1 year ago')
+    expect(timeAgo(ago(800), now)).toBe('2 years ago')
+  })
+
+  it('parses the API DateTime format', () => {
+    expect(timeAgo('2026-10-13 11:00:00.5+00', now)).toBe('1 day ago')
   })
 })

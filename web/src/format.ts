@@ -69,6 +69,19 @@ export function humanSpan(ms: number): string {
   return days === 1 ? '1 day' : `${days} days`
 }
 
+/** "today", "3 days ago", "1 week ago", "5 months ago", "2 years ago": how long ago a time was. */
+export function timeAgo(value: string, now: Date = new Date()): string {
+  const days = Math.floor((now.getTime() - parseDateTime(value).getTime()) / 86_400_000)
+  if (days < 1) return 'today'
+  if (days === 1) return '1 day ago'
+  if (days < 7) return `${days} days ago`
+  if (days < 14) return '1 week ago'
+  if (days < 60) return `${Math.round(days / 7)} weeks ago`
+  if (days < 365) return `${Math.round(days / 30)} months ago`
+  const years = Math.round(days / 365)
+  return years === 1 ? '1 year ago' : `${years} years ago`
+}
+
 /**
  * Badge text for a contact state (business rule 6): "Overdue · 2 days",
  * "Due in 5 hours", "On track". Null when the person isn't tracked.
