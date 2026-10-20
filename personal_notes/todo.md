@@ -33,8 +33,8 @@ The app needs both web and mobile-web layouts for every screen, then Android and
     - [ ] Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging.
     - [ ] Keyboard and screen-reader alternative to dragging: a "Move to" menu on every card.
     - [ ] Toast with Undo after a move.
-    - [x] Decided 2026-10-16: what a status move means for the contact rule. Moving New contact to Active asks "Did a follow-up happen?": Yes logs a follow-up now (which promotes them); No just moves them, and the 7-day clock starts from the move. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. The design just moves them; update it to show the question.
-    - [ ] **Proposed 2026-10-19, confirm with the user:** dragging New contact to Active opens the Log contact dialog instead of asking "Did they have a follow-up?" / "Move anyway". Since #36 any contact logged for a new contact is their follow-up and promotes them, so saving the dialog does the move; Cancel leaves the card where it was. This would replace the 2026-10-16 decision above (including "No just moves them").
+    - [x] Decided 2026-10-16: what a status move means for the contact rule. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. (The New contact to Active part, "Did a follow-up happen?" with Yes / No, was replaced on 2026-10-19; see below.)
+    - [x] Decided 2026-10-19: dragging New contact to Active opens the Log contact dialog instead of asking "Did they have a follow-up?" / "Move anyway". Since #36 any contact logged for a new contact is their follow-up and promotes them, so saving the dialog does the move; Cancel leaves the card where it was. There is no "move without a contact" path from New contact to Active. The design still just moves them; update it to open the dialog.
     - [ ] Build the clock-from-the-move part: `person_contact_state` needs to count from when the status last changed (e.g. a `person.status_changed_at`) when that is later than the last contact.
     - [ ] Persist the move optimistically and roll back if the mutation fails.
   - **Gallery**: full overview grid with search by name and status filter chips. 2-column cards on mWeb.
@@ -48,7 +48,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list.
   - [ ] Notes: standalone notes with an add-note box (comments with no prayer burden).
   - [ ] Sidebar (web) or stacked sections (mWeb): details, shepherds (add / remove, "You" and co-shepherd labels), contact rule reminder, delete person.
-  - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active asks whether a follow-up happened).
+  - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19).
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
 - [ ] **Prayer list** (mocked up for web and mWeb, pending build): all active burdens across the people you shepherd.
   - [ ] Sort: longest standing (default), newest, or grouped by person. Filter by person.
