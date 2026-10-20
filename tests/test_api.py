@@ -1856,3 +1856,130 @@ class TestContactClockStart:
         query = PERSON.replace("isActive", "isActive contactState contactClockStart")
         person = gql(query, {"id": person_id}, token)["person"]
         assert (person["contactState"], person["contactClockStart"]) == ("NOT_TRACKED", None)
+
+
+# ── Undoing a status move ────────────────────────────────────
+
+UPDATE_STATUS_STAMP = """
+mutation U($id: UUID!, $input: UpdatePersonInput!) {
+  updatePerson(id: $id, input: $input) { id status { name } statusChangedAt }
+}"""
+
+UNDO_STATUS = """
+mutation Undo($personId: UUID!, $statusId: UUID!, $statusChangedAt: DateTime!) {
+  undoStatusChange(personId: $personId, statusId: $statusId, statusChangedAt: $statusChangedAt) {
+    id status { name } statusChangedAt contactState contactClockStart
+  }
+}"""
+
+SOME_STAMP = "2026-10-20T12:00:00Z"
+
+
+class TestUndoStatusChange:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    def move(self, token, person_id, statuses, name):
+        data = gql(UPDATE_STATUS_STAMP, {"id": person_id, "input": {"statusId": statuses[name]}}, token)
+        return data["updatePerson"]
+
+    def undo_vars(self, person_id, statuses, name, stamp):
+        return {"personId": person_id, "statusId": statuses[name], "statusChangedAt": stamp}
+
+    def test_status_changed_at_null_until_the_first_move(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        query = PERSON.replace("isActive", "isActive statusChangedAt")
+        assert gql(query, {"id": person_id}, token)["person"]["statusChangedAt"] is None
+        [mine] = gql("query { myPeople { id statusChangedAt } }", token=token)["myPeople"]
+        assert mine["statusChangedAt"] is None
+
+        moved = self.move(token, person_id, statuses, "inactive")
+        assert moved["statusChangedAt"] is not None
+        [mine] = gql("query { myPeople { id statusChangedAt } }", token=token)["myPeople"]
+        assert mine["statusChangedAt"] == moved["statusChangedAt"]
+        assert gql(query, {"id": person_id}, token)["person"]["statusChangedAt"] == moved["statusChangedAt"]
+
+    def test_user_with_no_people_has_no_status_stamps(self, make_user):
+        token, _, _ = make_user()
+        assert gql("query { myPeople { id statusChangedAt } }", token=token)["myPeople"] == []
+
+    def test_resaving_the_same_status_leaves_the_stamp_null(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        assert self.move(token, person_id, statuses, "active")["statusChangedAt"] is None
+
+    def test_undo_round_trips_the_returned_stamp_and_keeps_the_alert(self, make_user, statuses, db_connection):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        with db_connection.cursor() as cur:
+            cur.execute("UPDATE person SET created_at = now() - interval '10 days' WHERE id = %s", (person_id,))
+        before = gql("query { myPeople { id contactClockStart } }", token=token)["myPeople"][0]
+
+        moved = self.move(token, person_id, statuses, "inactive")
+        assert moved["status"]["name"] == "inactive"
+        variables = self.undo_vars(person_id, statuses, "inactive", moved["statusChangedAt"])
+        person = gql(UNDO_STATUS, variables, token)["undoStatusChange"]
+
+        assert person["id"] == person_id
+        assert person["status"]["name"] == "active"
+        assert person["statusChangedAt"] is None
+        assert person["contactState"] == "OVERDUE"
+        assert person["contactClockStart"] == before["contactClockStart"]
+        assert [p["id"] for p in gql(CONTACT_ALERTS, token=token)["contactAlerts"]] == [person_id]
+
+    def test_second_undo_is_a_conflict_naming_the_person(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Bartholomew")
+        moved = self.move(token, person_id, statuses, "inactive")
+        variables = self.undo_vars(person_id, statuses, "inactive", moved["statusChangedAt"])
+        gql(UNDO_STATUS, variables, token)
+
+        error = gql_error_full(UNDO_STATUS, variables, token)
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == "Bartholomew's status has changed since"
+
+    def test_undo_of_a_person_never_moved_is_a_conflict(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        variables = self.undo_vars(person_id, statuses, "active", SOME_STAMP)
+        error = gql_error_full(UNDO_STATUS, variables, token)
+        assert error["extensions"]["code"] == "CONFLICT"
+
+    def test_stale_move_is_a_conflict(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        first = self.move(token, person_id, statuses, "inactive")
+        second = self.move(token, person_id, statuses, "lost contact")
+        stale = self.undo_vars(person_id, statuses, "inactive", first["statusChangedAt"])
+        assert gql_error_full(UNDO_STATUS, stale, token)["extensions"]["code"] == "CONFLICT"
+
+        latest = self.undo_vars(person_id, statuses, "lost contact", second["statusChangedAt"])
+        assert gql(UNDO_STATUS, latest, token)["undoStatusChange"]["status"]["name"] == "inactive"
+
+    def test_stranger_gets_not_found_and_nothing_changes(self, make_user, statuses):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        person_id = create_person(owner, statuses["active"])
+        moved = self.move(owner, person_id, statuses, "inactive")
+        variables = self.undo_vars(person_id, statuses, "inactive", moved["statusChangedAt"])
+
+        error = gql_error_full(UNDO_STATUS, variables, stranger)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Person not found"
+        # Still undoable by the owner.
+        assert gql(UNDO_STATUS, variables, owner)["undoStatusChange"]["status"]["name"] == "active"
+
+    def test_unknown_person_is_not_found(self, make_user, statuses):
+        token, _, _ = make_user()
+        variables = self.undo_vars(str(uuid.uuid4()), statuses, "active", SOME_STAMP)
+        error = gql_error_full(UNDO_STATUS, variables, token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Person not found"
+
+    def test_requires_a_token(self, statuses):
+        status, _ = post(UNDO_STATUS, self.undo_vars(str(uuid.uuid4()), statuses, "active", SOME_STAMP))
+        assert status == 401

@@ -38,6 +38,7 @@ function person(id: string, name: string, overrides: Record<string, unknown> = {
     lastContactedAt: null,
     contactDueAt: null,
     contactClockStart: null,
+    statusChangedAt: null,
     contactState: G.ContactState.NotTracked,
     isActive: true,
     status: ACTIVE,
@@ -56,6 +57,7 @@ function active(id: string, name: string, daysAgo: number, overrides = {}) {
     lastContactedAt: at(-daysAgo * DAY),
     contactDueAt: at(due),
     contactClockStart: at(-daysAgo * DAY),
+    statusChangedAt: null,
     contactState: due < 0 ? G.ContactState.Overdue : G.ContactState.DueSoon,
     ...overrides,
   })
@@ -74,6 +76,7 @@ const TOM = person('p-tom', 'Tom Becker', {
   createdAt: at(-5 * DAY),
   contactDueAt: at(-2 * DAY),
   contactClockStart: at(-5 * DAY),
+  statusChangedAt: null,
   contactState: G.ContactState.Overdue,
 })
 
@@ -170,6 +173,7 @@ function loggedPerson(p: Person) {
       lastContactedAt: at(0),
       contactDueAt: at(7 * DAY),
       contactClockStart: at(0),
+      statusChangedAt: null,
       contactState: G.ContactState.OnTrack,
       status: ACTIVE,
     },
@@ -788,6 +792,7 @@ describe('ReviewPage', () => {
       const fresh = person('p-elena', 'Elena Petrova', {
         lastContactedAt: null,
         contactClockStart: at(-1 * DAY),
+        statusChangedAt: null,
         contactDueAt: at(6 * DAY),
         contactState: G.ContactState.OnTrack,
       })

@@ -36,6 +36,7 @@ function logged(overrides: Record<string, unknown> = {}) {
     lastContactedAt: at(0),
     contactDueAt: at(7 * DAY),
     contactClockStart: at(0),
+    statusChangedAt: null,
     contactState: G.ContactState.OnTrack,
     isActive: true,
     status: ACTIVE,

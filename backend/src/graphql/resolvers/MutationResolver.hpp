@@ -42,6 +42,7 @@ public:
         if (field == "login") return resolveLogin(args);
         if (field == "createPerson") return resolveCreatePerson(args, userId);
         if (field == "updatePerson") return resolveUpdatePerson(args, userId);
+        if (field == "undoStatusChange") return resolveUndoStatusChange(args, userId);
         if (field == "deletePerson") return resolveDeletePerson(args, userId);
         if (field == "assignPerson") return resolveAssignPerson(args, userId);
         if (field == "unassignPerson") return resolveUnassignPerson(args, userId);
@@ -218,6 +219,37 @@ private:
         }
 
         auto person = fetchPersonDetail(txn, id);
+        txn.commit();
+        return person;
+    }
+
+    /**
+     * Undo of a status move (the board's toast). The client names the move
+     * by the status it set and the stamp it got; the server puts back the
+     * status and stamp from before it, so the contact clock doesn't restart
+     * (business rule 6). CONFLICT if the person has moved, been promoted by
+     * a contact or been reverted since, or was never moved.
+     */
+    oatpp::Any resolveUndoStatusChange(const Args& args, const std::string& userId) {
+        auto personId        = args.req("personId");
+        auto statusId        = args.req("statusId");
+        auto statusChangedAt = args.req("statusChangedAt");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+        requireShepherd(txn, userId, personId);
+
+        // Read first: a failed revert aborts the transaction.
+        std::string name = txn.exec_params("SELECT name FROM person WHERE id = $1", personId)[0]["name"].c_str();
+        try {
+            txn.exec_params("SELECT 1 FROM revert_status_change($1::uuid, $2::uuid, $3::timestamptz)", personId,
+                            statusId, statusChangedAt);
+        } catch (const pqxx::sql_error& e) {
+            if (e.sqlstate() != "55000") throw;
+            throw Conflict(name + "'s status has changed since");
+        }
+
+        auto person = fetchPersonDetail(txn, personId);
         txn.commit();
         return person;
     }

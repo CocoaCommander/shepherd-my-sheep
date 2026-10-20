@@ -11,7 +11,8 @@
  *
  * Codes:
  *   NOT_FOUND       the record is gone, or the caller may not touch it
- *   CONFLICT        it already exists (duplicate username, milestone, ...)
+ *   CONFLICT        it already exists (duplicate username, milestone, ...),
+ *                   or it changed since the client last saw it (undo a move)
  *   BAD_USER_INPUT  the request itself is wrong; the message says how
  *   UNAVAILABLE     the server is busy; retrying may succeed
  *   INTERNAL        anything else; details are logged, never sent

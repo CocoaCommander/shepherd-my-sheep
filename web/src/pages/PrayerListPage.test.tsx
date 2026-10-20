@@ -77,6 +77,7 @@ const PERSON_SUMMARY = {
   lastContactedAt: null,
   contactDueAt: null,
   contactClockStart: null,
+  statusChangedAt: null,
   contactState: G.ContactState.NotTracked,
   isActive: true,
   status: STATUS.active,

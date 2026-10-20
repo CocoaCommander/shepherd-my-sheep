@@ -31,6 +31,7 @@ function person(id: string, name: string, overrides: Record<string, unknown> = {
     lastContactedAt: null,
     contactDueAt: null,
     contactClockStart: null,
+    statusChangedAt: null,
     contactState: G.ContactState.NotTracked,
     isActive: true,
     status: ACTIVE,
@@ -56,6 +57,7 @@ function active(id: string, name: string, daysAgo: number) {
     lastContactedAt: at(-daysAgo * DAY),
     contactDueAt: at(due),
     contactClockStart: at(-daysAgo * DAY),
+    statusChangedAt: null,
     contactState: state,
   })
 }
@@ -83,6 +85,7 @@ const TOM = person('p-tom', 'Tom Becker', {
   createdAt: at(-78 * HOUR),
   contactDueAt: at(-6 * HOUR),
   contactClockStart: at(-78 * HOUR),
+  statusChangedAt: null,
   contactState: G.ContactState.Overdue,
 })
 const AISHA = person('p-aisha', 'Aisha Bello', {
@@ -90,6 +93,7 @@ const AISHA = person('p-aisha', 'Aisha Bello', {
   lastContactedAt: at(-48 * HOUR),
   contactDueAt: at(24 * HOUR),
   contactClockStart: at(-48 * HOUR),
+  statusChangedAt: null,
   contactState: G.ContactState.DueSoon,
 })
 const MARIA = active('p-maria', 'Maria Santos', 3)
@@ -98,6 +102,7 @@ const OMAR = person('p-omar', 'Omar Haddad', { status: INACTIVE })
 const RUTH = person('p-ruth', 'Ruth Adeyemi', {
   lastContactedAt: at(-10 * DAY),
   contactClockStart: at(-2 * DAY),
+  statusChangedAt: null,
   contactDueAt: at(5 * DAY),
   contactState: G.ContactState.OnTrack,
 })
@@ -105,6 +110,7 @@ const RUTH = person('p-ruth', 'Ruth Adeyemi', {
 const KOJI = person('p-koji', 'Koji Tanaka', {
   status: NEW,
   contactClockStart: at(-5 * HOUR),
+  statusChangedAt: null,
   contactDueAt: at(67 * HOUR),
   contactState: G.ContactState.OnTrack,
 })

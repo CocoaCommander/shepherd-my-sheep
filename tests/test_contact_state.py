@@ -10,6 +10,7 @@ Times are set relative to now() inside the rolled-back test transaction,
 and stay well away from each boundary so the tests can't flake.
 """
 
+import psycopg2
 import pytest
 
 
@@ -303,3 +304,208 @@ class TestContactClockStart:
             person_id = make_person(cur, "active")
             row = clock(cur, person_id)
             assert row is not None and row[0] is not None
+
+
+# ── Undoing a status move (revert_status_change) ─────────────
+
+
+def status_id_of(cur, status_name):
+    cur.execute("SELECT id FROM status WHERE name = %s", (status_name,))
+    return cur.fetchone()[0]
+
+
+def status_name_of(cur, person_id):
+    cur.execute("SELECT s.name FROM person p JOIN status s ON s.id = p.status_id WHERE p.id = %s", (person_id,))
+    return cur.fetchone()[0]
+
+
+def previous(cur, person_id):
+    cur.execute(
+        "SELECT s.name, p.previous_status_changed_at FROM person p "
+        "LEFT JOIN status s ON s.id = p.previous_status_id WHERE p.id = %s",
+        (person_id,),
+    )
+    return cur.fetchone()
+
+
+def backdate_stamp(cur, person_id, interval):
+    cur.execute(
+        "UPDATE person SET status_changed_at = now() - %s::interval WHERE id = %s",
+        (interval, person_id),
+    )
+
+
+def revert(cur, person_id, status_name, stamp):
+    cur.execute(
+        "SELECT revert_status_change(%s, %s, %s)",
+        (person_id, status_id_of(cur, status_name), stamp),
+    )
+
+
+def revert_conflicts(cur, person_id, status_name, stamp):
+    """True if the revert raises 55000. Uses a savepoint so the test transaction survives."""
+    cur.execute("SAVEPOINT before_revert")
+    try:
+        revert(cur, person_id, status_name, stamp)
+    except psycopg2.Error as e:
+        cur.execute("ROLLBACK TO SAVEPOINT before_revert")
+        assert e.pgcode == "55000"
+        return True
+    return False
+
+
+class TestRevertStatusChange:
+    def test_overdue_person_moved_and_reverted_is_overdue_again(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active", created_hours_ago=60 * 24)
+            contacted(cur, person_id, 10 * 24)
+            before = clock(cur, person_id)
+            assert state(cur, person_id) == ("OVERDUE", False)
+
+            move_to(cur, person_id, "inactive")
+            assert clock(cur, person_id) == (None, None)
+            revert(cur, person_id, "inactive", status_changed_at(cur, person_id))
+
+            assert status_name_of(cur, person_id) == "active"
+            assert state(cur, person_id) == ("OVERDUE", False)
+            assert clock(cur, person_id) == before
+            assert status_changed_at(cur, person_id) is None
+            assert previous(cur, person_id) == (None, None)
+
+    def test_revert_restores_an_earlier_stamp(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active", created_hours_ago=60 * 24)
+            move_to(cur, person_id, "inactive")
+            backdate_stamp(cur, person_id, "3 days")
+            first_stamp = status_changed_at(cur, person_id)
+            move_to(cur, person_id, "active")
+            second_stamp = status_changed_at(cur, person_id)
+            assert second_stamp != first_stamp
+
+            revert(cur, person_id, "active", second_stamp)
+            assert status_name_of(cur, person_id) == "inactive"
+            assert status_changed_at(cur, person_id) == first_stamp
+
+    def test_contact_after_the_move_survives_the_revert(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active", created_hours_ago=60 * 24)
+            contacted(cur, person_id, 10 * 24)
+            move_to(cur, person_id, "inactive")
+            stamp = status_changed_at(cur, person_id)
+            backdate_stamp(cur, person_id, "1 day")
+            stamp = status_changed_at(cur, person_id)
+            cur.execute("SELECT log_contact(%s, NULL, now() - interval '2 hours', false)", (person_id,))
+
+            revert(cur, person_id, "inactive", stamp)
+            assert status_name_of(cur, person_id) == "active"
+            assert state(cur, person_id) == ("ON_TRACK", False)
+            assert near(cur, clock(cur, person_id)[0], "-2 hours")
+
+    def test_second_revert_conflicts(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active")
+            move_to(cur, person_id, "inactive")
+            stamp = status_changed_at(cur, person_id)
+            revert(cur, person_id, "inactive", stamp)
+            assert revert_conflicts(cur, person_id, "inactive", stamp)
+            assert status_name_of(cur, person_id) == "active"
+
+    def test_never_moved_conflicts(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active")
+            assert revert_conflicts(cur, person_id, "active", None)
+            cur.execute("SELECT now()")
+            assert revert_conflicts(cur, person_id, "active", cur.fetchone()[0])
+            assert status_name_of(cur, person_id) == "active"
+
+    def test_unknown_person_raises_p0001(self, db):
+        with db.cursor() as cur:
+            cur.execute("SAVEPOINT s")
+            with pytest.raises(psycopg2.Error) as err:
+                cur.execute(
+                    "SELECT revert_status_change(gen_random_uuid(), %s, now())",
+                    (status_id_of(cur, "active"),),
+                )
+            assert err.value.pgcode == "P0001"
+
+    def test_wrong_stamp_conflicts(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active")
+            move_to(cur, person_id, "inactive")
+            cur.execute("SELECT status_changed_at - interval '1 second' FROM person WHERE id = %s", (person_id,))
+            assert revert_conflicts(cur, person_id, "inactive", cur.fetchone()[0])
+            assert status_name_of(cur, person_id) == "inactive"
+
+    def test_undo_of_an_older_move_conflicts_and_the_latest_undoes_one_step(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active", created_hours_ago=60 * 24)
+            move_to(cur, person_id, "inactive")
+            backdate_stamp(cur, person_id, "2 days")
+            first_stamp = status_changed_at(cur, person_id)
+            move_to(cur, person_id, "lost contact")
+            second_stamp = status_changed_at(cur, person_id)
+
+            assert revert_conflicts(cur, person_id, "inactive", first_stamp)
+            assert status_name_of(cur, person_id) == "lost contact"
+
+            revert(cur, person_id, "lost contact", second_stamp)
+            assert status_name_of(cur, person_id) == "inactive"
+            assert status_changed_at(cur, person_id) == first_stamp
+            # Only one step back is kept.
+            assert revert_conflicts(cur, person_id, "inactive", first_stamp)
+
+    def test_promotion_blocks_the_undo_until_the_contact_is_deleted(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "inactive", created_hours_ago=30 * 24)
+            backdate_stamp(cur, person_id, "5 days")
+            old_stamp = status_changed_at(cur, person_id)
+            move_to(cur, person_id, "new contact")
+            stamp = status_changed_at(cur, person_id)
+
+            cur.execute("SELECT log_contact(%s, NULL, now(), true)", (person_id,))
+            assert status_name_of(cur, person_id) == "active"
+            assert status_changed_at(cur, person_id) == stamp
+            assert revert_conflicts(cur, person_id, "new contact", stamp)
+            assert status_name_of(cur, person_id) == "active"
+
+            cur.execute("SELECT id FROM contact_log WHERE person_id = %s", (person_id,))
+            cur.execute("SELECT delete_contact(%s)", (cur.fetchone()[0],))
+            assert status_name_of(cur, person_id) == "new contact"
+            assert status_changed_at(cur, person_id) == stamp
+
+            revert(cur, person_id, "new contact", stamp)
+            assert status_name_of(cur, person_id) == "inactive"
+            assert status_changed_at(cur, person_id) == old_stamp
+
+
+class TestPreviousStatusBookkeeping:
+    def test_move_records_the_replaced_status_and_stamp(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active")
+            assert previous(cur, person_id) == (None, None)
+            move_to(cur, person_id, "inactive")
+            assert previous(cur, person_id) == ("active", None)
+            backdate_stamp(cur, person_id, "2 days")
+            stamp = status_changed_at(cur, person_id)
+            move_to(cur, person_id, "lost contact")
+            assert previous(cur, person_id) == ("inactive", stamp)
+
+    def test_resaving_the_same_status_keeps_previous(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active")
+            move_to(cur, person_id, "inactive")
+            before = previous(cur, person_id)
+            move_to(cur, person_id, "inactive")
+            assert previous(cur, person_id) == before
+            # Same status on a never-moved person records nothing.
+            other = make_person(cur, "active")
+            move_to(cur, other, "active")
+            assert previous(cur, other) == (None, None)
+
+    def test_update_without_status_keeps_previous(self, db):
+        with db.cursor() as cur:
+            person_id = make_person(cur, "active")
+            move_to(cur, person_id, "inactive")
+            before = previous(cur, person_id)
+            cur.execute("SELECT update_person(p_id := %s, p_name := 'Renamed', p_age := 40)", (person_id,))
+            assert previous(cur, person_id) == before
