@@ -77,10 +77,17 @@ interface ShepherdRepository {
     ): MilestonePerson
     suspend fun removeMilestone(personId: String, milestoneId: String): Boolean
 
-    // Prayer Burdens — only getActivePrayerBurdens fills PrayerBurden.person.
+    // Prayer Burdens — these all fill PrayerBurden.person (id, name and
+    // status) and its comments, newest first; getPerson's burdens have no person.
     suspend fun getActivePrayerBurdens(personId: String? = null): List<PrayerBurden>
+
+    /** The latest 5 releases, of any age, newest release first; may be empty. */
+    suspend fun getRecentlyReleasedPrayerBurdens(personId: String? = null): List<PrayerBurden>
     suspend fun createPrayerBurden(personId: String, content: String): PrayerBurden
     suspend fun releasePrayerBurden(id: String): PrayerBurden
+
+    /** Undo of a release, by any shepherd, at any time. NotFound if it isn't released. */
+    suspend fun unreleasePrayerBurden(id: String): PrayerBurden
 
     // Comments
     suspend fun createComment(personId: String, content: String, prayerBurdenId: String? = null): Comment

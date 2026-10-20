@@ -14,8 +14,8 @@ data class User(val id: String, val name: String, val username: String, val crea
 /** A user as search results show them, without timestamps. */
 data class UserSummary(val id: String, val name: String, val username: String)
 
-/** Just enough of a person to label a row, e.g. on the prayer list. */
-data class PersonRef(val id: String, val name: String)
+/** Just enough of a person to label a row on the prayer list, with their status pill. */
+data class PersonRef(val id: String, val name: String, val status: Status? = null)
 
 data class Person(
     val id: String,
@@ -78,9 +78,10 @@ data class MilestonePerson(
 data class PrayerBurden(
     val id: String,
     val content: String,
-    /** Filled only by getActivePrayerBurdens; elsewhere the parent person is known. */
+    /** Filled by the prayer-list queries and burden mutations; null under a person's own burdens. */
     val person: PersonRef? = null,
     val releasedDate: String? = null,
+    /** Newest first; may be empty. */
     val comments: List<Comment> = emptyList(),
     val createdAt: String,
     val updatedAt: String,

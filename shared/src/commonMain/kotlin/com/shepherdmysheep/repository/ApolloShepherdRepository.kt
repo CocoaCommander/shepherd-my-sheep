@@ -185,20 +185,27 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
 
     override suspend fun getActivePrayerBurdens(personId: String?): List<PrayerBurden> =
         execute(apolloClient.query(ActivePrayerBurdensQuery(personId = Optional.presentIfNotNull(personId))))
-            .activePrayerBurdens.map {
-                it.prayerBurdenFields.toModel().copy(person = PersonRef(id = it.person.id, name = it.person.name))
-            }
+            .activePrayerBurdens.map { it.prayerListBurden.toModel() }
+
+    override suspend fun getRecentlyReleasedPrayerBurdens(personId: String?): List<PrayerBurden> = execute(
+        apolloClient.query(RecentlyReleasedPrayerBurdensQuery(personId = Optional.presentIfNotNull(personId))),
+    )
+        .recentlyReleasedPrayerBurdens.map { it.prayerListBurden.toModel() }
 
     override suspend fun createPrayerBurden(personId: String, content: String): PrayerBurden = execute(
         apolloClient.mutation(
             CreatePrayerBurdenMutation(CreatePrayerBurdenInput(personId = personId, content = content)),
         ),
     )
-        .createPrayerBurden.prayerBurdenFields.toModel()
+        .createPrayerBurden.prayerListBurden.toModel()
 
     override suspend fun releasePrayerBurden(id: String): PrayerBurden =
         execute(apolloClient.mutation(ReleasePrayerBurdenMutation(id = id)))
-            .releasePrayerBurden.prayerBurdenFields.toModel()
+            .releasePrayerBurden.prayerListBurden.toModel()
+
+    override suspend fun unreleasePrayerBurden(id: String): PrayerBurden =
+        execute(apolloClient.mutation(UnreleasePrayerBurdenMutation(id = id)))
+            .unreleasePrayerBurden.prayerListBurden.toModel()
 
     // ── Comments ────────────────────────────────────────────
 

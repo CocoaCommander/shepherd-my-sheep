@@ -59,13 +59,20 @@ mutation RemoveMilestone($personId: UUID!, $milestoneId: UUID!) {
 
 mutation CreatePrayerBurden($input: CreatePrayerBurdenInput!) {
   createPrayerBurden(input: $input) {
-    ...PrayerBurdenFields
+    ...PrayerListBurden
   }
 }
 
 mutation ReleasePrayerBurden($id: UUID!) {
   releasePrayerBurden(id: $id) {
-    ...PrayerBurdenFields
+    ...PrayerListBurden
+  }
+}
+
+# Undo of a release; NOT_FOUND if it isn't released or isn't yours.
+mutation UnreleasePrayerBurden($id: UUID!) {
+  unreleasePrayerBurden(id: $id) {
+    ...PrayerListBurden
   }
 }
 

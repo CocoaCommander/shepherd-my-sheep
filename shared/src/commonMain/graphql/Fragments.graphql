@@ -38,6 +38,26 @@ fragment PrayerBurdenFields on PrayerBurden {
   updatedAt
 }
 
+# A burden as the prayer-list queries and burden mutations return it.
+# The server fills only id, name and status on its person; any other
+# Person field selected here would come back null. Under
+# PersonDetail.prayerBurdens use PrayerBurdenFields: the parent is known.
+fragment PrayerListBurden on PrayerBurden {
+  ...PrayerBurdenFields
+  person {
+    id
+    name
+    status {
+      id
+      name
+    }
+  }
+  # Newest first; may be empty.
+  comments {
+    ...CommentFields
+  }
+}
+
 fragment CommentFields on Comment {
   id
   content
