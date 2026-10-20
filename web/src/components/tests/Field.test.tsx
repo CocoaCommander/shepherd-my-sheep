@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
-import { PasswordField, SearchInput, Select, TextField } from '../Field/Field'
+import { DateField, PasswordField, SearchInput, Select, TextArea, TextField } from '../Field/Field'
 import styles from '../Field/Field.module.css'
 
 describe('TextField', () => {
@@ -47,6 +47,82 @@ describe('TextField', () => {
   it('keeps a caller-supplied id', () => {
     render(<TextField id="person-name" label="Name" />)
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('id', 'person-name')
+  })
+})
+
+describe('required and optional', () => {
+  it('says "required" in the label and sets aria-required, not native required', () => {
+    render(<TextField label="Name" required />)
+    const input = screen.getByRole('textbox', { name: 'Name (required)' })
+    expect(input).toHaveAttribute('aria-required', 'true')
+    expect(input).not.toHaveAttribute('required')
+  })
+
+  it('says "optional" in the label', () => {
+    render(<TextField label="Prayer burden" required={false} />)
+    const input = screen.getByRole('textbox', { name: 'Prayer burden (optional)' })
+    expect(input).not.toHaveAttribute('aria-required')
+  })
+
+  it('says neither when not given', () => {
+    render(<TextField label="Name" />)
+    expect(screen.getByRole('textbox', { name: 'Name' })).not.toHaveAttribute('aria-required')
+  })
+})
+
+describe('error line', () => {
+  it('is announced as an alert with an icon, and the help is not', () => {
+    const { rerender } = render(<TextField label="Name" help="Your full name." />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    rerender(<TextField label="Name" help="Your full name." error="Enter a name." />)
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Enter a name.')
+    expect(alert.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Enter a name.')
+
+    rerender(<TextField label="Name" help="Your full name." />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Your full name.')
+  })
+})
+
+describe('TextArea', () => {
+  it('shares the label, help, error and required wiring', async () => {
+    const { container, rerender } = render(
+      <TextArea label="Comment" required help="Saved as a note." placeholder="What about?" />,
+    )
+    const box = screen.getByRole('textbox', { name: 'Comment (required)' })
+    expect(box.tagName).toBe('TEXTAREA')
+    expect(box).toHaveAttribute('aria-required', 'true')
+    expect(box).toHaveAccessibleDescription('Saved as a note.')
+    await userEvent.type(box, 'Coffee{Enter}after church')
+    expect(box).toHaveValue('Coffee\nafter church')
+
+    rerender(<TextArea label="Comment" required error="Add a comment." />)
+    expect(box).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('Add a comment.')
+    expect(container.firstElementChild).toHaveClass(styles.error)
+  })
+})
+
+describe('DateField', () => {
+  it('is a labelled date input that passes max through', () => {
+    render(
+      <DateField
+        label="Date"
+        required
+        help="Set to today."
+        value="2026-10-19"
+        max="2026-10-19"
+        onChange={() => {}}
+      />,
+    )
+    const input = screen.getByLabelText('Date (required)')
+    expect(input).toHaveAttribute('type', 'date')
+    expect(input).toHaveAttribute('max', '2026-10-19')
+    expect(input).toHaveValue('2026-10-19')
+    expect(input).toHaveAccessibleDescription('Set to today.')
   })
 })
 

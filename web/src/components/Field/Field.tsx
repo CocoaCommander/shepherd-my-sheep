@@ -4,59 +4,84 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from 'react'
-import { SearchIcon } from '../icons'
+import { SearchIcon, WarningIcon } from '../icons'
 import { cx } from '../utils'
 import styles from './Field.module.css'
 
 type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'className'>
 
-type FieldProps = InputProps & {
+/** Props every labelled field shares, whatever its control. */
+type ShellProps = {
   /** Always visible; never rely on placeholder text as the label. */
   label: ReactNode
   /** 12px helper line under the input. */
   help?: ReactNode
-  /** Replaces the help line, turns the border danger and sets aria-invalid. */
+  /** Replaces the help line, turns the border danger, sets aria-invalid and is announced. */
   error?: ReactNode
+  /**
+   * Adds " (required)" or " (optional)" to the label in words and sets aria-required.
+   * Leave it out to say neither. It doesn't set the native `required`, so the browser's own
+   * validation popup never pre-empts the form's messages.
+   */
+  required?: boolean
   className?: string
 }
 
+type FieldProps = Omit<InputProps, 'required'> & ShellProps
+
 /** Wires the label, help/error line and aria attributes shared by every text field. */
-function useFieldIds(error: ReactNode, help: ReactNode, id?: string) {
+function useField({ error, help, required }: ShellProps, id?: string) {
   const autoId = useId()
   const inputId = id ?? autoId
-  const message = error || help
-  const helpId = message ? `${inputId}-help` : undefined
-  return { inputId, helpId, message }
+  const helpId = error || help ? `${inputId}-help` : undefined
+  return {
+    inputId,
+    helpId,
+    aria: {
+      id: inputId,
+      'aria-invalid': error ? true : undefined,
+      'aria-required': required || undefined,
+      'aria-describedby': helpId,
+    },
+  }
 }
 
 function FieldShell({
   label,
+  help,
+  error,
+  required,
+  className,
   inputId,
   helpId,
-  message,
-  error,
-  className,
   children,
-}: {
-  label: ReactNode
-  inputId: string
-  helpId?: string
-  message: ReactNode
-  error: ReactNode
-  className?: string
-  children: ReactNode
-}) {
+}: ShellProps & { inputId: string; helpId?: string; children: ReactNode }) {
   return (
     <div className={cx(styles.field, error ? styles.error : undefined, className)}>
       <label htmlFor={inputId} className={styles.label}>
         {label}
+        {required !== undefined && (
+          <>
+            {' '}
+            <span className={styles.requirement}>{required ? '(required)' : '(optional)'}</span>
+          </>
+        )}
       </label>
       {children}
-      {message && (
-        <span id={helpId} className={styles.help}>
-          {message}
+      {/* Keyed so the alert mounts fresh and is announced, rather than the help line changing role. */}
+      {error ? (
+        <span key="error" id={helpId} role="alert" className={styles.help}>
+          <WarningIcon className={styles.helpIcon} />
+          {error}
         </span>
+      ) : (
+        help && (
+          <span key="help" id={helpId} className={styles.help}>
+            {help}
+          </span>
+        )
       )}
     </div>
   )
@@ -67,22 +92,42 @@ export function TextField({
   label,
   help,
   error,
+  required,
   className,
   id,
   type = 'text',
   ...rest
 }: FieldProps) {
-  const { inputId, helpId, message } = useFieldIds(error, help, id)
+  const shell = { label, help, error, required, className }
+  const { inputId, helpId, aria } = useField(shell, id)
   return (
-    <FieldShell {...{ label, inputId, helpId, message, error, className }}>
-      <input
-        {...rest}
-        id={inputId}
-        type={type}
-        className={styles.input}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={helpId}
-      />
+    <FieldShell {...shell} inputId={inputId} helpId={helpId}>
+      <input {...rest} {...aria} type={type} className={styles.input} />
+    </FieldShell>
+  )
+}
+
+/** A labelled date picker. `value`, `min` and `max` are YYYY-MM-DD. */
+export function DateField(props: Omit<FieldProps, 'type'>) {
+  return <TextField {...props} type="date" />
+}
+
+/** A labelled multi-line text box; the user can drag it taller. */
+export function TextArea({
+  label,
+  help,
+  error,
+  required,
+  className,
+  id,
+  rows = 4,
+  ...rest
+}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className' | 'required'> & ShellProps) {
+  const shell = { label, help, error, required, className }
+  const { inputId, helpId, aria } = useField(shell, id)
+  return (
+    <FieldShell {...shell} inputId={inputId} helpId={helpId}>
+      <textarea {...rest} {...aria} rows={rows} className={cx(styles.input, styles.textarea)} />
     </FieldShell>
   )
 }
@@ -92,23 +137,18 @@ export function PasswordField({
   label,
   help,
   error,
+  required,
   className,
   id,
   ...rest
 }: Omit<FieldProps, 'type'>) {
-  const { inputId, helpId, message } = useFieldIds(error, help, id)
+  const shell = { label, help, error, required, className }
+  const { inputId, helpId, aria } = useField(shell, id)
   const [shown, setShown] = useState(false)
   return (
-    <FieldShell {...{ label, inputId, helpId, message, error, className }}>
+    <FieldShell {...shell} inputId={inputId} helpId={helpId}>
       <span className={styles.group}>
-        <input
-          {...rest}
-          id={inputId}
-          type={shown ? 'text' : 'password'}
-          className={styles.input}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={helpId}
-        />
+        <input {...rest} {...aria} type={shown ? 'text' : 'password'} className={styles.input} />
         <button
           type="button"
           className={styles.toggle}

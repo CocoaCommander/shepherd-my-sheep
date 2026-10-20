@@ -52,6 +52,14 @@ export function CheckIcon({ size = 14, ...rest }: IconProps) {
   )
 }
 
+export function CloseIcon({ size = 16, ...rest }: IconProps) {
+  return (
+    <svg {...stroke(size, '0 0 16 16', 1.8, rest)}>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </svg>
+  )
+}
+
 export function HeartIcon({ size = 14, ...rest }: IconProps) {
   return (
     <svg {...stroke(size, '0 0 16 16', 1.6, rest)}>
