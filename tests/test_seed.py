@@ -69,6 +69,23 @@ class TestSeed:
                 == 1
             )
 
+    def test_recently_released_burdens_newest_release_first(self, seeded_db):
+        """What recentlyReleasedPrayerBurdens ranks: released_date DESC, id DESC, at most 5."""
+        from db.seed import dataset
+
+        conn, ids = seeded_db
+        released = sorted(
+            (b for b in dataset.BURDENS if b.released_days_ago is not None), key=lambda b: b.released_days_ago
+        )
+        assert released, "the dataset needs released burdens"
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM prayer_burden WHERE person_id = ANY(%s::uuid[]) AND released_date IS NOT NULL "
+                "ORDER BY released_date DESC, id DESC LIMIT 5",
+                (list(ids.people.values()),),
+            )
+            assert [r[0] for r in cur.fetchall()] == [ids.burdens[b.key] for b in released[:5]]
+
     def test_comments_are_backdated(self, seeded_db):
         conn, ids = seeded_db
         with conn.cursor() as cur:
