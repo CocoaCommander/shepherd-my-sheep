@@ -364,6 +364,13 @@ describe('PersonPage query errors', () => {
 })
 
 describe('PersonPage prayer burdens', () => {
+  it('tells the user who sees prayer burdens and comments', async () => {
+    renderPage(person())
+    expect(
+      await screen.findByText('Everyone who shepherds Sam sees prayer burdens and comments.'),
+    ).toBeInTheDocument()
+  })
+
   it('disables Add prayer burden while the text is blank or whitespace', async () => {
     const user = userEvent.setup()
     renderPage(person())

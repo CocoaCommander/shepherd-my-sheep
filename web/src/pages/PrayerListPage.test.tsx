@@ -852,6 +852,195 @@ describe('Prayer list page recently released', () => {
   })
 })
 
+const P_ADA = PERSON_SUMMARY
+const P_ZED = { ...PERSON_SUMMARY, id: 'p-zed', name: 'Zed Zimmer' }
+const P_MIA = { ...PERSON_SUMMARY, id: 'p-mia', name: 'Mia Many' }
+const HELP_ADA = 'Everyone who shepherds Ada sees prayer burdens and comments.'
+const HELP_NONE = 'Everyone who shepherds this person sees prayer burdens and comments.'
+
+function createPrayerBurdenMutation(
+  personId: string,
+  content: string,
+  opts: { error?: string; result?: () => object } = {},
+) {
+  return {
+    request: {
+      query: G.CreatePrayerBurdenDocument,
+      variables: { input: { personId, content } },
+    },
+    result:
+      opts.result ??
+      (opts.error
+        ? { errors: [new GraphQLError('boom', { extensions: { code: opts.error } })] }
+        : { data: { createPrayerBurden: { __typename: 'PrayerBurden', id: 'new-b' } } }),
+  } as MockedResponse
+}
+
+const addButton = () => screen.getByRole('button', { name: 'Add prayer burden' })
+
+async function openAddDialog(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() => expect(addButton()).toBeEnabled())
+  await user.click(addButton())
+  return screen.getByRole('dialog', { name: 'Add prayer burden' })
+}
+
+describe('Prayer list page add prayer burden', () => {
+  it('disables the header button with zero people', async () => {
+    renderPage({ people: [] })
+    await screen.findByRole('heading', { level: 2, name: 'No one is assigned to you yet' })
+    expect(addButton()).toBeDisabled()
+  })
+
+  it('disables the header button until people have loaded', () => {
+    renderPage({ people: [P_ADA] })
+    expect(addButton()).toBeDisabled()
+  })
+
+  it('opens a dialog listing people A to Z after "Choose a person"', async () => {
+    const user = userEvent.setup()
+    renderPage({ people: [P_ZED, P_ADA, P_MIA] })
+    const dialog = await openAddDialog(user)
+    const select = within(dialog).getByRole('combobox', { name: 'Person' })
+    const options = within(select).getAllByRole('option') as HTMLOptionElement[]
+    expect(options.map((o) => [o.textContent, o.value])).toEqual([
+      ['Choose a person', ''],
+      ['Ada Adams', 'p-ada'],
+      ['Mia Many', 'p-mia'],
+      ['Zed Zimmer', 'p-zed'],
+    ])
+    expect(select).toHaveValue('')
+    expect(within(dialog).getByRole('textbox', { name: 'Prayer burden' })).toBeInTheDocument()
+  })
+
+  it('preselects the only person', async () => {
+    const user = userEvent.setup()
+    renderPage({ people: [P_ADA] })
+    const dialog = await openAddDialog(user)
+    expect(within(dialog).getByRole('combobox', { name: 'Person' })).toHaveValue('p-ada')
+  })
+
+  it('preselects the person filter when set, even with several people', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA, B_ZED_OLD]], people: [P_ADA, P_ZED, P_MIA] })
+    await screen.findByText('Ada burden')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by person' }), 'p-zed')
+    const dialog = await openAddDialog(user)
+    expect(within(dialog).getByRole('combobox', { name: 'Person' })).toHaveValue('p-zed')
+  })
+
+  it('preselects nobody with several people and no filter', async () => {
+    const user = userEvent.setup()
+    renderPage({ people: [P_ADA, P_ZED] })
+    const dialog = await openAddDialog(user)
+    expect(within(dialog).getByRole('combobox', { name: 'Person' })).toHaveValue('')
+  })
+
+  it('describes the textarea with the first name once a person is chosen', async () => {
+    const user = userEvent.setup()
+    renderPage({ people: [P_ADA, P_ZED] })
+    const dialog = await openAddDialog(user)
+    const box = within(dialog).getByRole('textbox', { name: 'Prayer burden' })
+    expect(box).toHaveAccessibleDescription(HELP_NONE)
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Person' }), 'p-ada')
+    expect(box).toHaveAccessibleDescription(HELP_ADA)
+  })
+
+  it('disables submit until a person is chosen and the trimmed text is non-empty', async () => {
+    const user = userEvent.setup()
+    renderPage({ people: [P_ADA, P_ZED] })
+    const dialog = await openAddDialog(user)
+    const submit = within(dialog).getByRole('button', { name: 'Add prayer burden' })
+    const box = within(dialog).getByRole('textbox', { name: 'Prayer burden' })
+    expect(submit).toBeDisabled()
+    await user.type(box, 'Healing')
+    expect(submit).toBeDisabled()
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Person' }), 'p-ada')
+    expect(submit).toBeEnabled()
+    await user.clear(box)
+    await user.type(box, '   ')
+    expect(submit).toBeDisabled()
+  })
+
+  it('Cancel closes the dialog and sends nothing', async () => {
+    const user = userEvent.setup()
+    const sent = vi.fn(() => ({
+      data: { createPrayerBurden: { __typename: 'PrayerBurden', id: 'x' } },
+    }))
+    renderPage({
+      people: [P_ADA],
+      extra: [createPrayerBurdenMutation('p-ada', 'Healing', { result: sent })],
+    })
+    const dialog = await openAddDialog(user)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Prayer burden' }), 'Healing')
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Add prayer burden' })).toBeNull()
+    expect(sent).not.toHaveBeenCalled()
+  })
+
+  it('sends the trimmed burden, refetches, closes and toasts without Undo', async () => {
+    const user = userEvent.setup()
+    const sent = vi.fn(() => ({
+      data: { createPrayerBurden: { __typename: 'PrayerBurden', id: 'new-b' } },
+    }))
+    const { listCalls, releasedCalls } = renderPage({
+      lists: [[], [B_ADA]],
+      people: [P_ADA],
+      extra: [createPrayerBurdenMutation('p-ada', 'Healing', { result: sent })],
+    })
+    const dialog = await openAddDialog(user)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Prayer burden' }), '  Healing  ')
+    await user.click(within(dialog).getByRole('button', { name: 'Add prayer burden' }))
+    await waitFor(() => expect(sent).toHaveBeenCalled())
+    await waitFor(() => expect(listCalls).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(releasedCalls).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Add prayer burden' })).toBeNull(),
+    )
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveTextContent('Added prayer burden for Ada')
+    expect(within(toast).queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
+  it('shows "Adding…" while busy', async () => {
+    const user = userEvent.setup()
+    renderPage({
+      people: [P_ADA],
+      extra: [{ ...createPrayerBurdenMutation('p-ada', 'Healing'), delay: 200 }],
+    })
+    const dialog = await openAddDialog(user)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Prayer burden' }), 'Healing')
+    await user.click(within(dialog).getByRole('button', { name: 'Add prayer burden' }))
+    expect(await within(dialog).findByRole('button', { name: 'Adding…' })).toBeDisabled()
+  })
+
+  it('stays open, keeps the text and shows the friendly message on error', async () => {
+    const user = userEvent.setup()
+    renderPage({
+      people: [P_ADA],
+      extra: [createPrayerBurdenMutation('p-ada', 'Healing', { error: 'INTERNAL' })],
+    })
+    const dialog = await openAddDialog(user)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Prayer burden' }), 'Healing')
+    await user.click(within(dialog).getByRole('button', { name: 'Add prayer burden' }))
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent(FRIENDLY)
+    expect(screen.getByRole('dialog', { name: 'Add prayer burden' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: 'Prayer burden' })).toHaveValue('Healing')
+  })
+})
+
+describe('Prayer list page comment form help', () => {
+  it('links the sharing line to the comment input', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA]] })
+    await screen.findByText('Ada burden')
+    await user.click(commentButton('Ada Adams'))
+    const box = within(row('Ada burden')).getByRole('textbox', COMMENT_BOX)
+    expect(box).toHaveAttribute('aria-describedby')
+    expect(box).toHaveAccessibleDescription(HELP_ADA)
+  })
+})
+
 describe('Prayer list page accessibility', () => {
   const audit = (container: HTMLElement) =>
     axe.run(container, {
@@ -886,6 +1075,15 @@ describe('Prayer list page accessibility', () => {
 
     await user.click(screen.getByRole('switch', { name: 'Hide details' }))
     expect(summary(await audit(container))).toEqual([])
+  })
+
+  it('has no axe violations with the add prayer burden dialog open', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage({ lists: [[B_ADA]], people: [P_ADA, P_ZED] })
+    await screen.findByText('Ada burden')
+    await openAddDialog(user)
+    expect(summary(await audit(container))).toEqual([])
+    expect(summary(await audit(screen.getByRole('dialog')))).toEqual([])
   })
 })
 

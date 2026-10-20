@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Alert,
@@ -6,12 +6,14 @@ import {
   avatarTint,
   Button,
   ClockIcon,
+  Dialog,
   initials,
   PlusIcon,
   SegmentedControl,
   Select,
   StatusPill,
   Switch,
+  TextArea,
   TextField,
   useUndoToast,
   type AvatarTint,
@@ -24,22 +26,25 @@ import {
   RecentlyReleasedPrayerBurdensDocument,
   useActivePrayerBurdensQuery,
   useCreateCommentMutation,
+  useCreatePrayerBurdenMutation,
   useMeQuery,
   useMyPeopleQuery,
   useRecentlyReleasedPrayerBurdensQuery,
   useReleasePrayerBurdenMutation,
   useUnreleasePrayerBurdenMutation,
+  type MyPeopleQuery,
   type PrayerListBurdenFragment,
 } from '../generated/graphql'
 import { Header } from './Header'
 import { STATUS_BY_NAME } from './personStatus'
 import styles from './PrayerListPage.module.css'
+import { sharedWithShepherds } from './sharing'
 
 type Burden = PrayerListBurdenFragment
 type Person = Burden['person']
 type Sort = 'standing' | 'newest' | 'person'
 
-// Releasing, undoing or commenting changes the lists, and each person's active burden count and
+// Adding, releasing, undoing or commenting changes the lists, and each person's active burden count and
 // latest comment (Home, My people). The Person page refetches on mount, so it needs nothing here.
 const RELOAD_PRAYER_LISTS = {
   refetchQueries: [
@@ -126,6 +131,7 @@ export function PrayerListPage() {
   const [released, setReleased] = useState<ReadonlySet<string>>(new Set())
   const [releaseError, setReleaseError] = useState<string | null>(null)
   const [hideDetails, setHideDetails] = useState(readHideDetails)
+  const [adding, setAdding] = useState(false)
 
   const now = new Date()
   const all = (data?.activePrayerBurdens ?? []).filter((b) => !released.has(b.id))
@@ -185,9 +191,20 @@ export function PrayerListPage() {
     <div className={styles.page}>
       <Header />
       <main className={styles.main}>
-        <div>
-          <h1 className={styles.title}>Prayer list</h1>
-          {data && !noPeople && <p className={styles.summary}>{summary}</p>}
+        <div className={styles.titleRow}>
+          <div>
+            <h1 className={styles.title}>Prayer list</h1>
+            {data && !noPeople && <p className={styles.summary}>{summary}</p>}
+          </div>
+          {/* mWeb shows it as a floating round "+"; with no people it waits for Add person below. */}
+          <Button
+            icon={<PlusIcon />}
+            className={styles.add}
+            disabled={!people || noPeople}
+            onClick={() => setAdding(true)}
+          >
+            <span className={styles.addLabel}>Add prayer burden</span>
+          </Button>
         </div>
 
         {loading && !data && <p className={styles.muted}>Loading…</p>}
@@ -301,6 +318,17 @@ export function PrayerListPage() {
           </>
         )}
       </main>
+      {adding && (
+        <AddBurdenDialog
+          people={people?.myPeople ?? []}
+          initialPersonId={filter?.id}
+          onClose={() => setAdding(false)}
+          onAdded={(name) => {
+            setAdding(false)
+            show(`Added prayer burden for ${firstName(name)}`)
+          }}
+        />
+      )}
       {toastElement}
     </div>
   )
@@ -475,6 +503,7 @@ function CommentForm({ burden }: { burden: Burden }) {
           label={<span className={styles.srOnly}>Add a comment on this burden</span>}
           placeholder="Add a comment on this burden"
           className={styles.commentField}
+          help={sharedWithShepherds(burden.person.name)}
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
@@ -484,6 +513,88 @@ function CommentForm({ burden }: { burden: Burden }) {
       </div>
       {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
     </form>
+  )
+}
+
+type MyPerson = MyPeopleQuery['myPeople'][number]
+
+/**
+ * Adds a burden for one of the user's people, starting on the filtered person (or the only one).
+ * The host mounts it only while open, so it starts empty each time.
+ */
+function AddBurdenDialog({
+  people,
+  initialPersonId,
+  onClose,
+  onAdded,
+}: {
+  people: readonly MyPerson[]
+  initialPersonId?: string
+  onClose: () => void
+  onAdded: (name: string) => void
+}) {
+  const formId = useId()
+  const sorted = [...people].sort(byName)
+  const [personId, setPersonId] = useState(
+    initialPersonId ?? (sorted.length === 1 ? sorted[0].id : ''),
+  )
+  const [content, setContent] = useState('')
+  const [createPrayerBurden, { loading, error }] =
+    useCreatePrayerBurdenMutation(RELOAD_PRAYER_LISTS)
+  const person = sorted.find((p) => p.id === personId)
+  const trimmed = content.trim()
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    if (!person || !trimmed || loading) return
+    try {
+      await createPrayerBurden({ variables: { input: { personId: person.id, content: trimmed } } })
+      onAdded(person.name)
+    } catch {
+      // Shown from the mutation's `error` below.
+    }
+  }
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Add prayer burden"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form={formId} disabled={!person || !trimmed || loading}>
+            {loading ? 'Adding…' : 'Add prayer burden'}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} className={styles.addForm} onSubmit={handleSubmit}>
+        <Select
+          label="Person"
+          className={styles.personField}
+          value={personId}
+          onChange={(e) => setPersonId(e.target.value)}
+        >
+          <option value="">Choose a person</option>
+          {sorted.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </Select>
+        <TextArea
+          label="Prayer burden"
+          rows={3}
+          value={content}
+          help={sharedWithShepherds(person?.name)}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
+      </form>
+    </Dialog>
   )
 }
 

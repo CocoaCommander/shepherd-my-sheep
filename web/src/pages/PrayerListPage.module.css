@@ -20,6 +20,16 @@
   gap: var(--sms-space-20);
 }
 
+/* The title and summary, with Add prayer burden at the right. */
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sms-space-16);
+}
+.add {
+  flex: none;
+}
 .title {
   margin: 0;
   font-size: 28px;
@@ -239,9 +249,10 @@
   flex-direction: column;
   gap: var(--sms-space-8);
 }
+/* Top-aligned so the help line under the input doesn't push the button down. */
 .commentRow {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--sms-space-8);
 }
 /* The label is for screen readers only, so drop the gap above the input. */
@@ -249,6 +260,24 @@
   flex: 1;
   min-width: 0;
   gap: 0;
+}
+
+/* The Add prayer burden dialog. */
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+}
+/* Select's label sits beside it by default; stack it like the other fields. */
+.personField {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--sms-ink);
+}
+.personField select {
+  min-height: var(--sms-size-input);
 }
 
 /* Recently released: read-only encouragement. */
@@ -302,7 +331,7 @@
 
 @media (max-width: 719px) {
   .main {
-    padding: var(--sms-space-20) var(--sms-space-16) 40px;
+    padding: var(--sms-space-20) var(--sms-space-16) 96px;
     gap: var(--sms-space-14);
   }
   .title {
@@ -310,6 +339,27 @@
   }
   .summary {
     margin-top: 2px;
+  }
+  /* A floating round "+"; its text stays for screen readers. */
+  .add {
+    position: fixed;
+    right: var(--sms-space-20);
+    bottom: var(--sms-space-20);
+    z-index: 10;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: var(--sms-radius-circle);
+    box-shadow: var(--sms-shadow-toast);
+  }
+  .addLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   /* Sort on its own line; the person select and the Hide switch share the next. */
