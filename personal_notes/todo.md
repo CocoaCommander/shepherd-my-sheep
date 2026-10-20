@@ -109,12 +109,13 @@ were already listed and aren't repeated here.
   but `release_prayer_burden` is one-way. Add an
   `unrelease_prayer_burden` function (new migration) and an
   `unreleasePrayerBurden(id)` mutation.
-- [ ] **`PrayerBurden.comments` is never populated.** Nothing sets it, yet
+- [x] **`PrayerBurden.comments` is never populated.** Nothing sets it, yet
   it's declared non-null. The Prayer list needs the count ("Comment (4)")
   and the latest comment with author and time; fill it in
-  `activePrayerBurdens` (and wherever burdens are returned).
-- [ ] **Person status on burdens.** `activePrayerBurdens` returns the
+  `activePrayerBurdens` (and wherever burdens are returned). (#52)
+- [x] **Person status on burdens.** `activePrayerBurdens` returns the
   person as `{id, name}` only; each Prayer list card shows a status pill.
+  (#52)
 
 ## Brand
 
@@ -138,7 +139,7 @@ gap check).
   is done, #37.) (#47)
 - [ ] Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
   person status on burdens, recently released query (Design gaps and
-  Prayer list).
+  Prayer list). (step 1 #52)
 - [ ] No rate limiting on `searchUsers` or login.
   - Strategy (decided 2026-10-16): **token bucket**, which is the
     "leaky bucket as a meter" (same maths). It allows a small burst and
@@ -185,8 +186,9 @@ gap check).
   username }` would hide them.
 - [ ] `assignPerson`'s "User not found" lets a caller probe whether a user
   id exists (low).
-- [ ] `PrayerBurden.person` is filled only by `activePrayerBurdens`; other
-  queries return it null.
+- [ ] `PrayerBurden.person` is filled (id, name, status only) by every
+  root burden field (#52); still unset under `Person.prayerBurdens` and
+  inside a `Comment`.
 - [ ] **Logging follow-ups from #30.**
   - [ ] Client address always logs as "unknown": `peer_address` isn't
     populated on the connection in `RequestLogger.hpp`.

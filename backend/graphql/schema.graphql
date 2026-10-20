@@ -102,10 +102,10 @@ type MilestonePerson {
 
 type PrayerBurden {
   id: UUID!
-  person: Person!                 # only activePrayerBurdens populates this for now; elsewhere, select it from the parent person
+  person: Person!                 # only id, name and status are filled, and only where a root field returns the burden; under Person.prayerBurdens use the parent, and a burden inside a Comment has no person
   content: String!
   releasedDate: DateTime          # null = still active
-  comments: [Comment!]!           # may be empty — burdens can exist without comments
+  comments: [Comment!]!           # newest first; may be empty (a burden needs no comments); not filled on a burden inside a Comment
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -150,7 +150,7 @@ type Query {
   # 2 characters returns [] — may be empty.
   searchUsers(query: String!): [User!]!
 
-  # Prayer burdens — optionally filter by person
+  # Prayer burdens — optionally filter by person; each with its person (id, name, status) and its comments
   activePrayerBurdens(personId: UUID): [PrayerBurden!]!
 }
 

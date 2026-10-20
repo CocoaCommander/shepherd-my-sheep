@@ -77,9 +77,10 @@ class UserDto : public oatpp::DTO {
 };
 
 /**
- * A Person with only id and name, for places that point at a person without
- * loading them (PersonDto is declared later and embeds burdens itself). The
- * typename and id let clients' caches merge it with the full person.
+ * The person on a burden: id, name and status only, for places that point at
+ * a person without loading them (PersonDto is declared later and embeds
+ * burdens itself). The typename and id let clients' caches merge it with the
+ * full person.
  */
 class PersonRefDto : public oatpp::DTO {
     DTO_INIT(PersonRefDto, DTO)
@@ -87,16 +88,21 @@ class PersonRefDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "Person";
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
+    DTO_FIELD(oatpp::Object<StatusDto>, status);
 };
+
+class CommentDto;  // a burden lists its comments, and a comment points at its burden
 
 class PrayerBurdenDto : public oatpp::DTO {
     DTO_INIT(PrayerBurdenDto, DTO)
 
     DTO_FIELD(String, typename_, "__typename") = "PrayerBurden";
     DTO_FIELD(String, id);
-    DTO_FIELD(oatpp::Object<PersonRefDto>, person);  // only set by activePrayerBurdens
+    DTO_FIELD(oatpp::Object<PersonRefDto>, person);  // set only where a root field returns the burden
     DTO_FIELD(String, content);
     DTO_FIELD(String, releasedDate);  // nullable — null means still active
+    DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>,
+              comments);  // newest first; unset on a burden nested in a comment
     DTO_FIELD(String, createdAt);
     DTO_FIELD(String, updatedAt);
 };
