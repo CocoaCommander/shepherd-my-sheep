@@ -2,8 +2,10 @@ import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import axe from 'axe-core'
+import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { formatShortDate, timeAgo } from '../format'
 import * as G from '../generated/graphql'
 import { ReviewPage } from './ReviewPage'
 
@@ -208,10 +210,44 @@ const queueOf = () => {
 }
 const step = (name: string) => screen.findByRole('heading', { level: 2, name })
 
+/** Waits for the person to load, since the form only shows once they are known to be overdue. */
+async function skip(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Skip for now' }))
+}
+
 async function logCurrent(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(commentInput(), 'Coffee')
+  await user.type(await screen.findByLabelText('Comment (required)'), 'Coffee')
   await user.click(logButton())
 }
+
+function deleteMock(p: Person, result?: Record<string, unknown>) {
+  const fn = vi.fn(() => result ?? { data: { deleteContact: detail(p) } })
+  const mock: MockedResponse = {
+    request: { query: G.DeleteContactDocument, variables: { id: 'c-new' } },
+    result: fn,
+  }
+  return { result: fn, mock }
+}
+
+const notFound = () => ({
+  errors: [new GraphQLError('gone', { extensions: { code: 'NOT_FOUND' } })],
+})
+
+function personMock(id: string, result: Record<string, unknown>): MockedResponse {
+  return {
+    request: { query: G.PersonDocument, variables: { id } },
+    result,
+    maxUsageCount: Number.POSITIVE_INFINITY,
+  }
+}
+
+const finishedHeading = () => screen.findByRole('heading', { level: 1, name: 'Review finished' })
+const rowOf = (button: HTMLElement) => button.closest('li') as HTMLElement
+const undoRow = (name: string) =>
+  rowOf(screen.getByRole('button', { name: `Undo contact logged for ${name}` }))
+const cardOf = (name: RegExp) =>
+  screen.getByRole('heading', { level: 2, name }).closest('section') as HTMLElement
+const overdueRows = () => screen.queryAllByRole('button', { name: /review again/i }).map(rowOf)
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -348,7 +384,7 @@ describe('ReviewPage', () => {
     renderReview({ alerts: [[ELENA, JAMES], [JAMES]], mocks: [mock] })
     const user = userEvent.setup()
     await step('Elena Petrova')
-    await user.type(commentInput(), 'Coffee')
+    await user.type(await screen.findByLabelText('Comment (required)'), 'Coffee')
     await user.type(screen.getByLabelText('Prayer burden (optional)'), 'Her job')
     await user.click(logButton())
 
@@ -362,7 +398,9 @@ describe('ReviewPage', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     // Last step copy.
     expect(screen.getByText('Last one. 1 logged, 0 skipped so far.')).toBeInTheDocument()
-    expect(screen.getByText('This is the last person. A summary comes next.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('This is the last person. A summary comes next.'),
+    ).toBeInTheDocument()
   })
 
   it('keeps the queue and counter after the refetch drops the logged person', async () => {
@@ -396,7 +434,7 @@ describe('ReviewPage', () => {
     renderReview({ alerts: [[ELENA, JAMES]], mocks: [mock] })
     const user = userEvent.setup()
     await step('Elena Petrova')
-    await user.click(skipButton())
+    await skip(user)
 
     await step('James Whitfield')
     expect(result).not.toHaveBeenCalled()
@@ -425,7 +463,7 @@ describe('ReviewPage', () => {
     await step('Elena Petrova')
     await logCurrent(user)
     await step('James Whitfield')
-    await user.click(skipButton())
+    await skip(user)
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Review finished' })).toBeVisible()
     expect(screen.getByText(/1 of 2 contacts logged\./)).toBeInTheDocument()
@@ -454,12 +492,360 @@ describe('ReviewPage', () => {
     renderReview({ alerts: [[ELENA, JAMES]] })
     const user = userEvent.setup()
     await step('Elena Petrova')
-    await user.click(skipButton())
+    await skip(user)
     await step('James Whitfield')
-    await user.click(skipButton())
+    await skip(user)
     expect(await screen.findByText(/0 of 2 contacts logged\./)).toBeInTheDocument()
     expect(screen.getByText(/2 are still overdue\./)).toBeInTheDocument()
     expect(await screen.findByText('Home now shows 2 people overdue.')).toBeInTheDocument()
+  })
+
+  describe('step 2: finished screen', () => {
+    it('lists who was logged with an Undo, and who is still overdue with Review again', async () => {
+      const { mock } = logMock(ELENA, {})
+      renderReview({ alerts: [[ELENA, JAMES], [JAMES]], mocks: [mock] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await logCurrent(user)
+      await step('James Whitfield')
+      await skip(user)
+      await finishedHeading()
+
+      expect(cardOf(/Logged today/)).toHaveTextContent(/Logged today\s*1/)
+      expect(undoRow('Elena Petrova')).toHaveTextContent('Elena Petrova')
+      expect(undoRow('Elena Petrova')).toHaveTextContent('Contact logged · comment added')
+      expect(cardOf(/Still overdue/)).toHaveTextContent(/Still overdue\s*1/)
+      const rows = overdueRows()
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toHaveTextContent('James Whitfield')
+      expect(rows[0]).toHaveTextContent('Skipped · 3 days overdue')
+    })
+
+    it('words a logged prayer burden', async () => {
+      const { mock } = logMock(ELENA, { prayerBurden: 'Her job' })
+      renderReview({ alerts: [[ELENA], []], mocks: [mock] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await user.type(await screen.findByLabelText('Comment (required)'), 'Coffee')
+      await user.type(screen.getByLabelText('Prayer burden (optional)'), 'Her job')
+      await user.click(logButton())
+      await finishedHeading()
+      expect(undoRow('Elena Petrova')).toHaveTextContent(
+        'Contact logged · comment and prayer burden added',
+      )
+    })
+
+    it('says a new contact is now Active and when the next contact is due', async () => {
+      const { mock } = logMock(TOM, { prayerBurden: 'Job' })
+      renderReview({ alerts: [[TOM], []], mocks: [mock] })
+      const user = userEvent.setup()
+      await step('Tom Becker')
+      await user.type(await screen.findByLabelText('Comment (required)'), 'Coffee')
+      await user.type(screen.getByLabelText('Prayer burden (optional)'), 'Job')
+      await user.click(logButton())
+      await finishedHeading()
+      expect(undoRow('Tom Becker')).toHaveTextContent(
+        `Contact logged · now Active, next contact due ${formatShortDate(at(7 * DAY))} · prayer burden added`,
+      )
+    })
+
+    it('has no Still overdue card when everyone was logged', async () => {
+      const { mock } = logMock(ELENA, {})
+      renderReview({ alerts: [[ELENA], []], mocks: [mock] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await logCurrent(user)
+      await finishedHeading()
+      expect(screen.getByRole('heading', { level: 2, name: /Logged today/ })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: /Still overdue/ })).not.toBeInTheDocument()
+    })
+
+    it('has no Logged today card when nothing was logged', async () => {
+      renderReview({ alerts: [[ELENA]] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await skip(user)
+      await finishedHeading()
+      expect(screen.queryByRole('heading', { name: /Logged today/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Undo/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 2, name: /Still overdue/ })).toBeInTheDocument()
+    })
+  })
+
+  describe('step 2: undo on the finished screen', () => {
+    it('deletes the contact and moves the person to Still overdue', async () => {
+      const log = logMock(ELENA, {})
+      const del = deleteMock(ELENA)
+      renderReview({
+        alerts: [[ELENA, JAMES], [JAMES], [ELENA, JAMES]],
+        mocks: [log.mock, del.mock],
+      })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await logCurrent(user)
+      await step('James Whitfield')
+      await skip(user)
+      await finishedHeading()
+      await user.click(
+        screen.getByRole('button', { name: 'Undo contact logged for Elena Petrova' }),
+      )
+
+      await waitFor(() => expect(del.result).toHaveBeenCalledTimes(1))
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: 'Undo contact logged for Elena Petrova' }),
+        ).not.toBeInTheDocument(),
+      )
+      expect(screen.queryByRole('heading', { name: /Logged today/ })).not.toBeInTheDocument()
+      const rows = overdueRows()
+      expect(rows.map((r) => r.textContent)).toEqual([
+        expect.stringContaining('Elena Petrova'),
+        expect.stringContaining('James Whitfield'),
+      ])
+      expect(rows[0]).toHaveTextContent('Contact removed · 14 days overdue')
+      expect(cardOf(/Still overdue/)).toHaveTextContent(/Still overdue\s*2/)
+      expect(screen.getByText(/0 of 2 contacts logged\./)).toBeInTheDocument()
+      expect(screen.getByText(/2 are still overdue\./)).toBeInTheDocument()
+      expect(await screen.findByText('Home now shows 2 people overdue.')).toBeInTheDocument()
+    })
+
+    it('keeps the row and shows why when the undo fails', async () => {
+      const log = logMock(ELENA, {})
+      const del = deleteMock(ELENA, notFound())
+      renderReview({ alerts: [[ELENA], []], mocks: [log.mock, del.mock] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await logCurrent(user)
+      await finishedHeading()
+      await user.click(
+        screen.getByRole('button', { name: 'Undo contact logged for Elena Petrova' }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "Couldn't undo. This was changed or removed by someone else.",
+      )
+      expect(
+        screen.getByRole('button', { name: 'Undo contact logged for Elena Petrova' }),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /review again/i })).not.toBeInTheDocument()
+    })
+
+    it('undoing a new contact follow-up puts them back in Still overdue', async () => {
+      const log = logMock(TOM, {})
+      const del = deleteMock(TOM)
+      renderReview({ alerts: [[TOM], [], [TOM]], mocks: [log.mock, del.mock] })
+      const user = userEvent.setup()
+      await step('Tom Becker')
+      await logCurrent(user)
+      await finishedHeading()
+      await user.click(screen.getByRole('button', { name: 'Undo contact logged for Tom Becker' }))
+
+      await waitFor(() => expect(overdueRows()).toHaveLength(1))
+      expect(overdueRows()[0]).toHaveTextContent('Tom Becker')
+      expect(overdueRows()[0]).toHaveTextContent('Contact removed · 2 days overdue')
+      expect(screen.queryByRole('heading', { name: /Logged today/ })).not.toBeInTheDocument()
+      expect(await screen.findByText('Home now shows 1 person overdue.')).toBeInTheDocument()
+    })
+  })
+
+  describe('step 2: review again', () => {
+    it('reopens a skipped person; logging returns to Finished with them logged', async () => {
+      const { mock, result } = logMock(ELENA, {})
+      renderReview({ alerts: [[ELENA, JAMES], [JAMES]], mocks: [mock] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await skip(user)
+      await step('James Whitfield')
+      await skip(user)
+      await finishedHeading()
+      expect(screen.queryByRole('heading', { name: /Logged today/ })).not.toBeInTheDocument()
+
+      await user.click(within(overdueRows()[0]).getByRole('button', { name: /review again/i }))
+      await step('Elena Petrova')
+      expect(commentInput()).toBeInTheDocument()
+      expect(skipButton()).toBeInTheDocument()
+      expect(screen.getByText('This is the last person. A summary comes next.')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Previous/ })).not.toBeInTheDocument()
+
+      await logCurrent(user)
+      const h1 = await finishedHeading()
+      expect(result).toHaveBeenCalledTimes(1)
+      expect(h1).toHaveFocus()
+      expect(undoRow('Elena Petrova')).toBeInTheDocument()
+      expect(overdueRows().map((r) => r.textContent)).toEqual([
+        expect.stringContaining('James Whitfield'),
+      ])
+    })
+
+    it('returns to Finished when skipped again', async () => {
+      renderReview({ alerts: [[ELENA]] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await skip(user)
+      await finishedHeading()
+      await user.click(screen.getByRole('button', { name: /review again/i }))
+      await step('Elena Petrova')
+      await skip(user)
+      expect(await finishedHeading()).toHaveFocus()
+      expect(overdueRows()).toHaveLength(1)
+    })
+  })
+
+  describe('step 2: previous', () => {
+    it('goes back to a skipped person, who can be skipped again', async () => {
+      renderReview({ alerts: [[ELENA, JAMES, RUTH]] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      expect(screen.queryByRole('button', { name: /^Previous/ })).not.toBeInTheDocument()
+      await skip(user)
+      await step('James Whitfield')
+      await user.click(screen.getByRole('button', { name: 'Previous: Elena Petrova' }))
+
+      expect(await step('Elena Petrova')).toHaveFocus()
+      expect(screen.getByText('1 of 3')).toBeInTheDocument()
+      expect(commentInput()).toBeInTheDocument()
+      expect(logButton()).toBeInTheDocument()
+      await skip(user)
+      await step('James Whitfield')
+      expect(screen.getByText('2 of 3')).toBeInTheDocument()
+    })
+
+    it('goes back to a logged person, shows the outcome, and Next goes forward', async () => {
+      const { mock } = logMock(ELENA, {})
+      renderReview({ alerts: [[ELENA, JAMES], [JAMES]], mocks: [mock] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await logCurrent(user)
+      await step('James Whitfield')
+      await user.click(screen.getByRole('button', { name: 'Previous: Elena Petrova' }))
+
+      expect(await step('Elena Petrova')).toHaveFocus()
+      expect(screen.getByRole('heading', { level: 3, name: 'Contact logged' })).toBeInTheDocument()
+      expect(screen.getByText('Contact logged · comment added')).toBeInTheDocument()
+      expect(screen.queryByLabelText('Comment (required)')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Log contact' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+      await step('James Whitfield')
+    })
+
+    it('undo on a logged step deletes the contact and shows the form again', async () => {
+      const log = logMock(ELENA, {})
+      const del = deleteMock(ELENA)
+      renderReview({
+        alerts: [[ELENA, JAMES], [JAMES], [ELENA, JAMES]],
+        mocks: [log.mock, del.mock],
+      })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await logCurrent(user)
+      await step('James Whitfield')
+      await user.click(screen.getByRole('button', { name: 'Previous: Elena Petrova' }))
+      await step('Elena Petrova')
+      await user.click(
+        screen.getByRole('button', { name: 'Undo contact logged for Elena Petrova' }),
+      )
+
+      expect(await screen.findByLabelText('Comment (required)')).toBeInTheDocument()
+      expect(del.result).toHaveBeenCalledTimes(1)
+      expect(
+        screen.queryByRole('heading', { level: 3, name: 'Contact logged' }),
+      ).not.toBeInTheDocument()
+      expect(skipButton()).toBeInTheDocument()
+    })
+  })
+
+  describe('step 2: people who changed since the queue was built', () => {
+    it('notes someone contacted by another shepherd and moves on with Next', async () => {
+      const fresh = active('p-elena', 'Elena Petrova', 2, { contactState: G.ContactState.OnTrack })
+      renderReview({
+        alerts: [[ELENA, JAMES]],
+        details: { 'p-elena': detail(fresh) },
+      })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      expect(
+        await screen.findByText(
+          `Elena was contacted ${timeAgo(fresh.lastContactedAt as string, NOW)} and isn't overdue any more.`,
+        ),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Skip for now' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Log contact' })).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+      await step('James Whitfield')
+      expect(within(queueOf()).getAllByRole('listitem')[0]).toHaveTextContent('Not overdue')
+      await skip(user)
+
+      await finishedHeading()
+      expect(screen.getByText(/0 of 1 contact logged\./)).toBeInTheDocument()
+      expect(screen.getByText(/1 is still overdue\./)).toBeInTheDocument()
+      expect(overdueRows().map((r) => r.textContent)).toEqual([
+        expect.stringContaining('James Whitfield'),
+      ])
+      expect(screen.queryByRole('heading', { name: /Logged today/ })).not.toBeInTheDocument()
+    })
+
+    it('says only "isn\'t overdue any more" when no contact was logged since the clock started', async () => {
+      const fresh = person('p-elena', 'Elena Petrova', {
+        lastContactedAt: null,
+        contactClockStart: at(-1 * DAY),
+        contactDueAt: at(6 * DAY),
+        contactState: G.ContactState.OnTrack,
+      })
+      renderReview({ alerts: [[ELENA, JAMES]], details: { 'p-elena': detail(fresh) } })
+      await step('Elena Petrova')
+      expect(await screen.findByText("Elena isn't overdue any more.")).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    })
+
+    it('says someone is not tracked any more', async () => {
+      const gone = person('p-elena', 'Elena Petrova', {
+        status: { __typename: 'Status', id: 'st-inactive', name: 'inactive' },
+        contactState: G.ContactState.NotTracked,
+      })
+      renderReview({ alerts: [[ELENA, JAMES]], details: { 'p-elena': detail(gone) } })
+      await step('Elena Petrova')
+      expect(await screen.findByText("Elena isn't tracked any more.")).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Skip for now' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+    })
+  })
+
+  describe('step 2: people who no longer exist', () => {
+    const missingCases: [string, () => Record<string, unknown>][] = [
+      ['a null person', () => ({ data: { person: null } })],
+      ['a NOT_FOUND error', notFound],
+    ]
+
+    it.each(missingCases)('drops %s from the queue silently', async (_n, result) => {
+      renderReview({ alerts: [[ELENA, JAMES, RUTH]], mocks: [personMock('p-elena', result())] })
+      await step('James Whitfield')
+      expect(screen.getByText('1 of 2')).toBeInTheDocument()
+      expect(within(queueOf()).getAllByRole('listitem')).toHaveLength(2)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it.each(missingCases)('finishes when the last person has %s', async (_n, result) => {
+      renderReview({ alerts: [[ELENA, JAMES]], mocks: [personMock('p-james', result())] })
+      const user = userEvent.setup()
+      await step('Elena Petrova')
+      await skip(user)
+      await finishedHeading()
+      expect(screen.getByText(/0 of 1 contact logged\./)).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('shows the empty state when everyone is missing', async () => {
+      renderReview({
+        alerts: [[ELENA, JAMES]],
+        mocks: [
+          personMock('p-elena', { data: { person: null } }),
+          personMock('p-james', notFound()),
+        ],
+      })
+      expect(
+        await screen.findByRole('heading', { level: 1, name: 'No one is overdue' }),
+      ).toBeVisible()
+    })
   })
 
   it('has no axe violations', async () => {

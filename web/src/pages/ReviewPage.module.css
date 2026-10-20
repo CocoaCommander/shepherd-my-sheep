@@ -69,6 +69,12 @@
   margin: 4px 0 0;
   color: var(--sms-muted);
 }
+.titleSide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-16);
+  align-items: center;
+}
 .position {
   font-weight: 700;
   font-size: 16px;
@@ -213,6 +219,16 @@
   font-size: 13px;
   color: var(--sms-muted);
 }
+/* A logged step (via Previous) or someone no longer overdue, in place of the form. */
+.note {
+  margin: 0;
+}
+.actions .stepUndo {
+  padding: 0 14px;
+}
+.undoError {
+  flex-basis: 100%;
+}
 
 .aside {
   flex: 1 1 320px;
@@ -342,6 +358,77 @@
   color: var(--sms-muted);
   font-size: 16px;
 }
+/* Finished: "Logged today" and "Still overdue". */
+.card {
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-18) 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.overdueCard {
+  border-color: var(--sms-danger-border);
+}
+.cardTitle {
+  margin: 0 0 6px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.count {
+  border-radius: var(--sms-radius-pill);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.loggedCount {
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}
+.overdueCount {
+  background: var(--sms-danger);
+  color: var(--sms-on-brand);
+}
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-8) 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--sms-surface-sunken);
+}
+.row .rowAvatar {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}
+.rowWho {
+  min-width: 0;
+  flex: 1 1 220px;
+}
+.rowName {
+  display: block;
+  font-weight: 600;
+}
+.rowDetail {
+  display: block;
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.row .rowUndo {
+  padding: 0 14px;
+}
+
 .doneActions {
   display: flex;
   flex-direction: column;
@@ -437,5 +524,22 @@
   .actions > button:first-child {
     min-height: 52px;
     font-size: 16px;
+  }
+
+  .card {
+    padding: var(--sms-space-14) var(--sms-space-16);
+  }
+  .cardTitle {
+    font-size: 17px;
+  }
+  .row {
+    gap: var(--sms-space-12);
+  }
+  .rowWho {
+    flex-basis: 0;
+  }
+  /* Review again goes full width under the row. */
+  .row .again {
+    flex-basis: 100%;
   }
 }

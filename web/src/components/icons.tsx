@@ -60,6 +60,14 @@ export function CloseIcon({ size = 16, ...rest }: IconProps) {
   )
 }
 
+export function ChevronLeftIcon({ size = 14, ...rest }: IconProps) {
+  return (
+    <svg {...stroke(size, '0 0 16 16', 2, rest)}>
+      <path d="M10 3L5 8l5 5" />
+    </svg>
+  )
+}
+
 export function ChevronRightIcon({ size = 14, ...rest }: IconProps) {
   return (
     <svg {...stroke(size, '0 0 16 16', 2, rest)}>
