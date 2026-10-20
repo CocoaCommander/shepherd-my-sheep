@@ -256,6 +256,13 @@ query ActivePrayerBurdens {
   }
 }
 
+# The 5 most recently released burdens across the user's people, newest release first.
+query RecentlyReleasedPrayerBurdens {
+  recentlyReleasedPrayerBurdens {
+    ...PrayerListBurden
+  }
+}
+
 query SearchUsers($query: String!) {
   searchUsers(query: $query) {
     id

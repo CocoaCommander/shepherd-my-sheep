@@ -1,14 +1,18 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Alert,
   Avatar,
   avatarTint,
   Button,
+  ClockIcon,
+  initials,
   PlusIcon,
   SegmentedControl,
   Select,
   StatusPill,
+  Switch,
+  TextField,
   useUndoToast,
   type AvatarTint,
 } from '../components'
@@ -17,9 +21,12 @@ import { firstName, parseDateTime, timeAgo } from '../format'
 import {
   ActivePrayerBurdensDocument,
   MyPeopleDocument,
+  RecentlyReleasedPrayerBurdensDocument,
   useActivePrayerBurdensQuery,
+  useCreateCommentMutation,
   useMeQuery,
   useMyPeopleQuery,
+  useRecentlyReleasedPrayerBurdensQuery,
   useReleasePrayerBurdenMutation,
   useUnreleasePrayerBurdenMutation,
   type PrayerListBurdenFragment,
@@ -32,11 +39,37 @@ type Burden = PrayerListBurdenFragment
 type Person = Burden['person']
 type Sort = 'standing' | 'newest' | 'person'
 
-// Releasing or undoing changes the list and each person's active burden count (Home, My people).
-// The Person page refetches on mount, so it needs nothing here.
+// Releasing, undoing or commenting changes the lists, and each person's active burden count and
+// latest comment (Home, My people). The Person page refetches on mount, so it needs nothing here.
 const RELOAD_PRAYER_LISTS = {
-  refetchQueries: [{ query: ActivePrayerBurdensDocument }, { query: MyPeopleDocument }],
+  refetchQueries: [
+    { query: ActivePrayerBurdensDocument },
+    { query: RecentlyReleasedPrayerBurdensDocument },
+    { query: MyPeopleDocument },
+  ],
   awaitRefetchQueries: true,
+}
+
+const YEAR_MS = 365 * 86_400_000
+
+// Hide details is per device. Storage can throw (private mode), so it falls back to off.
+const HIDE_DETAILS_KEY = 'shepherd.prayer.hideDetails'
+
+function readHideDetails(): boolean {
+  try {
+    return localStorage.getItem(HIDE_DETAILS_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function storeHideDetails(hidden: boolean) {
+  try {
+    if (hidden) localStorage.setItem(HIDE_DETAILS_KEY, 'true')
+    else localStorage.removeItem(HIDE_DETAILS_KEY)
+  } catch {
+    // Ignored, see readHideDetails.
+  }
 }
 
 const added = (b: Burden) => parseDateTime(b.createdAt).getTime()
@@ -78,6 +111,9 @@ export function PrayerListPage() {
     fetchPolicy: 'cache-and-network',
   })
   const { data: people } = useMyPeopleQuery()
+  const { data: recent } = useRecentlyReleasedPrayerBurdensQuery({
+    fetchPolicy: 'cache-and-network',
+  })
   const { data: me } = useMeQuery()
   const [release] = useReleasePrayerBurdenMutation(RELOAD_PRAYER_LISTS)
   const [unrelease] = useUnreleasePrayerBurdenMutation(RELOAD_PRAYER_LISTS)
@@ -89,6 +125,7 @@ export function PrayerListPage() {
   // Released here but maybe still in the cached list until the refetch lands.
   const [released, setReleased] = useState<ReadonlySet<string>>(new Set())
   const [releaseError, setReleaseError] = useState<string | null>(null)
+  const [hideDetails, setHideDetails] = useState(readHideDetails)
 
   const now = new Date()
   const all = (data?.activePrayerBurdens ?? []).filter((b) => !released.has(b.id))
@@ -97,6 +134,7 @@ export function PrayerListPage() {
   const tints = new Map(options.map((p, i) => [p.id, avatarTint(i)]))
   const shown = filter ? all.filter((b) => b.person.id === filter.id) : all
   const groups = sortBurdens(shown, sort)
+  const recentlyReleased = recent?.recentlyReleasedPrayerBurdens ?? []
 
   const noPeople = people?.myPeople.length === 0
   const summary = filter
@@ -106,6 +144,11 @@ export function PrayerListPage() {
         'person',
         'people',
       )}`
+
+  const onHideDetails = (hidden: boolean) => {
+    setHideDetails(hidden)
+    storeHideDetails(hidden)
+  }
 
   const setHidden = (id: string, hidden: boolean) =>
     setReleased((ids) => {
@@ -200,45 +243,61 @@ export function PrayerListPage() {
                   </option>
                 ))}
               </Select>
+              <Switch checked={hideDetails} onChange={onHideDetails} className={styles.hide}>
+                {/* mWeb shows just "Hide"; the full name stays for screen readers. */}
+                Hide <span className={styles.longHidden}>details</span>
+              </Switch>
             </div>
 
-            {shown.length === 0 ? (
-              // Business rule 3: no one may have burdens yet; or the filtered person has none.
-              <p className={styles.empty}>
-                No active prayer burdens here. Add one when something comes up.
-              </p>
-            ) : (
-              <div className={styles.list}>
-                {groups.map(({ person, burdens }) => {
-                  const rows = burdens.map((b) => (
-                    <BurdenRow
-                      key={b.id}
-                      burden={b}
-                      meId={me?.me.id}
-                      tint={tints.get(b.person.id)}
-                      now={now}
-                      onRelease={onRelease}
-                    />
-                  ))
-                  return person ? (
-                    <section
-                      key={person.id}
-                      aria-labelledby={`group-${person.id}`}
-                      className={styles.group}
-                    >
-                      <h2 id={`group-${person.id}`} className={styles.groupTitle}>
-                        {person.name}
-                      </h2>
-                      {rows}
-                    </section>
-                  ) : (
-                    <div key="all" className={styles.group}>
-                      {rows}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
+            <div className={styles.columns}>
+              {shown.length === 0 ? (
+                // Business rule 3: no one may have burdens yet; or the filtered person has none.
+                <p className={styles.empty}>
+                  No active prayer burdens here. Add one when something comes up.
+                </p>
+              ) : (
+                <div className={styles.list}>
+                  {groups.map(({ person, burdens }) => {
+                    const rows = burdens.map((b) => (
+                      <BurdenRow
+                        key={b.id}
+                        burden={b}
+                        meId={me?.me.id}
+                        tint={tints.get(b.person.id)}
+                        now={now}
+                        hideDetails={hideDetails}
+                        onRelease={onRelease}
+                      />
+                    ))
+                    return person ? (
+                      <section
+                        key={person.id}
+                        aria-labelledby={`group-${person.id}`}
+                        className={styles.group}
+                      >
+                        <h2 id={`group-${person.id}`} className={styles.groupTitle}>
+                          {person.name}
+                        </h2>
+                        {rows}
+                      </section>
+                    ) : (
+                      <div key="all" className={styles.group}>
+                        {rows}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {recentlyReleased.length > 0 && (
+                <aside className={styles.aside}>
+                  <RecentlyReleased
+                    burdens={recentlyReleased}
+                    now={now}
+                    hideDetails={hideDetails}
+                  />
+                </aside>
+              )}
+            </div>
           </>
         )}
       </main>
@@ -252,25 +311,29 @@ function BurdenRow({
   meId,
   tint,
   now,
+  hideDetails,
   onRelease,
 }: {
   burden: Burden
   meId?: string
   tint?: AvatarTint
   now: Date
+  hideDetails: boolean
   onRelease: (burden: Burden) => void
 }) {
   const { person, comments } = burden
-  const profile = `/people/${person.id}`
   const nameId = `burden-${burden.id}-name`
+  const threadId = `burden-${burden.id}-thread`
+  const [open, setOpen] = useState(false)
   // Newest first, and a burden may have none (business rule 4).
   const latest = comments[0]
+  const stale = now.getTime() - added(burden) > YEAR_MS
 
   return (
     <article aria-labelledby={nameId} className={styles.row}>
       <Avatar name={person.name} tint={tint} className={styles.avatar} />
       <div className={styles.head}>
-        <Link id={nameId} to={profile} className={styles.name}>
+        <Link id={nameId} to={`/people/${person.id}`} className={styles.name}>
           {person.name}
         </Link>
         <StatusPill
@@ -280,20 +343,34 @@ function BurdenRow({
         <span className={styles.added}>Added {timeAgo(burden.createdAt, now)}</span>
       </div>
       <div className={styles.body}>
-        <p className={styles.content}>{burden.content}</p>
-        {latest && (
+        {hideDetails ? (
+          <p className={`${styles.content} ${styles.muted}`}>Details hidden</p>
+        ) : (
+          <p className={styles.content}>{burden.content}</p>
+        )}
+        {/* The open thread shows it, so it isn't repeated. */}
+        {latest && !hideDetails && !open && (
           <p className={styles.comment}>
             <span className={styles.muted}>
-              {latest.author.id === meId ? 'You' : latest.author.name},{' '}
-              {timeAgo(latest.createdAt, now)}:
+              {author(latest, meId)}, {timeAgo(latest.createdAt, now)}:
             </span>{' '}
             {latest.content}
           </p>
         )}
+        {stale && (
+          <p className={styles.nudge}>
+            <ClockIcon className={styles.nudgeIcon} />
+            On the list for over a year. Still the right one to carry?
+          </p>
+        )}
       </div>
       <div className={styles.actions}>
-        {/* Opens the thread inline in a later step; until then, the person page has it. */}
-        <Button as={Link} to={profile} variant="secondary">
+        <Button
+          variant="secondary"
+          aria-expanded={open}
+          aria-controls={threadId}
+          onClick={() => setOpen((o) => !o)}
+        >
           {/* The name starts with the visible text, so voice control users can say it. */}
           {/* The spaces sit outside the hidden span so the name isn't "Commenton …". */}
           Comment <span className={styles.srOnly}>on prayer burden for {person.name}</span>
@@ -307,6 +384,146 @@ function BurdenRow({
           Release
         </Button>
       </div>
+      {open && (
+        <Thread id={threadId} burden={burden} meId={meId} now={now} hideDetails={hideDetails} />
+      )}
     </article>
+  )
+}
+
+const author = (comment: Burden['comments'][number], meId?: string) =>
+  comment.author.id === meId ? 'You' : comment.author.name
+
+/** A burden's comments, oldest first, with the latest two shown until asked for the rest. */
+function Thread({
+  id,
+  burden,
+  meId,
+  now,
+  hideDetails,
+}: {
+  id: string
+  burden: Burden
+  meId?: string
+  now: Date
+  hideDetails: boolean
+}) {
+  const [showAll, setShowAll] = useState(false)
+  const oldestFirst = [...burden.comments].reverse()
+  const earlier = Math.max(0, oldestFirst.length - 2)
+  const shown = showAll ? oldestFirst : oldestFirst.slice(earlier)
+
+  return (
+    <div id={id} className={styles.thread}>
+      {earlier > 0 && (
+        <Button variant="text" className={styles.earlier} onClick={() => setShowAll((s) => !s)}>
+          {showAll
+            ? 'Hide earlier comments'
+            : `Show ${plural(earlier, 'earlier comment', 'earlier comments')}`}
+        </Button>
+      )}
+      {shown.length > 0 && (
+        <ul className={styles.comments}>
+          {shown.map((c) => (
+            <li key={c.id} className={styles.threadComment}>
+              <span aria-hidden="true" className={styles.commentAvatar}>
+                {initials(c.author.name)}
+              </span>
+              <div className={styles.commentBody}>
+                <p className={styles.commentMeta}>
+                  <span className={styles.commentAuthor}>{author(c, meId)}</span> ·{' '}
+                  {timeAgo(c.createdAt, now)}
+                </p>
+                <p className={hideDetails ? styles.muted : undefined}>
+                  {hideDetails ? 'Details hidden' : c.content}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <CommentForm burden={burden} />
+    </div>
+  )
+}
+
+/** Adds a comment linked to the burden; clears itself once it is saved. */
+function CommentForm({ burden }: { burden: Burden }) {
+  const [content, setContent] = useState('')
+  const [createComment, { loading, error }] = useCreateCommentMutation(RELOAD_PRAYER_LISTS)
+  const trimmed = content.trim()
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    if (!trimmed || loading) return
+    try {
+      await createComment({
+        variables: {
+          input: { personId: burden.person.id, prayerBurdenId: burden.id, content: trimmed },
+        },
+      })
+      setContent('')
+    } catch {
+      // Shown from the mutation's `error` below.
+    }
+  }
+
+  return (
+    <form className={styles.commentForm} onSubmit={handleSubmit}>
+      <div className={styles.commentRow}>
+        <TextField
+          label={<span className={styles.srOnly}>Add a comment on this burden</span>}
+          placeholder="Add a comment on this burden"
+          className={styles.commentField}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        <Button type="submit" disabled={!trimmed || loading}>
+          Comment
+        </Button>
+      </div>
+      {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
+    </form>
+  )
+}
+
+/** Released burdens, as encouragement. Read-only: no links or actions. */
+function RecentlyReleased({
+  burdens,
+  now,
+  hideDetails,
+}: {
+  burdens: readonly Burden[]
+  now: Date
+  hideDetails: boolean
+}) {
+  return (
+    <section aria-labelledby="recently-released" className={styles.released}>
+      <h2 id="recently-released" className={styles.releasedTitle}>
+        Recently released
+      </h2>
+      <ul className={styles.releasedList}>
+        {burdens.map((b) => {
+          // Newest first, and a released burden may have none (business rule 4).
+          const latest = b.comments[0]
+          return (
+            <li key={b.id} className={styles.releasedItem}>
+              <p className={styles.releasedMeta}>
+                {b.person.name}
+                {b.releasedDate && ` · released ${timeAgo(b.releasedDate, now)}`}
+              </p>
+              {hideDetails ? (
+                <p className={`${styles.releasedText} ${styles.muted}`}>Details hidden</p>
+              ) : (
+                <>
+                  <p className={styles.releasedText}>{b.content}</p>
+                  {latest && <p className={styles.releasedComment}>{latest.content}</p>}
+                </>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }

@@ -64,6 +64,17 @@
 .filterLabel {
   color: var(--sms-muted);
 }
+.hide {
+  margin-left: auto;
+}
+
+/* The list, and Recently released beside it. */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--sms-space-24);
+  align-items: start;
+}
 
 .empty {
   margin: 0;
@@ -96,7 +107,8 @@
   grid-template-columns: auto minmax(0, 1fr) 104px;
   grid-template-areas:
     'avatar head actions'
-    'avatar body actions';
+    'avatar body actions'
+    'avatar thread thread';
   align-items: start;
   gap: var(--sms-space-10) var(--sms-space-16);
   padding: var(--sms-space-18);
@@ -151,11 +163,141 @@
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+.nudge {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--sms-warn-ink);
+}
+.nudgeIcon {
+  flex: none;
+  margin-top: 3px;
+}
 .actions {
   grid-area: actions;
   display: flex;
   flex-direction: column;
   gap: var(--sms-space-8);
+}
+
+/* The open comment thread, under the row. */
+.thread {
+  grid-area: thread;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+  padding-top: var(--sms-space-12);
+  border-top: 1px solid var(--sms-border);
+}
+.earlier {
+  align-self: flex-start;
+}
+.comments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.threadComment {
+  display: flex;
+  gap: var(--sms-space-10);
+}
+.commentAvatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--sms-radius-circle);
+  background: var(--sms-bg);
+  border: 1px solid var(--sms-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+.commentBody {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.commentBody p {
+  margin: 0;
+}
+.commentMeta {
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+.commentAuthor {
+  font-weight: 600;
+  color: var(--sms-ink);
+}
+.commentForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+.commentRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sms-space-8);
+}
+/* The label is for screen readers only, so drop the gap above the input. */
+.commentRow .commentField {
+  flex: 1;
+  min-width: 0;
+  gap: 0;
+}
+
+/* Recently released: read-only encouragement. */
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+.released {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-20);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.releasedTitle {
+  margin: 0;
+  font-size: 16px;
+}
+.releasedList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.releasedItem {
+  padding: var(--sms-space-12);
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-lg);
+  overflow-wrap: anywhere;
+}
+.releasedItem p {
+  margin: 0;
+}
+.releasedMeta {
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+.releasedText {
+  margin-top: 2px;
+  font-weight: 600;
+}
+.releasedComment {
+  margin-top: 4px;
+  font-size: 13px;
 }
 
 @media (max-width: 719px) {
@@ -170,14 +312,39 @@
     margin-top: 2px;
   }
 
+  /* Sort on its own line; the person select and the Hide switch share the next. */
   .controls {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--sms-space-10);
   }
   .sort {
+    grid-column: 1 / -1;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hide {
+    margin-left: 0;
+    min-height: var(--sms-size-input);
+    padding: 0 var(--sms-space-12);
+    border: 1px solid var(--sms-border-control);
+    border-radius: var(--sms-radius-lg);
+    background: var(--sms-surface);
+  }
+  /* "Hide details" shows as just "Hide"; the full name stays for screen readers. */
+  .longHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sms-space-14);
   }
   .long,
   .filterLabel {
@@ -196,7 +363,8 @@
     grid-template-areas:
       'avatar head head'
       'body body body'
-      'actions actions actions';
+      'actions actions actions'
+      'thread thread thread';
     align-items: center;
     gap: var(--sms-space-12);
     padding: var(--sms-space-14);
