@@ -708,8 +708,35 @@ class TestErrorCodes:
 
 PRAYER_LIST = """
 query Q($personId: UUID) {
-  activePrayerBurdens(personId: $personId) { id content person { id name } }
+  activePrayerBurdens(personId: $personId) {
+    id content
+    person { id name status { id name } }
+    comments { id content createdAt author { id name } }
+  }
 }"""
+
+RELEASE_BURDEN = """
+mutation R($id: UUID!) {
+  releasePrayerBurden(id: $id) {
+    id releasedDate
+    person { id name status { id name } }
+    comments { id content author { id name } }
+  }
+}"""
+
+PERSON_BURDENS = """
+query P($id: UUID!) {
+  person(id: $id) { prayerBurdens { id releasedDate comments { id content } } }
+}"""
+
+
+def person_dict(person_id, name, status_id, status_name):
+    return {
+        "__typename": "Person",
+        "id": person_id,
+        "name": name,
+        "status": {"__typename": "Status", "id": status_id, "name": status_name},
+    }
 
 
 class TestPrayerList:
@@ -729,8 +756,8 @@ class TestPrayerList:
         by_id = {r["id"]: r for r in rows}
         assert set(by_id) == {a_burden, b_burden}
         assert len(rows) == 2
-        assert by_id[a_burden]["person"] == {"__typename": "Person", "id": alice, "name": "Alice"}
-        assert by_id[b_burden]["person"] == {"__typename": "Person", "id": bob, "name": "Bob"}
+        assert by_id[a_burden]["person"] == person_dict(alice, "Alice", status_id, "active")
+        assert by_id[b_burden]["person"] == person_dict(bob, "Bob", status_id, "active")
 
     def test_person_filter_returns_only_that_persons_burdens(self, make_user, status_id):
         token, _, _ = make_user()
@@ -741,7 +768,7 @@ class TestPrayerList:
 
         rows = gql(PRAYER_LIST, {"personId": alice}, token)["activePrayerBurdens"]
         assert [r["id"] for r in rows] == [a_burden]
-        assert rows[0]["person"] == {"__typename": "Person", "id": alice, "name": "Alice"}
+        assert rows[0]["person"] == person_dict(alice, "Alice", status_id, "active")
 
     def test_released_burdens_are_excluded(self, make_user, status_id):
         token, _, _ = make_user()
@@ -774,6 +801,173 @@ class TestPrayerList:
         person_id = create_person(token, status_id)
         assert gql(PRAYER_LIST, {}, token)["activePrayerBurdens"] == []
         assert gql(PRAYER_LIST, {"personId": person_id}, token)["activePrayerBurdens"] == []
+
+
+class TestPrayerBurdenComments:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    def burden(self, token, person_id, content="pray"):
+        return gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": content}}, token)["createPrayerBurden"][
+            "id"
+        ]
+
+    def comment(self, token, person_id, content, burden_id=None):
+        fields = {"personId": person_id, "content": content}
+        if burden_id:
+            fields["prayerBurdenId"] = burden_id
+        return gql(CREATE_COMMENT, {"input": fields}, token)["createComment"]["id"]
+
+    def rows(self, token, person_id=None):
+        rows = gql(PRAYER_LIST, {"personId": person_id}, token)["activePrayerBurdens"]
+        return {r["id"]: r for r in rows}
+
+    def test_person_status_is_real_and_follows_updates(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        assert self.rows(token)[burden_id]["person"] == person_dict(person_id, "Alice", statuses["active"], "active")
+
+        gql(UPDATE_STATUS, {"id": person_id, "input": {"statusId": statuses["inactive"]}}, token)
+        assert self.rows(token)[burden_id]["person"] == person_dict(
+            person_id, "Alice", statuses["inactive"], "inactive"
+        )
+
+    def test_comments_newest_first_and_only_that_burdens(self, make_user, status_id):
+        token, user_id, _ = make_user(name="Writer")
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id, "mine")
+        other_id = self.burden(token, person_id, "other")
+        first = self.comment(token, person_id, "first", burden_id)
+        self.comment(token, person_id, "standalone note")
+        self.comment(token, person_id, "on the other burden", other_id)
+        second = self.comment(token, person_id, "second", burden_id)
+
+        comments = self.rows(token)[burden_id]["comments"]
+        assert [c["id"] for c in comments] == [second, first]
+        assert [c["content"] for c in comments] == ["second", "first"]
+        assert all(pick(c["author"], {"id": 0, "name": 0}) == {"id": user_id, "name": "Writer"} for c in comments)
+        assert all(c["createdAt"] is not None for c in comments)
+        assert parse_time(comments[0]["createdAt"]) >= parse_time(comments[1]["createdAt"])
+
+    def test_burden_without_comments_has_empty_list(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+        self.comment(token, person_id, "standalone note")
+
+        assert self.rows(token)[burden_id]["comments"] == []
+
+    def test_each_of_a_persons_burdens_gets_its_own_comments(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        one = self.burden(token, person_id, "one")
+        two = self.burden(token, person_id, "two")
+        c1 = self.comment(token, person_id, "on one", one)
+        c2a = self.comment(token, person_id, "on two a", two)
+        c2b = self.comment(token, person_id, "on two b", two)
+
+        rows = self.rows(token, person_id)
+        assert [c["id"] for c in rows[one]["comments"]] == [c1]
+        assert [c["id"] for c in rows[two]["comments"]] == [c2b, c2a]
+
+    def test_a_second_shepherds_comments_show_for_the_first(self, make_user, status_id):
+        a_token, a_id, _ = make_user(name="Alpha")
+        b_token, b_id, _ = make_user(name="Beta")
+        person_id = create_person(a_token, status_id)
+        burden_id = self.burden(a_token, person_id)
+        gql(ASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        mine = self.comment(a_token, person_id, "from alpha", burden_id)
+        theirs = self.comment(b_token, person_id, "from beta", burden_id)
+
+        for token in (a_token, b_token):
+            comments = self.rows(token)[burden_id]["comments"]
+            assert [(c["id"], pick(c["author"], {"id": 0, "name": 0})) for c in comments] == [
+                (theirs, {"id": b_id, "name": "Beta"}),
+                (mine, {"id": a_id, "name": "Alpha"}),
+            ]
+
+    def test_strangers_burdens_and_comments_never_appear(self, make_user, status_id):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        owners_person = create_person(owner, status_id)
+        owners_burden = self.burden(owner, owners_person)
+        self.comment(owner, owners_person, "private", owners_burden)
+        mine = create_person(stranger, status_id)
+        my_burden = self.burden(stranger, mine)
+        my_comment = self.comment(stranger, mine, "mine", my_burden)
+
+        rows = self.rows(stranger)
+        assert set(rows) == {my_burden}
+        assert [c["id"] for c in rows[my_burden]["comments"]] == [my_comment]
+        assert self.rows(stranger, owners_person) == {}
+
+    def test_person_prayer_burdens_list_their_own_comments(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        active = self.burden(token, person_id, "active")
+        released = self.burden(token, person_id, "released")
+        bare = self.burden(token, person_id, "bare")
+        a1 = self.comment(token, person_id, "a1", active)
+        r1 = self.comment(token, person_id, "r1", released)
+        r2 = self.comment(token, person_id, "r2", released)
+        self.comment(token, person_id, "standalone")
+        gql(RELEASE_BURDEN, {"id": released}, token)
+
+        burdens = {b["id"]: b for b in gql(PERSON_BURDENS, {"id": person_id}, token)["person"]["prayerBurdens"]}
+        assert set(burdens) == {active, released, bare}
+        assert [c["id"] for c in burdens[active]["comments"]] == [a1]
+        assert [c["id"] for c in burdens[released]["comments"]] == [r2, r1]
+        assert burdens[released]["releasedDate"] is not None
+        assert burdens[bare]["comments"] == []
+
+    def test_person_without_burdens_has_empty_list(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        assert gql(PERSON_BURDENS, {"id": person_id}, token)["person"]["prayerBurdens"] == []
+
+    def test_create_burden_returns_person_and_no_comments(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        query = CREATE_BURDEN.replace("releasedDate }", "releasedDate person { id status { name } } comments { id } }")
+        burden = gql(query, {"input": {"personId": person_id, "content": "new"}}, token)["createPrayerBurden"]
+        assert burden["person"]["id"] == person_id
+        assert burden["person"]["status"]["name"] == "active"
+        assert burden["comments"] == []
+
+    def test_release_burden_returns_comments_and_person(self, make_user, statuses):
+        token, user_id, _ = make_user(name="Writer")
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        bare_id = self.burden(token, person_id, "bare")
+        first = self.comment(token, person_id, "first", burden_id)
+        second = self.comment(token, person_id, "second", burden_id)
+        self.comment(token, person_id, "standalone")
+
+        released = gql(RELEASE_BURDEN, {"id": burden_id}, token)["releasePrayerBurden"]
+        assert released["releasedDate"] is not None
+        assert released["person"] == person_dict(person_id, "Alice", statuses["active"], "active")
+        assert [c["id"] for c in released["comments"]] == [second, first]
+        assert pick(released["comments"][0]["author"], {"id": 0, "name": 0}) == {"id": user_id, "name": "Writer"}
+
+        assert gql(RELEASE_BURDEN, {"id": bare_id}, token)["releasePrayerBurden"]["comments"] == []
+
+    def test_burden_nested_in_comment_stays_shallow(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+        self.comment(token, person_id, "on it", burden_id)
+
+        [mine] = gql("query { myPeople { id latestComment { prayerBurden { id } } } }", token=token)["myPeople"]
+        assert mine["latestComment"]["prayerBurden"]["id"] == burden_id
+
+        [comment] = gql(PERSON, {"id": person_id}, token)["person"]["comments"]
+        assert comment["prayerBurden"]["id"] == burden_id
+        assert comment["prayerBurden"].get("comments") is None
+        assert comment["prayerBurden"].get("person") is None
 
 
 SEARCH_USERS = """

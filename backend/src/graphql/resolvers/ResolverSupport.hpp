@@ -251,6 +251,32 @@ inline const char* PRAYER_BURDEN_SELECT =
     "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at "
     "FROM prayer_burden pb ";
 
+// A burden a root field returns, with its person's name and status so a list
+// across people can say whose each one is and show their status.
+inline const char* BURDEN_SELECT =
+    "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at, "
+    "       p.name AS person_name, s.id AS person_status_id, s.name AS person_status_name "
+    "FROM prayer_burden pb "
+    "JOIN person p ON p.id = pb.person_id "
+    "JOIN status s ON s.id = p.status_id ";
+
+/** A BURDEN_SELECT row, with `person` set (id, name and status only). */
+inline PrayerBurdenDto::Wrapper rowToBurdenWithPerson(const pqxx::row& row) {
+    auto burden = rowToPrayerBurden(row);
+
+    auto person  = PersonRefDto::createShared();
+    person->id   = row["person_id"].c_str();
+    person->name = row["person_name"].c_str();
+
+    auto status    = StatusDto::createShared();
+    status->id     = row["person_status_id"].c_str();
+    status->name   = row["person_status_name"].c_str();
+    person->status = status;
+
+    burden->person = person;
+    return burden;
+}
+
 // Prefixes: "recorder_" for the user who logged it (may be null).
 inline const char* MILESTONE_PERSON_SELECT =
     "SELECT mp.id, mp.date_achieved, mp.notes, mp.created_at, "
@@ -303,6 +329,33 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string&
         dto->prayerBurden = rowToPrayerBurden(row, prefix + "pb_");
     }
     return dto;
+}
+
+/**
+ * Fills `comments` on a list of burdens with one query, newest first. Empty,
+ * not null, for a burden with none (business rule 4). The comments' own
+ * `prayerBurden` stays shallow, so there is no burden → comments → burden cycle.
+ */
+inline void loadBurdenComments(pqxx::work& txn, const oatpp::Vector<oatpp::Object<PrayerBurdenDto>>& burdens) {
+    if (burdens->empty()) return;
+
+    // libpqxx 6 can't bind a container, so the ids go as one array literal.
+    std::unordered_map<std::string, oatpp::Vector<oatpp::Object<CommentDto>>> byBurden;
+    std::string                                                               ids = "{";
+    for (const auto& burden : *burdens) {
+        burden->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
+        byBurden.emplace(*burden->id, burden->comments);
+        if (ids.size() > 1) ids += ",";
+        ids += *burden->id;
+    }
+    ids += "}";
+
+    for (const auto& row : txn.exec_params(std::string(COMMENT_SELECT)
+                                               + "WHERE c.prayer_burden_id = ANY($1::uuid[]) "
+                                                 "ORDER BY c.created_at DESC, c.id DESC",
+                                           ids)) {
+        byBurden.at(row["pb_id"].c_str())->push_back(rowToComment(row));
+    }
 }
 
 /**
@@ -393,9 +446,20 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     }
 
     person->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
-    for (const auto& row :
-         txn.exec_params(std::string(COMMENT_SELECT) + "WHERE c.person_id = $1 ORDER BY c.created_at DESC", personId)) {
+    for (const auto& row : txn.exec_params(
+             std::string(COMMENT_SELECT) + "WHERE c.person_id = $1 ORDER BY c.created_at DESC, c.id DESC", personId)) {
         person->comments->push_back(rowToComment(row));
+    }
+
+    // Each burden gets its own comments from the list just loaded, newest
+    // first, with no extra query. Its person is the parent, so left unset.
+    std::unordered_map<std::string, oatpp::Vector<oatpp::Object<CommentDto>>> byBurden;
+    for (const auto& burden : *person->prayerBurdens) {
+        burden->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
+        byBurden.emplace(*burden->id, burden->comments);
+    }
+    for (const auto& comment : *person->comments) {
+        if (comment->prayerBurden) byBurden.at(*comment->prayerBurden->id)->push_back(comment);
     }
 
     person->contacts = oatpp::Vector<oatpp::Object<ContactLogDto>>::createShared();
@@ -405,6 +469,21 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     }
 
     return person;
+}
+
+/**
+ * One burden as a root field returns it: with its person (id, name and
+ * status) and its comments. Run it after the write that changed the burden.
+ */
+inline PrayerBurdenDto::Wrapper fetchBurden(pqxx::work& txn, const std::string& burdenId) {
+    auto rows = txn.exec_params(std::string(BURDEN_SELECT) + "WHERE pb.id = $1", burdenId);
+    if (rows.empty()) {
+        throw NotFound("Prayer burden not found");
+    }
+    auto list = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
+    list->push_back(rowToBurdenWithPerson(rows[0]));
+    loadBurdenComments(txn, list);
+    return list->front();
 }
 
 // ── Authorization ───────────────────────────────────────────

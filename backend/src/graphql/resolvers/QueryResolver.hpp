@@ -207,34 +207,29 @@ private:
         return list;
     }
 
-    /** Across all of your people, or one of them when personId is given. */
+    /**
+     * Across all of your people, or one of them when personId is given. Each
+     * with its person (id, name and status) and its comments.
+     */
     oatpp::Any resolveActivePrayerBurdens(const Args& args, const std::string& userId) {
         auto personId = args.opt("personId");
 
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
 
-        // Adds the person's name, so a list across people can say whose each one is.
-        auto result = txn.exec_params("SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, "
-                                      "       pb.updated_at, p.name AS person_name "
-                                      "FROM prayer_burden pb "
-                                      "JOIN person p ON p.id = pb.person_id "
-                                      "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
-                                      "WHERE pb.released_date IS NULL "
-                                      "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
-                                      "ORDER BY pb.created_at DESC",
-                                      userId, nullable(personId));
+        auto list = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
+        for (const auto& row :
+             txn.exec_params(std::string(BURDEN_SELECT)
+                                 + "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
+                                   "WHERE pb.released_date IS NULL "
+                                   "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
+                                   "ORDER BY pb.created_at DESC",
+                             userId, nullable(personId))) {
+            list->push_back(rowToBurdenWithPerson(row));
+        }
+        loadBurdenComments(txn, list);
         txn.commit();
 
-        auto list = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
-        for (const auto& row : result) {
-            auto burden    = rowToPrayerBurden(row);
-            auto person    = PersonRefDto::createShared();
-            person->id     = row["person_id"].c_str();
-            person->name   = row["person_name"].c_str();
-            burden->person = person;
-            list->push_back(burden);
-        }
         return list;
     }
 };

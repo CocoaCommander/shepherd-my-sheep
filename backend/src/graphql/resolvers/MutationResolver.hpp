@@ -342,10 +342,11 @@ private:
         pqxx::work       txn(*conn);
         requireShepherd(txn, userId, personId);
 
-        auto result = txn.exec_params("SELECT * FROM create_prayer_burden($1, $2)", personId, content);
+        auto result = txn.exec_params("SELECT id FROM create_prayer_burden($1, $2)", personId, content);
+        auto burden = fetchBurden(txn, result[0]["id"].c_str());
         txn.commit();
 
-        return rowToPrayerBurden(result[0]);
+        return burden;
     }
 
     oatpp::Any resolveReleasePrayerBurden(const Args& args, const std::string& userId) {
@@ -359,10 +360,11 @@ private:
             throw NotFound("Prayer burden not found");
         }
 
-        auto result = txn.exec_params("SELECT * FROM release_prayer_burden($1)", id);
+        txn.exec_params("SELECT 1 FROM release_prayer_burden($1)", id);
+        auto burden = fetchBurden(txn, id);
         txn.commit();
 
-        return rowToPrayerBurden(result[0]);
+        return burden;
     }
 
     // ── Comments ────────────────────────────────────────────
