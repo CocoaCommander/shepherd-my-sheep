@@ -12,7 +12,7 @@ import os
 import urllib.error
 import urllib.request
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -631,6 +631,40 @@ class TestErrorCodes:
         assert error["message"] == "Not found"
         self.assert_clean(error)
 
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            {"name": "   "},
+            {"age": -1},
+            {"age": 121},
+            {"yearMet": 1899},
+            # The server allows the year in the earliest time zone, so go one past that.
+            {"yearMet": (datetime.now(timezone.utc) + timedelta(hours=14)).year + 1},
+        ],
+    )
+    def test_invalid_person_is_bad_user_input(self, make_user, status_id, fields):
+        token, _, _ = make_user()
+        error = gql_error_full(CREATE_PERSON, {"input": {"name": "Alice", "statusId": status_id, **fields}}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        self.assert_clean(error)
+        assert gql(MY_PEOPLE, token=token)["myPeople"] == []
+
+    def test_blank_name_on_update_is_bad_user_input(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(
+            "mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }",
+            {"id": person_id, "input": {"name": " "}},
+            token,
+        )
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Name must not be blank"
+
+    def test_person_name_is_trimmed(self, make_user, status_id):
+        token, _, _ = make_user()
+        data = gql(CREATE_PERSON, {"input": {"name": "  Alice  ", "statusId": status_id}}, token)
+        assert data["createPerson"]["name"] == "Alice"
+
     def test_overlong_name_is_bad_user_input(self, make_user, status_id):
         token, _, _ = make_user()
         error = gql_error_full(CREATE_PERSON, {"input": {"name": "x" * 101, "statusId": status_id}}, token)
@@ -890,7 +924,7 @@ mutation LogContact($input: LogContactInput!) {
   logContact(input: $input) {
     id contactState contactDueAt lastContactedAt lastContactDate status { name }
     contacts { id isFollowUp note contactedBy { id } }
-    comments { content prayerBurden { id } author { id } }
+    comments { content contactLogId prayerBurden { id } author { id } }
   }
 }"""
 
@@ -907,7 +941,7 @@ def contact_input(person_id, **fields):
 
 DELETE_CONTACT = """
 mutation DeleteContact($id: UUID!) {
-  deleteContact(id: $id) { id contactState contacts { id } comments { content } }
+  deleteContact(id: $id) { id contactState status { name } contacts { id } comments { content } }
 }"""
 
 CONTACT_ALERTS = "query { contactAlerts { id name contactState contactDueAt } }"
@@ -977,6 +1011,24 @@ class TestContactCadence:
 
         person = gql(DELETE_CONTACT, {"id": person["contacts"][0]["id"]}, token)["deleteContact"]
         assert person["comments"] == []
+
+    def test_contact_note_links_its_contact(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        gql(CREATE_COMMENT, {"input": {"personId": person_id, "content": "Plain note"}}, token)
+        person = gql(LOG_CONTACT, {"input": contact_input(person_id, note="Coffee")}, token)["logContact"]
+        links = {c["content"]: c["contactLogId"] for c in person["comments"]}
+        assert links == {"Coffee": person["contacts"][0]["id"], "Plain note": None}
+
+    def test_undoing_the_follow_up_moves_them_back_to_new_contact(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["new contact"])
+        logged = gql(LOG_CONTACT, {"input": contact_input(person_id)}, token)["logContact"]
+        assert logged["status"]["name"] == "active"
+
+        person = gql(DELETE_CONTACT, {"id": logged["contacts"][0]["id"]}, token)["deleteContact"]
+        assert person["status"]["name"] == "new contact"
+        assert person["contacts"] == []
 
     @pytest.mark.parametrize("missing", ["contactedAt", "note"])
     def test_date_and_note_required(self, make_user, statuses, missing):

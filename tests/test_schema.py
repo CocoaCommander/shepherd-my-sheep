@@ -180,3 +180,60 @@ class TestContactLog:
             cur.execute(insert, (user_id, person_id, contact_id))
             with pytest.raises(psycopg2.errors.UniqueViolation):
                 cur.execute(insert, (user_id, person_id, contact_id))
+
+
+# ── Person checks ────────────────────────────────────────────
+
+
+class TestPersonChecks:
+    @pytest.mark.parametrize(
+        "name, age, year_met",
+        [
+            ("", None, None),
+            ("   ", None, None),
+            ("Aged", -1, None),
+            ("Aged", 121, None),
+            ("Met", None, 1899),
+        ],
+    )
+    def test_out_of_range_rejected(self, db, name, age, year_met):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute(
+                    "INSERT INTO person (name, age, year_met, status_id) VALUES (%s, %s, %s, %s)",
+                    (name, age, year_met, get_status_id(cur)),
+                )
+
+    @pytest.mark.parametrize("age, year_met", [(0, 1900), (120, None), (None, None)])
+    def test_bounds_and_nulls_allowed(self, db, age, year_met):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO person (name, age, year_met, status_id) VALUES ('Ok', %s, %s, %s)",
+                (age, year_met, get_status_id(cur)),
+            )
+
+    def test_create_person_rejects_a_future_year(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute(
+                    "SELECT * FROM create_person('Later', %s, NULL, extract(year FROM now() + interval '14 hours')::int + 1)",
+                    (get_status_id(cur),),
+                )
+
+    def test_create_person_allows_this_year(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT year_met FROM create_person('Now', %s, NULL, extract(year FROM now())::int)",
+                (get_status_id(cur),),
+            )
+            assert cur.fetchone()[0] is not None
+
+    def test_update_person_rejects_a_future_year(self, db):
+        with db.cursor() as cur:
+            cur.execute("SELECT id FROM create_person('Later', %s)", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute(
+                    "SELECT * FROM update_person(p_id := %s, p_year_met := extract(year FROM now() + interval '14 hours')::int + 1)",
+                    (person_id,),
+                )

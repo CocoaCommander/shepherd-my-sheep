@@ -149,14 +149,21 @@ private:
 
     // ── Person ──────────────────────────────────────────────
 
+    /** A person's name, trimmed; it must not be blank. */
+    static std::string requireName(const std::string& name) {
+        if (isBlank(name)) throw BadInput("Name must not be blank");
+        return trim(name);
+    }
+
     /**
      * The creator becomes the person's first shepherd in the same
      * transaction; otherwise the new person would be visible to no one.
      * An optional comment is saved as the creator's standalone note.
+     * Age and year met are range-checked by the database (check_violation).
      */
     oatpp::Any resolveCreatePerson(const Args& args, const std::string& userId) {
         auto input    = args.object("input");
-        auto name     = input.req("name");
+        auto name     = requireName(input.req("name"));
         auto statusId = input.req("statusId");
         auto age      = input.opt("age");
         auto yearMet  = input.opt("yearMet");
@@ -187,6 +194,8 @@ private:
     oatpp::Any resolveUpdatePerson(const Args& args, const std::string& userId) {
         auto id    = args.req("id");
         auto input = args.object("input");
+        auto name  = input.opt("name");
+        if (name) name = requireName(*name);
 
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
@@ -199,7 +208,7 @@ private:
                         "p_year_met          := $4::int, "
                         "p_is_active         := $5::boolean, "
                         "p_status_id         := $6::uuid)",
-                        id, nullable(input.opt("name")), nullable(input.opt("age")), nullable(input.opt("yearMet")),
+                        id, nullable(name), nullable(input.opt("age")), nullable(input.opt("yearMet")),
                         nullable(input.opt("isActive")), nullable(input.opt("statusId")));
 
         if (auto lastContactDate = input.opt("lastContactDate")) {
