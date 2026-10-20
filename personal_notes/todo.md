@@ -179,6 +179,9 @@ gap check).
   comments, shepherds), prayer list. `MainActivity.kt` is still a shell.
 - [ ] **iOS screens** (SwiftUI): same screens; `ContentView.swift` is still a
   placeholder.
+- [ ] KMP shared module: add `Person.statusChangedAt` and the
+  `undoStatusChange` mutation (#65) when the mobile My people
+  board needs Undo after a move.
 
 ## Backend follow-ups (low priority)
 
