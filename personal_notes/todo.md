@@ -151,9 +151,8 @@ gap check).
   - Depends on the logging follow-up below: `peer_address` isn't
     populated today, so per-IP limits need the client address first
     (and `X-Forwarded-For` from a trusted proxy if one is put in front).
-- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
-  Do this after the API changes above settle, so the shared module
-  only catches up once.
+- [x] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts`, `logContact` and `deleteContact` to the shared module, and stop using `lastContactDate` there. (#43)
+- [ ] Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it.
 - [x] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync). Confirmed 2026-10-16.
 - [x] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one. Confirmed 2026-10-16.
 - [x] `backend/src/main.cpp` falls back to `0.0.0.0` / `8080` when
