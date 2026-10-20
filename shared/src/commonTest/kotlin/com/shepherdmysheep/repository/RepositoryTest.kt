@@ -54,10 +54,12 @@ private fun personSummary(
     status: String = "active",
     state: String = "ON_TRACK",
     dueAt: String? = "2026-01-10T00:00:00Z",
+    clockStart: String? = "2026-01-03T00:00:00Z",
     lastContactedAt: String? = "2026-01-03T00:00:00Z",
 ) = """"__typename":"Person","id":"p1","name":"Sam Sheep","age":null,"yearMet":null,"isActive":true,
  "status":{"__typename":"Status","id":"s1","name":"$status"},"contactState":"$state",
- "contactDueAt":${jsonOrNull(dueAt)},"lastContactedAt":${jsonOrNull(lastContactedAt)},
+ "contactDueAt":${jsonOrNull(dueAt)},"contactClockStart":${jsonOrNull(clockStart)},
+ "lastContactedAt":${jsonOrNull(lastContactedAt)},
  "createdAt":"2026-01-01T00:00:00Z""""
 
 /** `field` is the operation's root field: person, logContact, deleteContact… */
@@ -264,17 +266,34 @@ class RepositoryTest {
         val person = repo(body).getMyPeople().single()
         assertEquals(ContactState.DUE_SOON, person.contactState)
         assertEquals("2026-01-10T00:00:00Z", person.contactDueAt)
+        assertEquals("2026-01-03T00:00:00Z", person.contactClockStart)
         assertEquals("2026-01-03T00:00:00Z", person.lastContactedAt)
         assertEquals("2026-01-01T00:00:00Z", person.createdAt)
         assertEquals(emptyList(), person.contacts)
     }
 
     @Test
+    fun clockStartFromAMoveMapsAsGiven() = runTest {
+        // A status move after the last contact restarts the clock; the model keeps both.
+        val summary = personSummary(dueAt = "2026-01-12T00:00:00Z", clockStart = "2026-01-05T00:00:00Z")
+        val person = repo(data("""{"myPeople":[{$summary}]}""")).getMyPeople().single()
+        assertEquals("2026-01-05T00:00:00Z", person.contactClockStart)
+        assertEquals("2026-01-03T00:00:00Z", person.lastContactedAt)
+    }
+
+    @Test
     fun notTrackedHasNoDueDate() = runTest {
-        val summary = personSummary(status = "inactive", state = "NOT_TRACKED", dueAt = null, lastContactedAt = null)
+        val summary = personSummary(
+            status = "inactive",
+            state = "NOT_TRACKED",
+            dueAt = null,
+            clockStart = null,
+            lastContactedAt = null,
+        )
         val person = repo(data("""{"myPeople":[{$summary}]}""")).getMyPeople().single()
         assertEquals(ContactState.NOT_TRACKED, person.contactState)
         assertNull(person.contactDueAt)
+        assertNull(person.contactClockStart)
         assertNull(person.lastContactedAt)
     }
 

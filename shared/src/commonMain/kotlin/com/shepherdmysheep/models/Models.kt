@@ -28,6 +28,12 @@ data class Person(
     val contactState: ContactState,
     /** Null when contactState is NOT_TRACKED. */
     val contactDueAt: String? = null,
+    /**
+     * When the current contact window started: the last contact, when the person
+     * was added, or a status move. The window is contactDueAt minus this.
+     * Null when contactState is NOT_TRACKED.
+     */
+    val contactClockStart: String? = null,
     /** Null until a contact is logged. */
     val lastContactedAt: String? = null,
     val createdAt: String,
