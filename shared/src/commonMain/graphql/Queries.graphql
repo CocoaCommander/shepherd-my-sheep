@@ -13,6 +13,12 @@ query MyPeople {
   }
 }
 
+query ContactAlerts {
+  contactAlerts {
+    ...PersonSummary
+  }
+}
+
 query Person($id: UUID!) {
   person(id: $id) {
     ...PersonDetail

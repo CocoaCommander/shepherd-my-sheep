@@ -1,7 +1,7 @@
 # Shared selections, so every operation maps to the domain models the
 # same way. The backend loads Person's nested lists only for `person`
 # and for mutations returning a single Person, so only those operations
-# may select PersonDetail. myPeople selects PersonSummary.
+# may select PersonDetail. myPeople and contactAlerts select PersonSummary.
 
 fragment UserFields on User {
   id
@@ -16,15 +16,17 @@ fragment PersonSummary on Person {
   name
   age
   yearMet
-  # Deprecated in favour of lastContactedAt (business rule 6). Kept until
-  # the shared module adopts the contact fields; see personal_notes/todo.md.
-  # eslint-disable-next-line @graphql-eslint/no-deprecated
-  lastContactDate
   isActive
   status {
     id
     name
   }
+  # Contact cadence (business rule 6), computed by the server. Clients
+  # show it as given and never recompute it.
+  contactState
+  contactDueAt
+  lastContactedAt
+  createdAt
 }
 
 fragment PrayerBurdenFields on PrayerBurden {
@@ -46,6 +48,7 @@ fragment CommentFields on Comment {
   prayerBurden {
     id
   }
+  contactLogId
 }
 
 fragment MilestonePersonFields on MilestonePerson {
@@ -63,6 +66,16 @@ fragment MilestonePersonFields on MilestonePerson {
   }
 }
 
+fragment ContactLogFields on ContactLog {
+  id
+  contactedAt
+  isFollowUp
+  createdAt
+  contactedBy {
+    ...UserFields
+  }
+}
+
 fragment PersonDetail on Person {
   ...PersonSummary
   shepherds {
@@ -76,5 +89,8 @@ fragment PersonDetail on Person {
   }
   comments {
     ...CommentFields
+  }
+  contacts {
+    ...ContactLogFields
   }
 }

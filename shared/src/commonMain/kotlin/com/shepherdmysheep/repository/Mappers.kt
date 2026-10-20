@@ -1,18 +1,22 @@
 package com.shepherdmysheep.repository
 
 import com.shepherdmysheep.graphql.fragment.CommentFields
+import com.shepherdmysheep.graphql.fragment.ContactLogFields
 import com.shepherdmysheep.graphql.fragment.MilestonePersonFields
 import com.shepherdmysheep.graphql.fragment.PersonDetail
 import com.shepherdmysheep.graphql.fragment.PersonSummary
 import com.shepherdmysheep.graphql.fragment.PrayerBurdenFields
 import com.shepherdmysheep.graphql.fragment.UserFields
 import com.shepherdmysheep.models.Comment
+import com.shepherdmysheep.models.ContactLog
+import com.shepherdmysheep.models.ContactState
 import com.shepherdmysheep.models.Milestone
 import com.shepherdmysheep.models.MilestonePerson
 import com.shepherdmysheep.models.Person
 import com.shepherdmysheep.models.PrayerBurden
 import com.shepherdmysheep.models.Status
 import com.shepherdmysheep.models.User
+import com.shepherdmysheep.graphql.type.ContactState as ApiContactState
 
 // Generated Apollo types → domain models. Kept here so the UI never
 // depends on the networking library (see Models.kt).
@@ -31,10 +35,26 @@ internal fun PersonSummary.toModel() = Person(
     name = name,
     age = age,
     yearMet = yearMet,
-    lastContactDate = lastContactDate,
     isActive = isActive,
     status = Status(id = status.id, name = status.name),
+    contactState = contactState.toModel(),
+    contactDueAt = contactDueAt,
+    lastContactedAt = lastContactedAt,
+    createdAt = createdAt,
 )
+
+internal fun ApiContactState.toModel() = when (this) {
+    ApiContactState.OVERDUE -> ContactState.OVERDUE
+
+    ApiContactState.DUE_SOON -> ContactState.DUE_SOON
+
+    ApiContactState.ON_TRACK -> ContactState.ON_TRACK
+
+    ApiContactState.NOT_TRACKED -> ContactState.NOT_TRACKED
+
+    // A state added to the API after this build: show no alert rather than guess one.
+    ApiContactState.UNKNOWN__ -> ContactState.NOT_TRACKED
+}
 
 internal fun PersonDetail.toModel(): Person {
     val comments = comments.map { it.commentFields.toModel() }
@@ -49,8 +69,17 @@ internal fun PersonDetail.toModel(): Person {
             }
         },
         comments = comments,
+        contacts = contacts.map { it.contactLogFields.toModel() },
     )
 }
+
+internal fun ContactLogFields.toModel() = ContactLog(
+    id = id,
+    contactedBy = contactedBy?.userFields?.toModel(),
+    contactedAt = contactedAt,
+    isFollowUp = isFollowUp,
+    createdAt = createdAt,
+)
 
 internal fun PrayerBurdenFields.toModel() = PrayerBurden(
     id = id,
@@ -64,6 +93,7 @@ internal fun CommentFields.toModel() = Comment(
     id = id,
     author = author.userFields.toModel(),
     prayerBurdenId = prayerBurden?.id,
+    contactLogId = contactLogId,
     content = content,
     createdAt = createdAt,
     updatedAt = updatedAt,

@@ -4,15 +4,18 @@ import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.api.http.HttpRequest
 import com.apollographql.apollo.api.http.HttpResponse
 import com.apollographql.apollo.network.http.HttpEngine
+import com.shepherdmysheep.models.ContactState
 import com.shepherdmysheep.network.InMemoryTokenStore
 import kotlinx.coroutines.test.runTest
 import okio.Buffer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /** Serves canned HTTP responses and records request bodies. */
 private class FakeEngine(private val status: Int = 200, private val body: String) : HttpEngine {
@@ -31,22 +34,47 @@ private class FakeEngine(private val status: Int = 200, private val body: String
 private fun user(id: String = "u1") =
     """{"__typename":"User","id":"$id","name":"Pat Shepherd","username":"pat","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
 
-private fun comment(id: String, burdenId: String?) = """{"__typename":"Comment","id":"$id","content":"note $id",
+private fun jsonOrNull(value: String?) = value?.let { "\"$it\"" } ?: "null"
+
+private fun comment(id: String, burdenId: String?, contactId: String? = null) =
+    """{"__typename":"Comment","id":"$id","content":"note $id",
  "createdAt":"2026-01-02T00:00:00Z","updatedAt":"2026-01-02T00:00:00Z","author":${user()},
- "prayerBurden":${burdenId?.let { """{"__typename":"PrayerBurden","id":"$it"}""" } ?: "null"}}"""
+ "prayerBurden":${burdenId?.let { """{"__typename":"PrayerBurden","id":"$it"}""" } ?: "null"},
+ "contactLogId":${jsonOrNull(contactId)}}"""
 
 private fun burden(id: String, person: String = "") =
     """{"__typename":"PrayerBurden","id":"$id","content":"burden $id","releasedDate":null,
  "createdAt":"2026-01-03T00:00:00Z","updatedAt":"2026-01-03T00:00:00Z"$person}"""
 
-private const val PERSON_SUMMARY = """"__typename":"Person","id":"p1","name":"Sam Sheep","age":null,"yearMet":null,
- "lastContactDate":null,"isActive":true,"status":{"__typename":"Status","id":"s1","name":"active"}"""
+private fun contact(id: String, contactedAt: String, by: String? = user(), isFollowUp: Boolean = false) =
+    """{"__typename":"ContactLog","id":"$id","contactedAt":"$contactedAt","isFollowUp":$isFollowUp,
+ "createdAt":"2026-01-04T00:00:00Z","contactedBy":${by ?: "null"}}"""
 
-private fun personDetail(milestones: String = "[]", burdens: String = "[]", comments: String = "[]") =
-    """{"person":{$PERSON_SUMMARY,"shepherds":[],"milestones":$milestones,
- "prayerBurdens":$burdens,"comments":$comments}}"""
+private fun personSummary(
+    status: String = "active",
+    state: String = "ON_TRACK",
+    dueAt: String? = "2026-01-10T00:00:00Z",
+    lastContactedAt: String? = "2026-01-03T00:00:00Z",
+) = """"__typename":"Person","id":"p1","name":"Sam Sheep","age":null,"yearMet":null,"isActive":true,
+ "status":{"__typename":"Status","id":"s1","name":"$status"},"contactState":"$state",
+ "contactDueAt":${jsonOrNull(dueAt)},"lastContactedAt":${jsonOrNull(lastContactedAt)},
+ "createdAt":"2026-01-01T00:00:00Z""""
+
+/** `field` is the operation's root field: person, logContact, deleteContact… */
+private fun personDetail(
+    milestones: String = "[]",
+    burdens: String = "[]",
+    comments: String = "[]",
+    contacts: String = "[]",
+    summary: String = personSummary(),
+    field: String = "person",
+) = """{"$field":{$summary,"shepherds":[],"milestones":$milestones,
+ "prayerBurdens":$burdens,"comments":$comments,"contacts":$contacts}}"""
 
 private fun data(json: String) = """{"data":$json}"""
+
+/** The JSON variables of a recorded request, so assertions skip the query text. */
+private fun variables(body: String) = body.substringAfter("\"variables\":")
 
 private fun errorBody(code: String?, message: String) = """{"data":null,"errors":[{"message":"$message"
  ${code?.let { ""","extensions":{"code":"$it"}""" } ?: ""}}]}"""
@@ -226,5 +254,136 @@ class RepositoryTest {
         assertEquals(listOf("c1", "c3"), b1.comments.map { it.id })
         assertEquals(emptyList(), b2.comments)
         assertIs<String>(b1.comments.first().prayerBurdenId)
+    }
+
+    // ── Contact fields ──────────────────────────────────────
+
+    @Test
+    fun contactFieldsMapOnSummaries() = runTest {
+        val body = data("""{"myPeople":[{${personSummary(state = "DUE_SOON")}}]}""")
+        val person = repo(body).getMyPeople().single()
+        assertEquals(ContactState.DUE_SOON, person.contactState)
+        assertEquals("2026-01-10T00:00:00Z", person.contactDueAt)
+        assertEquals("2026-01-03T00:00:00Z", person.lastContactedAt)
+        assertEquals("2026-01-01T00:00:00Z", person.createdAt)
+        assertEquals(emptyList(), person.contacts)
+    }
+
+    @Test
+    fun notTrackedHasNoDueDate() = runTest {
+        val summary = personSummary(status = "inactive", state = "NOT_TRACKED", dueAt = null, lastContactedAt = null)
+        val person = repo(data("""{"myPeople":[{$summary}]}""")).getMyPeople().single()
+        assertEquals(ContactState.NOT_TRACKED, person.contactState)
+        assertNull(person.contactDueAt)
+        assertNull(person.lastContactedAt)
+    }
+
+    @Test
+    fun unknownContactStateIsNotTracked() = runTest {
+        val body = data("""{"myPeople":[{${personSummary(state = "SNOOZED")}}]}""")
+        assertEquals(ContactState.NOT_TRACKED, repo(body).getMyPeople().single().contactState)
+    }
+
+    @Test
+    fun contactAlertsMapAndMayBeEmpty() = runTest {
+        assertEquals(emptyList(), repo(data("""{"contactAlerts":[]}""")).getContactAlerts())
+        val body = data("""{"contactAlerts":[{${personSummary(state = "OVERDUE")}}]}""")
+        assertEquals(ContactState.OVERDUE, repo(body).getContactAlerts().single().contactState)
+    }
+
+    @Test
+    fun contactsKeepServerOrderAndContactorIsOptional() = runTest {
+        val contacts = "[${contact("k2", "2026-01-03T00:00:00Z", isFollowUp = true)}," +
+            "${contact("k1", "2026-01-02T00:00:00Z", by = null)}]"
+        val person = repo(data(personDetail(contacts = contacts))).getPerson("p1")!!
+        assertEquals(listOf("k2", "k1"), person.contacts.map { it.id })
+        val (followUp, imported) = person.contacts
+        assertTrue(followUp.isFollowUp)
+        assertEquals("u1", followUp.contactedBy?.id)
+        assertEquals("2026-01-03T00:00:00Z", followUp.contactedAt)
+        assertFalse(imported.isFollowUp)
+        assertNull(imported.contactedBy)
+    }
+
+    @Test
+    fun contactNoteKeepsItsContactId() = runTest {
+        val comments = "[${comment("c1", null, contactId = "k1")},${comment("c2", null)}]"
+        val person = repo(data(personDetail(comments = comments))).getPerson("p1")!!
+        assertEquals(listOf("k1", null), person.comments.map { it.contactLogId })
+    }
+
+    // ── logContact / deleteContact ──────────────────────────
+
+    @Test
+    fun logContactSendsInputAndMapsPerson() = runTest {
+        val engine = FakeEngine(
+            body = data(
+                personDetail(
+                    field = "logContact",
+                    contacts = "[${contact("k1", "2026-01-05T12:00:00Z", isFollowUp = true)}]",
+                    comments = "[${comment("c1", null, contactId = "k1")}]",
+                ),
+            ),
+        )
+        val person = repo("", engine = engine)
+            .logContact("p1", Instant.parse("2026-01-05T12:00:00Z"), "Talked about work", "New job")
+        val sent = variables(engine.requestBodies.single())
+        assertTrue(sent.contains(""""personId":"p1""""), sent)
+        assertTrue(sent.contains(""""contactedAt":"2026-01-05T12:00:00Z""""), sent)
+        assertTrue(sent.contains(""""note":"Talked about work""""), sent)
+        assertTrue(sent.contains(""""prayerBurden":"New job""""), sent)
+        assertEquals("k1", person.contacts.single().id)
+        assertEquals("k1", person.comments.single().contactLogId)
+    }
+
+    @Test
+    fun logContactNeverSendsFollowUpOrMissingBurden() = runTest {
+        val engine = FakeEngine(body = data(personDetail(field = "logContact")))
+        repo("", engine = engine).logContact("p1", Instant.parse("2026-01-05T12:00:00Z"), "Coffee")
+        val sent = variables(engine.requestBodies.single())
+        assertFalse(sent.contains("isFollowUp"), sent)
+        assertFalse(sent.contains("prayerBurden"), sent)
+    }
+
+    @Test
+    fun logContactBlankNoteIsBadInput() = runTest {
+        val e = assertFailsWith<ShepherdException.Api.BadInput> {
+            repo(errorBody("BAD_USER_INPUT", "Note must not be blank"))
+                .logContact("p1", Instant.parse("2026-01-05T12:00:00Z"), " ")
+        }
+        assertEquals("Note must not be blank", e.message)
+    }
+
+    @Test
+    fun logContactForMissingPersonIsNotFound() = runTest {
+        assertFailsWith<ShepherdException.Api.NotFound> {
+            repo(errorBody("NOT_FOUND", "gone")).logContact("p1", Instant.parse("2026-01-05T12:00:00Z"), "Hi")
+        }
+    }
+
+    @Test
+    fun deleteContactSendsIdAndMapsRevertedPerson() = runTest {
+        val summary = personSummary(status = "new contact", state = "OVERDUE", lastContactedAt = null)
+        val engine = FakeEngine(body = data(personDetail(field = "deleteContact", summary = summary)))
+        val person = repo("", engine = engine).deleteContact("k1")
+        assertTrue(variables(engine.requestBodies.single()).contains(""""id":"k1""""))
+        assertEquals("new contact", person.status.name)
+        assertEquals(ContactState.OVERDUE, person.contactState)
+        assertEquals(emptyList(), person.contacts)
+        assertEquals(emptyList(), person.comments)
+    }
+
+    // ── createPerson comment ────────────────────────────────
+
+    @Test
+    fun createPersonSendsCommentOnlyWhenGiven() = runTest {
+        val body = data(personDetail(field = "createPerson"))
+        val withComment = FakeEngine(body = body)
+        repo("", engine = withComment).createPerson("Sam Sheep", "s1", comment = "Met at the cafe")
+        assertTrue(variables(withComment.requestBodies.single()).contains(""""comment":"Met at the cafe""""))
+
+        val without = FakeEngine(body = body)
+        repo("", engine = without).createPerson("Sam Sheep", "s1")
+        assertFalse(variables(without.requestBodies.single()).contains("comment"))
     }
 }
