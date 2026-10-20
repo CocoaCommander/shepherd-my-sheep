@@ -1,7 +1,44 @@
 # Work Log
 
-## 2026-10-20 — Contact clock restart; Prayer list API and screen
+## 2026-10-20 — Contact clock restart; Prayer list; Review now screen
 
+- **#61–#62 Review now screen** (web + mWeb) — two stacked PRs from the
+  plan `~/.claude/plans/review-now-screen.md`, both open (not merged).
+  Home's "Review now" button now goes to a new `/review` page instead
+  of jumping to `#overdue`. Built from the canvas (`ReviewStep`,
+  `ReviewLog`, `ReviewDone` and their mobile variants). No API changes.
+  - **#61 Steps, log, skip** (base `main`) — the queue is
+    `contactAlerts` filtered to overdue, in server order, frozen at
+    first load so refetches after each save don't shift it. Each step:
+    person card (meter via Home's `careDetails`, last note, newest
+    active burden with "+N more", milestone tags) from `Person(id)`,
+    and `LogContactForm` inline with "Log contact" / "Skip for now"
+    (Skip sends nothing). New-contact variant adds the "What happens
+    next" panel. Segmented progress bar, queue aside (web) / "Up next"
+    (mWeb), focused header with Exit review, focus moves to each new
+    step's h2. Minimal Finished screen. Shared changes:
+    `LogContactForm`'s `onSaved` gets `{ withBurden }`, `Stepper` takes
+    optional `outcomes`, `Meter` an optional `detail`.
+  - **#62 Finished in full, Previous, stale people** (base
+    `review-1-steps`) — Finished lists Logged today (detail lines and
+    Undo via `deleteContact`) and Still overdue (Review again, then back
+    to Finished). Undo moves the person to Still overdue as "Contact
+    removed · …" if the refetch says they're overdue again; undoing a
+    follow-up reverts the promotion on the server. Previous on a skipped
+    step shows the form again; on a logged step, "Contact logged" with
+    Next and Undo. A person who stops being overdue mid-review gets a
+    note and Next and counts as neither logged nor skipped; a deleted or
+    unassigned person is dropped from the queue silently. Ticks the
+    Review now todo.
+  - **Decisions** (user accepted all four recommendations): overdue
+    only, no due soon (Q1); show the newest active burden from
+    `Person(id)` (Q2); Undo on Finished (Q3); Previous on a logged step
+    shows the logged state with Undo (Q4). The form keeps its own copy,
+    not the canvas's. Session state lives in the page, so a reload
+    starts over. Copy not on the canvas (empty state, stale notes,
+    "Contact removed", "+N more") is flagged in each PR.
+  - Not clicked through in a browser. Check `/review` locally after
+    `make reset` (seed data with overdue people).
 - **#56–#58 Prayer list screen** (web + mWeb) — three stacked PRs from
   the plan `~/.claude/plans/prayer-list-screen.md`, all merged that
   afternoon (#58's merge brought the stack into `main`). Rebuilds
@@ -80,12 +117,15 @@
   - Security reviewer not run on #48 or #49 (display-only / one
     read-only field). Existing dev databases need `make reset` for V007.
 
-**State at end of day:** everything above is merged to `main`
-(`b2dd316`); this worktree is on `prayer-ui-3-add`. From the PR
-descriptions (not re-run here): pytest 298 and test-seed 18 on a fresh
-volume (#53), KMP 49 tests (#54), vitest 338 (#58). Existing dev
-databases need `make reset` for V007 and V008. Open: nobody has clicked
-through the new Prayer list in a browser yet. New todos from the day:
+**State at end of day:** everything above except #61 and #62 is merged
+to `main` (`080203c`, after the morning work log #60). #61 and #62 are
+open: merge #61, then retarget #62 to `main`. This worktree is on
+`work-log-2026-10-20-review`. From the PR descriptions (not re-run
+here): pytest 298 and test-seed 18 on a fresh volume (#53), KMP 49
+tests (#54), vitest 358 with `tsc`, eslint and `vite build` passing
+(#61; #62 adds tests but doesn't give a total). Existing dev databases
+need `make reset` for V007 and V008. Open: nobody has clicked through
+the Prayer list or `/review` in a browser yet. New todos from the day:
 collapse comments in Recently released by default, and rename "Longest
 standing" to "Oldest". See [todo.md](todo.md) for next steps.
 
