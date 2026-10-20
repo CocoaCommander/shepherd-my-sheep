@@ -39,6 +39,7 @@ type Person {
   lastContactDate: Date @deprecated(reason: "Use lastContactedAt.")  # date part of lastContactedAt
   lastContactedAt: DateTime       # nullable — latest logged contact
   contactDueAt: DateTime          # nullable — null when contactState is NOT_TRACKED
+  contactClockStart: DateTime     # nullable — when the current contact window started (last contact, when added, or a status move); null when NOT_TRACKED
   contactState: ContactState!
   isActive: Boolean!
   status: Status!
@@ -59,7 +60,7 @@ type Person {
 
 # Contact cadence (business rule 6): 'active' people are due every 7 days,
 # a 'new contact' within 72 hours (counted from when they were added if no
-# contact is logged). Adding someone is the first contact, so any contact
+# contact is logged, or from a status move if that is later). Adding someone is the first contact, so any contact
 # logged for a 'new contact' is their follow-up. Due soon = within 48h (active) or 24h (new contact)
 # of the deadline. Other statuses are NOT_TRACKED.
 enum ContactState {
