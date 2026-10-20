@@ -51,8 +51,8 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19).
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
 - [ ] **Prayer list** (mocked up for web and mWeb, pending build): all active burdens across the people you shepherd.
-  - [ ] Sort: longest standing (default), newest, or grouped by person. Filter by person.
-  - [ ] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53).
+  - [x] Sort: longest standing (default), newest, or grouped by person. Filter by person. (#56)
+  - [x] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53). (#56)
   - [ ] Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16).
   - [ ] Nudge on burdens that have been on the list for over a year ("Still the right one to carry?").
   - [ ] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20).
