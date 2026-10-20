@@ -19,6 +19,7 @@ export function Meter({
   max,
   tone = 'ok',
   label,
+  detail,
   goal,
   className,
 }: {
@@ -27,6 +28,8 @@ export function Meter({
   tone?: MeterTone
   /** e.g. "21 days since last contact". */
   label: string
+  /** Muted after the label, e.g. "Thu, Sep 24". Left out of the bar's accessible name. */
+  detail?: string
   /** e.g. "Goal: every 7 days". */
   goal?: string
   className?: string
@@ -35,7 +38,10 @@ export function Meter({
   return (
     <div className={cx(styles.meterBlock, tone !== 'ok' && styles[tone], className)}>
       <div className={styles.meterRow}>
-        <span className={styles.meterLabel}>{label}</span>
+        <span className={styles.meterLabel}>
+          {label}
+          {detail && <span className={styles.meterDetail}> · {detail}</span>}
+        </span>
         {goal && <span className={styles.meterGoal}>{goal}</span>}
       </div>
       <div className={styles.meter} role="img" aria-label={goal ? `${label}. ${goal}` : label}>
@@ -88,25 +94,43 @@ export function Milestones({
   )
 }
 
-/** Progress through the Review flow: visited steps are danger, the rest sunken. */
+export type StepOutcome = 'logged' | 'skipped'
+
+/**
+ * Progress through the Review flow. Without `outcomes`, visited steps are danger and the rest
+ * sunken. With them, the current step is danger, logged ones brand and skipped ones warn, and
+ * the counts join the accessible name so colour isn't the only signal.
+ */
 export function Stepper({
   current,
   total,
+  outcomes,
   className,
 }: {
   /** 1-based; steps up to and including it are marked. */
   current: number
   total: number
+  /** By step index; undefined for a step not done yet. */
+  outcomes?: readonly (StepOutcome | undefined)[]
   className?: string
 }) {
+  const logged = outcomes?.filter((o) => o === 'logged').length ?? 0
+  const skipped = outcomes?.filter((o) => o === 'skipped').length ?? 0
+  const label =
+    logged + skipped > 0
+      ? `Step ${current} of ${total}. ${logged} logged, ${skipped} skipped.`
+      : `Step ${current} of ${total}`
+  const stepClass = (i: number) => {
+    if (!outcomes) return i < current && styles.on
+    if (i === current - 1) return styles.on
+    const outcome = outcomes[i]
+    return outcome && styles[outcome]
+  }
+
   return (
-    <div
-      className={cx(styles.stepper, className)}
-      role="img"
-      aria-label={`Step ${current} of ${total}`}
-    >
+    <div className={cx(styles.stepper, className)} role="img" aria-label={label}>
       {Array.from({ length: total }, (_, i) => (
-        <i key={i} className={cx(styles.stepperStep, i < current && styles.on)} />
+        <i key={i} className={cx(styles.stepperStep, stepClass(i))} />
       ))}
     </div>
   )

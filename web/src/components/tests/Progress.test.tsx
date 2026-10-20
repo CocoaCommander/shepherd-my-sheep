@@ -74,4 +74,15 @@ describe('Stepper', () => {
     expect(segments).toHaveLength(4)
     expect(segments.map((s) => s.classList.contains(styles.on))).toEqual([true, true, false, false])
   })
+
+  it('colours each step by its outcome and counts them in the name', () => {
+    render(<Stepper current={3} total={4} outcomes={['logged', 'skipped', undefined, undefined]} />)
+    const stepper = screen.getByRole('img', { name: 'Step 3 of 4. 1 logged, 1 skipped.' })
+    expect(Array.from(stepper.children).map((s) => s.className.split(' ')[1] ?? '')).toEqual([
+      styles.logged,
+      styles.skipped,
+      styles.on,
+      '',
+    ])
+  })
 })

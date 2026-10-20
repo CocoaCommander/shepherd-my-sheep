@@ -31,8 +31,11 @@ export function LogContactForm({
   submitLabel?: string
   /** e.g. "Skip for now", beside the submit button. Only with submitLabel. */
   secondary?: { label: string; onClick: () => void }
-  /** wasNewContact: they were a new contact before this, so the contact was their follow-up. */
-  onSaved: (person: LoggedPerson, wasNewContact: boolean) => void
+  /**
+   * wasNewContact: they were a new contact before this, so the contact was their follow-up.
+   * withBurden: a prayer burden was added with it.
+   */
+  onSaved: (person: LoggedPerson, wasNewContact: boolean, saved: { withBurden: boolean }) => void
   onBusyChange?: (busy: boolean) => void
 }) {
   const autoId = useId()
@@ -80,7 +83,9 @@ export function LogContactForm({
     }
     try {
       const result = await logContact({ variables: { input } })
-      if (result.data) onSaved(result.data.logContact, wasNewContact)
+      if (result.data) {
+        onSaved(result.data.logContact, wasNewContact, { withBurden: Boolean(prayerBurden) })
+      }
     } catch {
       // Shown from the mutation's `error` below.
     }

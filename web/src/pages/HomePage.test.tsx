@@ -176,7 +176,7 @@ describe('HomePage', () => {
     expect(banner).toHaveTextContent('Tom Becker has not been contacted yet.')
     expect(within(banner).getByRole('link', { name: 'Review now' })).toHaveAttribute(
       'href',
-      '#overdue',
+      '/review',
     )
 
     expect(cardNames(section('Needs contact now'))).toEqual([
