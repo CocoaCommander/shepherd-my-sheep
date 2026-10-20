@@ -1,5 +1,41 @@
 # Work Log
 
+## 2026-10-20 — Contact clock restarts on a status move
+
+- **#47–#49 Contact clock** — three stacked draft PRs, all open: #47
+  (base `main`), #48 (base `clock-1-backend`), #49 (base `clock-2-web`).
+  Merge in that order, retargeting each to `main`. Implements the
+  2026-10-16 decision that moving someone back to Active or New contact
+  restarts their clock, and exposes the clock start so the UI needs no
+  hard-coded window.
+  - **#47 Backend** — V007 adds nullable `person.status_changed_at`.
+    `update_person` stamps it only when the status actually changes.
+    `person_contact_state` now starts the clock at
+    `greatest(last contact or created_at, status_changed_at)`, with a new
+    `contact_clock_start` column (null when not tracked).
+    `Person.contactClockStart` in the API; CLAUDE.md rule 6 updated.
+    - **Decisions:** only a manual move stamps; `log_contact`'s promotion
+      and Undo's revert don't (a back-dated contact counts from its own
+      date, and Undo leaves things as if the contact never happened).
+      Re-saving the same status doesn't restart the clock. A contact
+      logged after the move takes over. `statusChangedAt` isn't exposed.
+    - The sqlfluff pre-commit hook reorders view columns (ST06), so
+      V007's final SELECT has `-- noqa: ST06`.
+  - **#48 Web** — Home's meter uses `contactClockStart` and
+    `contactDueAt`; the hard-coded `WINDOW` is gone. New label "Moved to
+    Active/New contact {n} ago" when a move started the clock; that copy
+    isn't on the design canvas.
+  - **#49 Shared KMP** — `Person.contactClockStart` mapped in the shared
+    module. No Android or iOS UI uses it yet.
+  - Security reviewer not run on #48 or #49 (display-only / one
+    read-only field). Existing dev databases need `make reset` for V007.
+
+**State at end of day:** on `clock-3-kmp`, top of the stack. From the
+PR descriptions (not re-run here): pytest 259 and test-seed 17 on a fresh
+volume, vitest 277, KMP `RepositoryTest` 33, all passing. The Person page
+progress bar can now be built from `contactClockStart`; see
+[todo.md](todo.md) for next steps.
+
 ## 2026-10-19 — Add person + Log contact
 
 - **#37–#44 Add person + Log contact** — eight stacked PRs on top of #36
