@@ -30,6 +30,7 @@ public:
         if (field == "statuses") return resolveStatuses();
         if (field == "milestones") return resolveMilestones();
         if (field == "activePrayerBurdens") return resolveActivePrayerBurdens(args, userId);
+        if (field == "recentlyReleasedPrayerBurdens") return resolveRecentlyReleasedPrayerBurdens(args, userId);
         if (field == "searchUsers") return resolveSearchUsers(args, userId);
 
         throw BadInput("Unknown query: " + field);
@@ -150,6 +151,9 @@ private:
     static constexpr size_t MAX_SEARCH_LENGTH  = 100;
     static constexpr int    MAX_SEARCH_RESULTS = 10;
 
+    /** The Recently released panel: the latest releases, of any age. */
+    static constexpr int MAX_RECENTLY_RELEASED = 5;
+
     /** UTF-8 characters, not bytes, so names in any script count the same. */
     static size_t characterCount(const std::string& text) {
         size_t count = 0;
@@ -225,6 +229,34 @@ private:
                                    "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
                                    "ORDER BY pb.created_at DESC",
                              userId, nullable(personId))) {
+            list->push_back(rowToBurdenWithPerson(row));
+        }
+        loadBurdenComments(txn, list);
+        txn.commit();
+
+        return list;
+    }
+
+    /**
+     * The latest MAX_RECENTLY_RELEASED releases across your people (or one of
+     * them), newest release first, with no time window. Same shape as the
+     * active list.
+     */
+    oatpp::Any resolveRecentlyReleasedPrayerBurdens(const Args& args, const std::string& userId) {
+        auto personId = args.opt("personId");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto list = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
+        for (const auto& row :
+             txn.exec_params(std::string(BURDEN_SELECT)
+                                 + "JOIN user_person up ON up.person_id = pb.person_id AND up.user_id = $1 "
+                                   "WHERE pb.released_date IS NOT NULL "
+                                   "  AND ($2::uuid IS NULL OR pb.person_id = $2::uuid) "
+                                   "ORDER BY pb.released_date DESC, pb.id DESC "
+                                   "LIMIT $3",
+                             userId, nullable(personId), MAX_RECENTLY_RELEASED)) {
             list->push_back(rowToBurdenWithPerson(row));
         }
         loadBurdenComments(txn, list);

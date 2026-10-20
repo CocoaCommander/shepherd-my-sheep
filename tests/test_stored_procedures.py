@@ -305,6 +305,53 @@ class TestPrayerBurdens:
             with pytest.raises(psycopg2.errors.RaiseException, match="already released"):
                 cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
 
+    def test_unrelease_clears_released_date_and_keeps_the_rest(self, db):
+        with db.cursor() as cur:
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM create_prayer_burden(%s, %s)", (person_row[0], "Pray for peace"))
+            created = cur.fetchone()
+            burden_id = created[0]
+            user_id = sp_create_user(cur, username="unrelease_author")[0]
+            cur.execute("SELECT id FROM create_comment(%s, %s, %s, %s)", (user_id, person_row[0], "linked", burden_id))
+            comment_row = cur.fetchone()
+            cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
+
+            cur.execute("SELECT * FROM unrelease_prayer_burden(%s)", (burden_id,))
+            result = cur.fetchone()
+            assert result[0] == burden_id
+            assert result[2] == "Pray for peace"  # content
+            assert result[3] is None  # released_date — active again
+            assert result[4] == created[4]  # created_at
+            cur.execute("SELECT id FROM comment WHERE prayer_burden_id = %s", (burden_id,))
+            assert cur.fetchall() == [comment_row]
+
+    def test_unrelease_active_burden_raises(self, db):
+        with db.cursor() as cur:
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM create_prayer_burden(%s, %s)", (person_row[0], "Still active"))
+            burden_id = cur.fetchone()[0]
+
+            with pytest.raises(psycopg2.errors.RaiseException, match="not released"):
+                cur.execute("SELECT * FROM unrelease_prayer_burden(%s)", (burden_id,))
+
+    def test_unrelease_unknown_id_raises(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException, match="not found or not released"):
+                cur.execute("SELECT * FROM unrelease_prayer_burden(gen_random_uuid())")
+
+    def test_release_unrelease_release_again(self, db):
+        with db.cursor() as cur:
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM create_prayer_burden(%s, %s)", (person_row[0], "Round trip"))
+            burden_id = cur.fetchone()[0]
+
+            cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
+            assert cur.fetchone()[3] is not None
+            cur.execute("SELECT * FROM unrelease_prayer_burden(%s)", (burden_id,))
+            assert cur.fetchone()[3] is None
+            cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
+            assert cur.fetchone()[3] is not None
+
     def test_person_with_no_prayer_burdens(self, db):
         """Business rule: a new person has no prayer burdens."""
         with db.cursor() as cur:

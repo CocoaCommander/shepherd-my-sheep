@@ -152,6 +152,10 @@ type Query {
 
   # Prayer burdens — optionally filter by person; each with its person (id, name, status) and its comments
   activePrayerBurdens(personId: UUID): [PrayerBurden!]!
+
+  # Your people's 5 most recently released burdens, of any age, newest release first — may be empty;
+  # optionally filter by person; each with its person (id, name, status) and its comments
+  recentlyReleasedPrayerBurdens(personId: UUID): [PrayerBurden!]!
 }
 
 # ── Mutations ────────────────────────────────────────────────
@@ -175,6 +179,7 @@ type Mutation {
   # Prayer Burdens
   createPrayerBurden(input: CreatePrayerBurdenInput!): PrayerBurden!
   releasePrayerBurden(id: UUID!): PrayerBurden!
+  unreleasePrayerBurden(id: UUID!): PrayerBurden!  # Undo of a release; NOT_FOUND if it isn't released or isn't yours
 
   # Comments
   createComment(input: CreateCommentInput!): Comment!

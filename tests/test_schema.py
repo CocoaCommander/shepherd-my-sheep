@@ -94,6 +94,21 @@ class TestUpdatedAtTrigger:
 
             assert updated >= original
 
+    def test_prayer_burden_updated_at_on_unrelease(self, db):
+        with db.cursor() as cur:
+            status_id = get_status_id(cur)
+            cur.execute("SELECT * FROM create_person(%s, %s)", ("Unrelease Test", status_id))
+            person_id = cur.fetchone()[0]
+            cur.execute("SELECT * FROM create_prayer_burden(%s, %s)", (person_id, "test burden"))
+            burden_id = cur.fetchone()[0]
+            cur.execute("SELECT * FROM release_prayer_burden(%s)", (burden_id,))
+            cur.execute("SELECT updated_at FROM prayer_burden WHERE id = %s", (burden_id,))
+            released_at = cur.fetchone()[0]
+
+            cur.execute("SELECT * FROM unrelease_prayer_burden(%s)", (burden_id,))
+            cur.execute("SELECT updated_at FROM prayer_burden WHERE id = %s", (burden_id,))
+            assert cur.fetchone()[0] >= released_at
+
 
 # ── Contact log (business rule 6) ────────────────────────────
 

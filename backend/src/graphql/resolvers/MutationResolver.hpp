@@ -49,6 +49,7 @@ public:
         if (field == "removeMilestone") return resolveRemoveMilestone(args, userId);
         if (field == "createPrayerBurden") return resolveCreatePrayerBurden(args, userId);
         if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
+        if (field == "unreleasePrayerBurden") return resolveUnreleasePrayerBurden(args, userId);
         if (field == "createComment") return resolveCreateComment(args, userId);
         if (field == "deleteComment") return resolveDeleteComment(args, userId);
         if (field == "logContact") return resolveLogContact(args, userId);
@@ -361,6 +362,25 @@ private:
         }
 
         txn.exec_params("SELECT 1 FROM release_prayer_burden($1)", id);
+        auto burden = fetchBurden(txn, id);
+        txn.commit();
+
+        return burden;
+    }
+
+    /** Undo of a release: any shepherd of the person, at any time. */
+    oatpp::Any resolveUnreleasePrayerBurden(const Args& args, const std::string& userId) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto owner = txn.exec_params("SELECT person_id FROM prayer_burden WHERE id = $1", id);
+        if (owner.empty() || !isShepherd(txn, userId, owner[0]["person_id"].c_str())) {
+            throw NotFound("Prayer burden not found");
+        }
+
+        txn.exec_params("SELECT 1 FROM unrelease_prayer_burden($1)", id);
         auto burden = fetchBurden(txn, id);
         txn.commit();
 

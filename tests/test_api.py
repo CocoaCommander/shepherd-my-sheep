@@ -970,6 +970,307 @@ class TestPrayerBurdenComments:
         assert comment["prayerBurden"].get("person") is None
 
 
+UNRELEASE_BURDEN = """
+mutation U($id: UUID!) {
+  unreleasePrayerBurden(id: $id) {
+    id content releasedDate
+    person { id name status { id name } }
+    comments { id content author { id name } }
+  }
+}"""
+
+RECENTLY_RELEASED = """
+query Q($personId: UUID) {
+  recentlyReleasedPrayerBurdens(personId: $personId) {
+    id content releasedDate
+    person { id name status { id name } }
+    comments { id content createdAt author { id name } }
+  }
+}"""
+
+RELEASE_ID_ONLY = "mutation R($id: UUID!) { releasePrayerBurden(id: $id) { id } }"
+
+
+class TestUnreleasePrayerBurden:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    def burden(self, token, person_id, content="pray"):
+        return gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": content}}, token)["createPrayerBurden"][
+            "id"
+        ]
+
+    def comment(self, token, person_id, content, burden_id=None):
+        fields = {"personId": person_id, "content": content}
+        if burden_id:
+            fields["prayerBurdenId"] = burden_id
+        return gql(CREATE_COMMENT, {"input": fields}, token)["createComment"]["id"]
+
+    def test_unrelease_returns_active_burden_with_person_and_comments(self, make_user, statuses):
+        token, user_id, _ = make_user(name="Writer")
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id, "back again")
+        first = self.comment(token, person_id, "first", burden_id)
+        second = self.comment(token, person_id, "second", burden_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+
+        burden = gql(UNRELEASE_BURDEN, {"id": burden_id}, token)["unreleasePrayerBurden"]
+        assert burden["id"] == burden_id
+        assert burden["content"] == "back again"
+        assert burden["releasedDate"] is None
+        assert burden["person"] == person_dict(person_id, "Alice", statuses["active"], "active")
+        assert [c["id"] for c in burden["comments"]] == [second, first]
+        assert pick(burden["comments"][0]["author"], {"id": 0, "name": 0}) == {"id": user_id, "name": "Writer"}
+
+    def test_unrelease_moves_burden_between_lists(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+        comment_id = self.comment(token, person_id, "kept", burden_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+        assert gql(PRAYER_LIST, {}, token)["activePrayerBurdens"] == []
+        assert [r["id"] for r in gql(RECENTLY_RELEASED, {}, token)["recentlyReleasedPrayerBurdens"]] == [burden_id]
+
+        gql(UNRELEASE_BURDEN, {"id": burden_id}, token)
+
+        [active] = gql(PRAYER_LIST, {}, token)["activePrayerBurdens"]
+        assert active["id"] == burden_id
+        assert [c["id"] for c in active["comments"]] == [comment_id]
+        assert gql(RECENTLY_RELEASED, {}, token)["recentlyReleasedPrayerBurdens"] == []
+
+    def test_burden_without_comments_unreleases_with_empty_comments(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+        assert gql(UNRELEASE_BURDEN, {"id": burden_id}, token)["unreleasePrayerBurden"]["comments"] == []
+
+    def test_can_release_again_after_unrelease(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+        gql(UNRELEASE_BURDEN, {"id": burden_id}, token)
+        assert gql(RELEASE_BURDEN, {"id": burden_id}, token)["releasePrayerBurden"]["releasedDate"] is not None
+
+    def test_unreleasing_long_released_burden_still_works(self, make_user, status_id, db_connection):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+        with db_connection.cursor() as cur:
+            cur.execute(
+                "UPDATE prayer_burden SET released_date = now() - interval '1 year' WHERE id = %s", (burden_id,)
+            )
+        assert gql(UNRELEASE_BURDEN, {"id": burden_id}, token)["unreleasePrayerBurden"]["releasedDate"] is None
+
+    def test_co_shepherd_can_unrelease(self, make_user, status_id):
+        owner, _, _ = make_user()
+        friend, friend_id, _ = make_user()
+        person_id = create_person(owner, status_id)
+        burden_id = self.burden(owner, person_id)
+        gql(ASSIGN, {"personId": person_id, "userId": friend_id}, owner)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, owner)
+
+        assert gql(UNRELEASE_BURDEN, {"id": burden_id}, friend)["unreleasePrayerBurden"]["releasedDate"] is None
+        assert [r["id"] for r in gql(PRAYER_LIST, {}, owner)["activePrayerBurdens"]] == [burden_id]
+
+    def test_stranger_gets_not_found_and_burden_stays_released(self, make_user, status_id):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        person_id = create_person(owner, status_id)
+        burden_id = self.burden(owner, person_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, owner)
+
+        error = gql_error_full(UNRELEASE_BURDEN, {"id": burden_id}, stranger)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert burden_id not in error["message"]
+        assert gql(PRAYER_LIST, {}, owner)["activePrayerBurdens"] == []
+        assert [r["id"] for r in gql(RECENTLY_RELEASED, {}, owner)["recentlyReleasedPrayerBurdens"]] == [burden_id]
+
+    def test_unreleasing_active_burden_is_not_found_without_uuid(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burden_id = self.burden(token, person_id)
+
+        error = gql_error_full(UNRELEASE_BURDEN, {"id": burden_id}, token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert burden_id not in error["message"]
+        assert [r["id"] for r in gql(PRAYER_LIST, {}, token)["activePrayerBurdens"]] == [burden_id]
+
+    def test_unauthenticated_is_401(self):
+        status, _ = post(UNRELEASE_BURDEN, {"id": str(uuid.uuid4())})
+        assert status == 401
+
+
+class TestRecentlyReleasedPrayerBurdens:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    @pytest.fixture()
+    def released_ago(self, db_connection):
+        """Backdates a burden's released_date (committed: the API reads it)."""
+
+        def _released_ago(burden_id, days):
+            with db_connection.cursor() as cur:
+                cur.execute(
+                    "UPDATE prayer_burden SET released_date = now() - %s * interval '1 day' WHERE id = %s",
+                    (days, burden_id),
+                )
+
+        return _released_ago
+
+    def burden(self, token, person_id, content="pray", release=False):
+        burden_id = gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": content}}, token)[
+            "createPrayerBurden"
+        ]["id"]
+        if release:
+            gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+        return burden_id
+
+    def comment(self, token, person_id, content, burden_id=None):
+        fields = {"personId": person_id, "content": content}
+        if burden_id:
+            fields["prayerBurdenId"] = burden_id
+        return gql(CREATE_COMMENT, {"input": fields}, token)["createComment"]["id"]
+
+    def ids(self, token, person_id=None):
+        rows = gql(RECENTLY_RELEASED, {"personId": person_id}, token)["recentlyReleasedPrayerBurdens"]
+        return [r["id"] for r in rows]
+
+    def test_user_with_no_people_gets_empty_list(self, make_user):
+        token, _, _ = make_user()
+        assert self.ids(token) == []
+
+    def test_people_with_nothing_released_get_empty_list(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        assert self.ids(token) == []
+        assert self.ids(token, person_id) == []
+        self.burden(token, person_id, "still active")
+        assert self.ids(token) == []
+
+    def test_newest_release_first(self, make_user, status_id, released_ago):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        oldest = self.burden(token, person_id, release=True)
+        newest = self.burden(token, person_id, release=True)
+        middle = self.burden(token, person_id, release=True)
+        released_ago(oldest, 30)
+        released_ago(middle, 10)
+        released_ago(newest, 1)
+
+        assert self.ids(token) == [newest, middle, oldest]
+
+    def test_excludes_active_burdens(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        self.burden(token, person_id, "active")
+        released = self.burden(token, person_id, "gone", release=True)
+        assert self.ids(token) == [released]
+
+    def test_includes_burden_released_a_year_ago(self, make_user, status_id, released_ago):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        old = self.burden(token, person_id, release=True)
+        released_ago(old, 365)
+        assert self.ids(token) == [old]
+
+    def test_only_the_five_newest_are_returned(self, make_user, status_id, released_ago):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        burdens = [self.burden(token, person_id, f"b{i}", release=True) for i in range(7)]
+        for days, burden_id in enumerate(burdens, start=1):  # burdens[0] is the newest release
+            released_ago(burden_id, days)
+
+        assert self.ids(token) == burdens[:5]
+
+    def test_only_the_callers_people(self, make_user, status_id):
+        owner, _, _ = make_user()
+        stranger, _, _ = make_user()
+        owners_person = create_person(owner, status_id)
+        self.burden(owner, owners_person, "private", release=True)
+        mine = create_person(stranger, status_id)
+        my_burden = self.burden(stranger, mine, "mine", release=True)
+
+        assert self.ids(stranger) == [my_burden]
+        assert self.ids(stranger, owners_person) == []
+
+    def test_co_shepherds_both_see_the_burden(self, make_user, status_id):
+        owner, _, _ = make_user()
+        friend, friend_id, _ = make_user()
+        person_id = create_person(owner, status_id)
+        burden_id = self.burden(owner, person_id, release=True)
+        gql(ASSIGN, {"personId": person_id, "userId": friend_id}, owner)
+
+        assert self.ids(owner) == [burden_id]
+        assert self.ids(friend) == [burden_id]
+
+    def test_person_filter(self, make_user, status_id):
+        token, _, _ = make_user()
+        alice = create_person(token, status_id, name="Alice")
+        bob = create_person(token, status_id, name="Bob")
+        a_burden = self.burden(token, alice, "for alice", release=True)
+        b_burden = self.burden(token, bob, "for bob", release=True)
+
+        assert self.ids(token, alice) == [a_burden]
+        assert self.ids(token, bob) == [b_burden]
+        assert set(self.ids(token)) == {a_burden, b_burden}
+
+    def test_cap_applies_after_person_filter(self, make_user, status_id, released_ago):
+        token, _, _ = make_user()
+        alice = create_person(token, status_id, name="Alice")
+        bob = create_person(token, status_id, name="Bob")
+        bobs = [self.burden(token, bob, f"b{i}", release=True) for i in range(5)]
+        for days, burden_id in enumerate(bobs, start=1):
+            released_ago(burden_id, days)
+        alices = self.burden(token, alice, "old", release=True)
+        released_ago(alices, 100)
+
+        assert self.ids(token, alice) == [alices]
+
+    def test_rows_carry_person_status_and_comments_newest_first(self, make_user, statuses):
+        token, user_id, _ = make_user(name="Writer")
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id, "prayed")
+        bare_id = self.burden(token, person_id, "bare")
+        first = self.comment(token, person_id, "first", burden_id)
+        self.comment(token, person_id, "standalone")
+        second = self.comment(token, person_id, "second", burden_id)
+        gql(RELEASE_ID_ONLY, {"id": burden_id}, token)
+        gql(RELEASE_ID_ONLY, {"id": bare_id}, token)
+
+        rows = {r["id"]: r for r in gql(RECENTLY_RELEASED, {}, token)["recentlyReleasedPrayerBurdens"]}
+        assert set(rows) == {burden_id, bare_id}
+        row = rows[burden_id]
+        assert row["releasedDate"] is not None
+        assert row["person"] == person_dict(person_id, "Alice", statuses["active"], "active")
+        assert [c["id"] for c in row["comments"]] == [second, first]
+        assert pick(row["comments"][0]["author"], {"id": 0, "name": 0}) == {"id": user_id, "name": "Writer"}
+        assert parse_time(row["comments"][0]["createdAt"]) >= parse_time(row["comments"][1]["createdAt"])
+        assert rows[bare_id]["comments"] == []
+
+    def test_person_status_follows_updates(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id, release=True)
+        gql(UPDATE_STATUS, {"id": person_id, "input": {"statusId": statuses["inactive"]}}, token)
+
+        [row] = gql(RECENTLY_RELEASED, {}, token)["recentlyReleasedPrayerBurdens"]
+        assert row["id"] == burden_id
+        assert row["person"] == person_dict(person_id, "Alice", statuses["inactive"], "inactive")
+
+    def test_needs_a_token(self):
+        status, _ = post(RECENTLY_RELEASED)
+        assert status == 401
+
+
 SEARCH_USERS = """
 query SearchUsers($query: String!) {
   searchUsers(query: $query) { id name username }
@@ -1491,7 +1792,9 @@ mutation U($id: UUID!, $input: UpdatePersonInput!) {
 
 
 def parse_time(value):
-    # Postgres text, e.g. "2026-10-20 17:14:56.3+00"; Python 3.10 needs "+00:00".
+    # Postgres text, e.g. "2026-10-20 17:14:56.3+00"; Python 3.10 needs "+00:00"
+    # and 3 or 6 fraction digits, but Postgres drops trailing zeros.
+    value = re.sub(r"\.(\d{1,6})", lambda m: "." + m.group(1).ljust(6, "0"), value)
     return datetime.fromisoformat(re.sub(r"([+-]\d\d)$", r"\1:00", value))
 
 
