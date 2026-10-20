@@ -1,10 +1,60 @@
 # Work Log
 
-## 2026-10-20 — Contact clock restarts on a status move
+## 2026-10-20 — Contact clock restart; Prayer list API and screen
 
-- **#47–#49 Contact clock** — three stacked draft PRs, all open: #47
+- **#56–#58 Prayer list screen** (web + mWeb) — three stacked PRs from
+  the plan `~/.claude/plans/prayer-list-screen.md`, all merged that
+  afternoon (#58's merge brought the stack into `main`). Rebuilds
+  `/prayer` on the design system from the canvas (`Prayer.dc.html`,
+  `PrayerMobile.dc.html`). The whole Prayer list section of
+  [todo.md](todo.md) is now ticked.
+  - **#56 Rows, sort, filter, Release with Undo** — each row: avatar,
+    person link, status pill, "Added {ago}", the burden, the latest
+    comment ("You" for your own), Comment and Release. Sort: Longest
+    standing (default), Newest, By person (an h2 per person); ties break
+    on id. Person filter, client-side. Release removes the row at once
+    with an Undo toast (`unreleasePrayerBurden`); a failed release puts
+    it back, a NOT_FOUND on Undo refetches. Empty states for zero people
+    (rule 1), no burdens, and a filtered person with none. New
+    `PrayerListBurden` fragment, `timeAgo` in `format.ts`, and
+    `STATUS_BY_NAME` moved to `pages/personStatus.ts`.
+  - **#57 Comment thread, Hide details, nudge, Recently released** —
+    Comment expands the thread inline (latest two, "Show N earlier
+    comments") with a comment box. Hide details switch masks burden and
+    comment text, per device in `localStorage`, off by default. Burdens
+    over 365 days old show "Still the right one to carry?" (text only).
+    Recently released is a read-only 320px aside on web, after the list
+    on mWeb, hidden when empty.
+  - **#58 Add prayer burden, sharing line** — header button (a floating
+    "+" on mWeb) opens a dialog: pick the person, write the burden.
+    Disabled with zero people. "Everyone who shepherds {first} sees
+    prayer burdens and comments." (`pages/sharing.ts`) sits under the
+    add-burden box, each row's comment box, and the Person page's
+    add-burden form.
+  - **Decisions:** the Comment button expands inline (not on the canvas;
+    decided by the user). The nudge and Recently released are text only,
+    per the canvas. Copy not on the canvas (zero-people state, the add
+    dialog, the sharing line) is flagged in each PR.
+  - Security review on #57 and #58: no findings. Not clicked through in
+    a browser: sign-in needs the seed password, which wasn't read.
+- **#52–#54 Prayer list API** — three stacked PRs, merged before the
+  screen work.
+  - **#52** — burdens returned by root fields carry `person {id name
+    status}` and `comments` (newest first, `[]` when none); a burden
+    nested in a comment stays shallow. **Decision:** the burden's person
+    is a `PersonRefDto`, so other `Person` fields selected there come
+    back null.
+  - **#53** — V008 `unrelease_prayer_burden` and
+    `unreleasePrayerBurden(id)` (any shepherd, any time), and
+    `recentlyReleasedPrayerBurdens(personId)`, the latest 5 of any age.
+    Also fixes a flaky `parse_time` test helper. Needs `make reset` for
+    V008.
+  - **#54 Shared KMP** — the `PrayerListBurden` fragment, the recently
+    released and unrelease operations, and `PersonRef.status`. No
+    Android or iOS UI uses them yet.
+- **#47–#49 Contact clock** — three stacked PRs, now merged: #47
   (base `main`), #48 (base `clock-1-backend`), #49 (base `clock-2-web`).
-  Merge in that order, retargeting each to `main`. Implements the
+  Merged in that order. Implements the
   2026-10-16 decision that moving someone back to Active or New contact
   restarts their clock, and exposes the clock start so the UI needs no
   hard-coded window.
@@ -30,11 +80,14 @@
   - Security reviewer not run on #48 or #49 (display-only / one
     read-only field). Existing dev databases need `make reset` for V007.
 
-**State at end of day:** on `clock-3-kmp`, top of the stack. From the
-PR descriptions (not re-run here): pytest 259 and test-seed 17 on a fresh
-volume, vitest 277, KMP `RepositoryTest` 33, all passing. The Person page
-progress bar can now be built from `contactClockStart`; see
-[todo.md](todo.md) for next steps.
+**State at end of day:** everything above is merged to `main`
+(`b2dd316`); this worktree is on `prayer-ui-3-add`. From the PR
+descriptions (not re-run here): pytest 298 and test-seed 18 on a fresh
+volume (#53), KMP 49 tests (#54), vitest 338 (#58). Existing dev
+databases need `make reset` for V007 and V008. Open: nobody has clicked
+through the new Prayer list in a browser yet. New todos from the day:
+collapse comments in Recently released by default, and rename "Longest
+standing" to "Oldest". See [todo.md](todo.md) for next steps.
 
 ## 2026-10-19 — Add person + Log contact
 

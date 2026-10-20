@@ -59,6 +59,12 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [x] Add prayer burden: pick the person, then write it (the existing form lives on the person page). (#58)
   - [x] Decided 2026-10-16: no visibility setting between co-shepherds, even though burden text can be sensitive (one seed comment says "keep this quiet"). Every shepherd of a person sees all of their prayer burdens.
   - [x] Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes. (#58)
+  - [ ] **Expand / collapse comments on recently released prayers.** In
+    the "Recently released" panel (`web/src/pages/PrayerListPage.tsx`),
+    let each burden's comments expand and collapse; collapsed by default.
+  - [ ] Change the sort label "Longest standing" (mWeb "Longest") to
+    "Oldest" in `web/src/pages/PrayerListPage.tsx`, and update
+    `PrayerListPage.test.tsx` to match.
 - [ ] **Sign in / register** (mocked up for web and mWeb, pending build): same fields and rules as today's `LoginPage` (name up to 100, username up to 50, password at least 8 on register).
   - [ ] One screen, no tabs: Sign in by default, with a "New here? Create an account" link below the button (and "Already have an account? Sign in" when registering). On web, a brand panel beside the form; on mWeb, a short brand header above it.
   - [ ] Inline field errors on submit (missing name, username or password; password under 8 characters), a wrong-credentials banner, and a Show / Hide password toggle.
