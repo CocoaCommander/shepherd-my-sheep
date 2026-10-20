@@ -20,7 +20,7 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
 - [x] Build it. (server #37, web #42) Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
 - [ ] Existing dev databases need `make reset` to pick up V003 to V007 (migrations only run on a fresh volume).
-- [ ] **Expose the clock start (or the window) from `person_contact_state`.** The UI only gets `contactDueAt`, so Home's meter still hard-codes `WINDOW` (7 days / 72 hours) in `web/src/pages/HomePage.tsx` to find where the clock started. Return the start (e.g. `contactClockStart`) so Home can drop `WINDOW` and the Person page can draw its progress bar (Screens, Person page). (server #47; web: step 2)
+- [x] **Expose the clock start (or the window) from `person_contact_state`.** The UI only gets `contactDueAt`, so Home's meter still hard-codes `WINDOW` (7 days / 72 hours) in `web/src/pages/HomePage.tsx` to find where the clock started. Return the start (e.g. `contactClockStart`) so Home can drop `WINDOW` and the Person page can draw its progress bar (Screens, Person page). (server #47, web #48)
 - [x] **Log contact API, from the user story.** (#36) A shepherd adds a person (`createPerson` takes an optional `comment`), and adding them is the first contact. Logging a contact takes a required date and note and an optional prayer burden (`LogContactInput.prayerBurden`, linked by `prayer_burden.contact_log_id`, removed on Undo). Any contact for a `new contact` is their follow-up; `isFollowUp` is deprecated and ignored. Migration `V005__contact_burdens.sql`.
 
 ## Screens (web + mWeb/mobile)
@@ -43,7 +43,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [x] Decided 2026-10-16: milestone progress stays four fixed segments in this order for the demo: baptised, joined small group, serving, leading. Configurable milestones are a separate item below.
 - [ ] **Person page** (mocked up for web and mWeb, pending build), using Maria Santos as the example.
   - [x] Header card with a contact-status banner (on track / due / overdue) and a prominent "Log contact" button that opens the Log contact dialog. Replaces today's "Contacted today" link in the details card. (#40)
-    - [ ] Progress bar against the 7-day or 72-hour goal. Left out because it needs the clock start from `person_contact_state`, not a hard-coded window.
+    - [ ] Progress bar against the 7-day or 72-hour goal. `Person.contactClockStart` (#47) now gives the start; the window is `contactDueAt - contactClockStart`, as Home's meter uses it (#48).
   - [ ] Milestones as a four-step journey (baptised, small group, serving, leading) showing when and any note; unrecorded steps get a "Record" button.
   - [ ] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list.
   - [ ] Notes: standalone notes with an add-note box (comments with no prayer burden).
