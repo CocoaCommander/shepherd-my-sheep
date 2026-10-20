@@ -22,6 +22,7 @@ import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
 import { LogContactDialog } from './LogContactDialog'
 import { PersonDetailsCard } from './PersonDetailsCard'
+import { sharedWithShepherds } from './sharing'
 
 export function PersonPage() {
   const { id = '' } = useParams()
@@ -178,6 +179,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
           </>
         )}
         <AddPrayerBurdenForm personId={person.id} />
+        <p className="muted small">{sharedWithShepherds(person.name)}</p>
       </section>
 
       <section className="card stack">

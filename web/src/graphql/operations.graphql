@@ -179,7 +179,14 @@ mutation CreatePrayerBurden($input: CreatePrayerBurdenInput!) {
 
 mutation ReleasePrayerBurden($id: UUID!) {
   releasePrayerBurden(id: $id) {
-    id
+    ...PrayerListBurden
+  }
+}
+
+# Undo of a release. NOT_FOUND if it isn't released or the person isn't yours.
+mutation UnreleasePrayerBurden($id: UUID!) {
+  unreleasePrayerBurden(id: $id) {
+    ...PrayerListBurden
   }
 }
 
@@ -217,16 +224,42 @@ mutation UnassignPerson($personId: UUID!, $userId: UUID!) {
   }
 }
 
-# Every active burden across the user's people, newest first, with whose it is.
-query ActivePrayerBurdens {
-  activePrayerBurdens {
+# A burden as the Prayer list shows it: whose it is and its comments, newest first.
+fragment PrayerListBurden on PrayerBurden {
+  id
+  content
+  createdAt
+  releasedDate
+  person {
     id
-    content
-    createdAt
-    person {
+    name
+    status {
       id
       name
     }
+  }
+  comments {
+    id
+    content
+    createdAt
+    author {
+      id
+      name
+    }
+  }
+}
+
+# Every active burden across the user's people, newest first.
+query ActivePrayerBurdens {
+  activePrayerBurdens {
+    ...PrayerListBurden
+  }
+}
+
+# The 5 most recently released burdens across the user's people, newest release first.
+query RecentlyReleasedPrayerBurdens {
+  recentlyReleasedPrayerBurdens {
+    ...PrayerListBurden
   }
 }
 

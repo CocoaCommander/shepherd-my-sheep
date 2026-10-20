@@ -121,6 +121,23 @@ function renderPage(first: object, opts: Options = {}, after: object = first) {
   return { refetch }
 }
 
+function releasedBurden(id: string) {
+  return {
+    __typename: 'PrayerBurden',
+    id,
+    content: 'Pray for work',
+    createdAt: '2026-10-14 18:26:10.89+00',
+    releasedDate: '2026-10-15',
+    person: {
+      __typename: 'Person',
+      id: PERSON_ID,
+      name: 'Maria Santos',
+      status: { __typename: 'Status', id: 'st-active', name: 'active' },
+    },
+    comments: [],
+  }
+}
+
 function mutationMock(
   query: unknown,
   variables: Record<string, unknown>,
@@ -347,6 +364,13 @@ describe('PersonPage query errors', () => {
 })
 
 describe('PersonPage prayer burdens', () => {
+  it('tells the user who sees prayer burdens and comments', async () => {
+    renderPage(person())
+    expect(
+      await screen.findByText('Everyone who shepherds Sam sees prayer burdens and comments.'),
+    ).toBeInTheDocument()
+  })
+
   it('disables Add prayer burden while the text is blank or whitespace', async () => {
     const user = userEvent.setup()
     renderPage(person())
@@ -398,7 +422,7 @@ describe('PersonPage prayer burdens', () => {
     const { mutation, result } = mutationMock(
       G.ReleasePrayerBurdenDocument,
       { id: 'b1' },
-      { releasePrayerBurden: { __typename: 'PrayerBurden', id: 'b1' } },
+      { releasePrayerBurden: releasedBurden('b1') },
     )
     const { refetch } = renderPage(person({ prayerBurdens: [burden('b1', 'Pray for work')] }), {
       mutation,
@@ -417,7 +441,7 @@ describe('PersonPage prayer burdens', () => {
     const { mutation, result } = mutationMock(
       G.ReleasePrayerBurdenDocument,
       { id: 'b1' },
-      { releasePrayerBurden: { __typename: 'PrayerBurden', id: 'b1' } },
+      { releasePrayerBurden: releasedBurden('b1') },
     )
     const { refetch } = renderPage(person({ prayerBurdens: [burden('b1', 'Pray for work')] }), {
       mutation,

@@ -50,15 +50,15 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Sidebar (web) or stacked sections (mWeb): details, shepherds (add / remove, "You" and co-shepherd labels), contact rule reminder, delete person.
   - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19).
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
-- [ ] **Prayer list** (mocked up for web and mWeb, pending build): all active burdens across the people you shepherd.
-  - [ ] Sort: longest standing (default), newest, or grouped by person. Filter by person.
-  - [ ] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53).
-  - [ ] Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16).
-  - [ ] Nudge on burdens that have been on the list for over a year ("Still the right one to carry?").
-  - [ ] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20).
-  - [ ] Add prayer burden: pick the person, then write it (the existing form lives on the person page).
+- [x] **Prayer list**: all active burdens across the people you shepherd. (#56, #57, #58)
+  - [x] Sort: longest standing (default), newest, or grouped by person. Filter by person. (#56)
+  - [x] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53). (#56)
+  - [x] Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16). (#57)
+  - [x] Nudge on burdens that have been on the list for over a year ("Still the right one to carry?"). (#57)
+  - [x] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20). (#57)
+  - [x] Add prayer burden: pick the person, then write it (the existing form lives on the person page). (#58)
   - [x] Decided 2026-10-16: no visibility setting between co-shepherds, even though burden text can be sensitive (one seed comment says "keep this quiet"). Every shepherd of a person sees all of their prayer burdens.
-  - [ ] Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes.
+  - [x] Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes. (#58)
 - [ ] **Sign in / register** (mocked up for web and mWeb, pending build): same fields and rules as today's `LoginPage` (name up to 100, username up to 50, password at least 8 on register).
   - [ ] One screen, no tabs: Sign in by default, with a "New here? Create an account" link below the button (and "Already have an account? Sign in" when registering). On web, a brand panel beside the form; on mWeb, a short brand header above it.
   - [ ] Inline field errors on submit (missing name, username or password; password under 8 characters), a wrong-credentials banner, and a Show / Hide password toggle.

@@ -1,0 +1,455 @@
+/*
+ * Prayer list: one responsive layout for desktop and mobile web. Below 720px (AppHeader's
+ * breakpoint) each row stacks: avatar, name and status on top, the buttons side by side below.
+ */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-32) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+
+/* The title and summary, with Add prayer burden at the right. */
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sms-space-16);
+}
+.add {
+  flex: none;
+}
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.summary {
+  margin: 4px 0 0;
+  color: var(--sms-muted);
+}
+.muted {
+  color: var(--sms-muted);
+}
+.srOnly {
+  composes: srOnly from '../components/shared.module.css';
+}
+
+.noPeople {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-24);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.noPeople p {
+  margin: 0;
+}
+.sectionTitle {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-12);
+}
+.filterLabel {
+  color: var(--sms-muted);
+}
+.hide {
+  margin-left: auto;
+}
+
+/* The list, and Recently released beside it. */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--sms-space-24);
+  align-items: start;
+}
+
+.empty {
+  margin: 0;
+  padding: 40px var(--sms-space-20);
+  border: 1.5px dashed var(--sms-border-dashed);
+  border-radius: var(--sms-radius-2xl);
+  text-align: center;
+  color: var(--sms-muted);
+}
+
+.list,
+.group {
+  display: flex;
+  flex-direction: column;
+}
+.list {
+  gap: var(--sms-space-20);
+}
+.group {
+  gap: var(--sms-space-10);
+}
+.groupTitle {
+  margin: 0;
+  font-size: 15px;
+  color: var(--sms-ink-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 104px;
+  grid-template-areas:
+    'avatar head actions'
+    'avatar body actions'
+    'avatar thread thread';
+  align-items: start;
+  gap: var(--sms-space-10) var(--sms-space-16);
+  padding: var(--sms-space-18);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.avatar {
+  grid-area: avatar;
+}
+.head {
+  grid-area: head;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-8);
+}
+.name {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+.name:hover {
+  text-decoration: underline;
+}
+.name:focus-visible {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+.added {
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-10);
+  min-width: 0;
+}
+.content {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.comment {
+  margin: 0;
+  padding: var(--sms-space-8) var(--sms-space-12);
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-lg);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.nudge {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--sms-warn-ink);
+}
+.nudgeIcon {
+  flex: none;
+  margin-top: 3px;
+}
+.actions {
+  grid-area: actions;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+
+/* The open comment thread, under the row. */
+.thread {
+  grid-area: thread;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+  padding-top: var(--sms-space-12);
+  border-top: 1px solid var(--sms-border);
+}
+.earlier {
+  align-self: flex-start;
+}
+.comments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.threadComment {
+  display: flex;
+  gap: var(--sms-space-10);
+}
+.commentAvatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--sms-radius-circle);
+  background: var(--sms-bg);
+  border: 1px solid var(--sms-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+.commentBody {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.commentBody p {
+  margin: 0;
+}
+.commentMeta {
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+.commentAuthor {
+  font-weight: 600;
+  color: var(--sms-ink);
+}
+.commentForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+/* Top-aligned so the help line under the input doesn't push the button down. */
+.commentRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sms-space-8);
+}
+/* The label is for screen readers only, so drop the gap above the input. */
+.commentRow .commentField {
+  flex: 1;
+  min-width: 0;
+  gap: 0;
+}
+
+/* The Add prayer burden dialog. */
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+}
+/* Select's label sits beside it by default; stack it like the other fields. */
+.personField {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--sms-ink);
+}
+.personField select {
+  min-height: var(--sms-size-input);
+}
+
+/* Recently released: read-only encouragement. */
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+.released {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-20);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+}
+.releasedTitle {
+  margin: 0;
+  font-size: 16px;
+}
+.releasedList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.releasedItem {
+  padding: var(--sms-space-12);
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-lg);
+  overflow-wrap: anywhere;
+}
+.releasedItem p {
+  margin: 0;
+}
+.releasedMeta {
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+.releasedText {
+  margin-top: 2px;
+  font-weight: 600;
+}
+.releasedComment {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+@media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-20) var(--sms-space-16) 96px;
+    gap: var(--sms-space-14);
+  }
+  .title {
+    font-size: 24px;
+  }
+  .summary {
+    margin-top: 2px;
+  }
+  /* A floating round "+"; its text stays for screen readers. */
+  .add {
+    position: fixed;
+    right: var(--sms-space-20);
+    bottom: var(--sms-space-20);
+    z-index: 10;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: var(--sms-radius-circle);
+    box-shadow: var(--sms-shadow-toast);
+  }
+  .addLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  /* Sort on its own line; the person select and the Hide switch share the next. */
+  .controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sms-space-10);
+  }
+  .sort {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .hide {
+    margin-left: 0;
+    min-height: var(--sms-size-input);
+    padding: 0 var(--sms-space-12);
+    border: 1px solid var(--sms-border-control);
+    border-radius: var(--sms-radius-lg);
+    background: var(--sms-surface);
+  }
+  /* "Hide details" shows as just "Hide"; the full name stays for screen readers. */
+  .longHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sms-space-14);
+  }
+  .long,
+  .filterLabel {
+    display: none;
+  }
+  .filter select {
+    flex: 1;
+  }
+
+  .empty {
+    padding: var(--sms-space-32) var(--sms-space-16);
+  }
+
+  .row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'avatar head head'
+      'body body body'
+      'actions actions actions'
+      'thread thread thread';
+    align-items: center;
+    gap: var(--sms-space-12);
+    padding: var(--sms-space-14);
+  }
+  /* Name over "Added", with the status pill at the right. */
+  .head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name pill'
+      'added pill';
+    gap: 0 var(--sms-space-12);
+  }
+  .name {
+    grid-area: name;
+    line-height: 1.3;
+  }
+  .pill {
+    grid-area: pill;
+    white-space: nowrap;
+  }
+  .added {
+    grid-area: added;
+    font-size: 12px;
+  }
+  .actions {
+    flex-direction: row;
+  }
+  .actions > * {
+    flex: 1;
+    min-height: var(--sms-size-input);
+  }
+
+  .toast {
+    left: var(--sms-space-16);
+    right: var(--sms-space-16);
+  }
+}
