@@ -27,7 +27,7 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 
 The app needs both web and mobile-web layouts for every screen, then Android and iOS. Working through them as separate pages on the design canvas.
 
-- [ ] **Review now** (mocked up for web and mWeb, pending build): opens from "Review now" on Home and steps through overdue people, most urgent first. Each step hosts `LogContactForm` inline (`web/src/pages/LogContactForm.tsx`, written for this) with "Log contact" and "Skip for now"; Skip logs nothing and leaves the person overdue. The Finished screen lists each contact logged in the session, each with Undo.
+- [x] **Review now** (#61, #62): opens from "Review now" on Home and steps through overdue people, most urgent first. Each step hosts `LogContactForm` inline (`web/src/pages/LogContactForm.tsx`, written for this) with "Log contact" and "Skip for now"; Skip logs nothing and leaves the person overdue. The Finished screen lists each contact logged in the session, each with Undo.
 - [ ] **My people** (mocked up for web and mWeb, pending build): one page with a **Board / Gallery toggle**.
   - **Board** (default): columns for New contact, Active, Inactive, Lost contact. Each card shows name, last contact, milestone progress, prayer count and its contact-alert state.
     - [ ] Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging.
