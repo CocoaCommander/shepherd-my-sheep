@@ -20,19 +20,21 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
 - [x] Build it. (server #37, web #42) Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
 - [ ] Existing dev databases need `make reset` to pick up V003 to V006 (migrations only run on a fresh volume).
+- [ ] **Expose the clock start (or the window) from `person_contact_state`.** The UI only gets `contactDueAt`, so Home's meter still hard-codes `WINDOW` (7 days / 72 hours) in `web/src/pages/HomePage.tsx` to find where the clock started. Return the start (e.g. `contactClockStart`) so Home can drop `WINDOW` and the Person page can draw its progress bar (Screens, Person page).
 - [x] **Log contact API, from the user story.** (#36) A shepherd adds a person (`createPerson` takes an optional `comment`), and adding them is the first contact. Logging a contact takes a required date and note and an optional prayer burden (`LogContactInput.prayerBurden`, linked by `prayer_burden.contact_log_id`, removed on Undo). Any contact for a `new contact` is their follow-up; `isFollowUp` is deprecated and ignored. Migration `V005__contact_burdens.sql`.
 
 ## Screens (web + mWeb/mobile)
 
 The app needs both web and mobile-web layouts for every screen, then Android and iOS. Working through them as separate pages on the design canvas.
 
-- [ ] **Review now** (mocked up for web and mWeb, pending build): opens from "Review now" on Home and steps through overdue people, most urgent first. "Contacted today" logs a time, not just a date, so the 72-hour rule can be measured; Skip logs nothing and leaves the person overdue. Has a new-contact log step and a finished screen.
+- [ ] **Review now** (mocked up for web and mWeb, pending build): opens from "Review now" on Home and steps through overdue people, most urgent first. Each step hosts `LogContactForm` inline (`web/src/pages/LogContactForm.tsx`, written for this) with "Log contact" and "Skip for now"; Skip logs nothing and leaves the person overdue. The Finished screen lists each contact logged in the session, each with Undo.
 - [ ] **My people** (mocked up for web and mWeb, pending build): one page with a **Board / Gallery toggle**.
   - **Board** (default): columns for New contact, Active, Inactive, Lost contact. Each card shows name, last contact, milestone progress, prayer count and its contact-alert state.
     - [ ] Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging.
     - [ ] Keyboard and screen-reader alternative to dragging: a "Move to" menu on every card.
     - [ ] Toast with Undo after a move.
     - [x] Decided 2026-10-16: what a status move means for the contact rule. Moving New contact to Active asks "Did a follow-up happen?": Yes logs a follow-up now (which promotes them); No just moves them, and the 7-day clock starts from the move. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. The design just moves them; update it to show the question.
+    - [ ] **Proposed 2026-10-19, confirm with the user:** dragging New contact to Active opens the Log contact dialog instead of asking "Did they have a follow-up?" / "Move anyway". Since #36 any contact logged for a new contact is their follow-up and promotes them, so saving the dialog does the move; Cancel leaves the card where it was. This would replace the 2026-10-16 decision above (including "No just moves them").
     - [ ] Build the clock-from-the-move part: `person_contact_state` needs to count from when the status last changed (e.g. a `person.status_changed_at`) when that is later than the last contact.
     - [ ] Persist the move optimistically and roll back if the mutation fails.
   - **Gallery**: full overview grid with search by name and status filter chips. 2-column cards on mWeb.
@@ -75,6 +77,9 @@ The app needs both web and mobile-web layouts for every screen, then Android and
     (`QUICK_CONTACT_NOTE` in `web/src/contacts.ts`), since the API now
     requires one. Remove `quickContact` once the modal replaces it.
   - [ ] Android and iOS need the same modal.
+- [x] **Add person page** (#41) at `/people/new`: name, age, year met and an optional first comment (status is always New contact), then a confirmation screen with the 72-hour follow-up deadline and "Log contact now". Replaces the inline form on My people.
+  - [ ] Android and iOS need the same screen. The shared module's `createPerson` already takes `comment` (#43).
+- [ ] **Dark mode for the `--sms-*` tokens.** `web/src/tokens.css` is light only, and the dark mode in `index.css` covers only the old palette, so the new screens (Home, Person, Add person, the Log contact dialog) stay light. Add dark values, then re-run the colour-contrast audit on the new screens in both themes (axe can't check contrast in jsdom, so do it in a browser).
 
 ## Design gaps (canvas vs API)
 
@@ -127,10 +132,10 @@ gap check).
   Review and Person builds, so settle it before they start.
 - [x] Per-person summaries on `myPeople` / `contactAlerts` (Design
   gaps). (#35) Every list screen in the canvas needs them.
-- [ ] Finish the contact-cadence backend: Undo of a follow-up reverts
-  the promotion, and the clock counts from a status move
-  (`person.status_changed_at`). Needed by the My people board and
-  Review Undo.
+- [ ] Finish the contact-cadence backend: the clock counts from a status
+  move (`person.status_changed_at`), and expose the clock start. Needed
+  by the My people board. (Undo of a follow-up reverting the promotion
+  is done, #37.)
 - [ ] Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
   person status on burdens, recently released query (Design gaps and
   Prayer list).
