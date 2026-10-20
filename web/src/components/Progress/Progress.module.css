@@ -13,6 +13,10 @@
 .meterLabel {
   font-weight: 600;
 }
+.meterDetail {
+  font-weight: 400;
+  color: var(--sms-muted);
+}
 .meterGoal {
   color: var(--sms-muted);
 }
@@ -76,4 +80,10 @@
 }
 .stepperStep.on {
   background: var(--sms-danger);
+}
+.stepperStep.logged {
+  background: var(--sms-brand);
+}
+.stepperStep.skipped {
+  background: var(--sms-warn);
 }

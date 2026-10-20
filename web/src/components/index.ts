@@ -39,6 +39,7 @@ export {
   Milestones,
   Stepper,
   type MeterTone,
+  type StepOutcome,
 } from './Progress/Progress'
 export { StatTile, type StatTone } from './StatTile/StatTile'
 export {

@@ -1,5 +1,5 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { useState } from 'react'
@@ -8,7 +8,7 @@ import { formatShortDate } from '../format'
 import * as G from '../generated/graphql'
 import { useLogContactToast } from './contactToast'
 import { LogContactDialog } from './LogContactDialog'
-import type { LogContactPerson } from './LogContactForm'
+import { LogContactForm, type LogContactPerson } from './LogContactForm'
 
 const DAY = 86_400_000
 // A Wednesday morning, local time.
@@ -305,5 +305,32 @@ describe('LogContactDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Open' }))
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
+
+describe('LogContactForm onSaved', () => {
+  it('tells the host whether a prayer burden was entered', async () => {
+    const calls: { withBurden: boolean }[] = []
+    const base = { personId: MARIA.id, contactedAt: NOW.toISOString(), note: 'Hi' }
+    const withBurden = logMock({ ...base, prayerBurden: 'Work' })
+    const plain = logMock(base)
+    const user = userEvent.setup()
+    render(
+      <MockedProvider mocks={[withBurden.mock, plain.mock, ...LIST_MOCKS]}>
+        <LogContactForm
+          person={MARIA}
+          submitLabel="Save"
+          onSaved={(_saved, _wasNew, opts) => calls.push(opts)}
+        />
+      </MockedProvider>,
+    )
+    await user.type(commentInput(), 'Hi')
+    await user.type(burdenInput(), 'Work')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls).toEqual([{ withBurden: true }]))
+
+    await user.clear(burdenInput())
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls).toEqual([{ withBurden: true }, { withBurden: false }]))
   })
 })

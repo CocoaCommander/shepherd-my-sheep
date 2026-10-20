@@ -27,7 +27,7 @@ import { STATUS_BY_NAME } from './personStatus'
 
 type Person = MyPeopleQuery['myPeople'][number]
 
-const isNewContact = (person: Person) => person.status.name === 'new contact'
+const isNewContact = (person: Pick<Person, 'status'>) => person.status.name === 'new contact'
 
 /** "21 days", "5 hours": how long ago a time was. */
 const since = (time: number, now: Date) => humanSpan(Math.max(now.getTime() - time, 0))
@@ -50,7 +50,14 @@ export function groupByContactState(people: readonly Person[]) {
 }
 
 /** What the care card shows for a tracked person, worked out from their contact window. */
-export function careDetails(person: Person, urgency: CareUrgency, now: Date = new Date()) {
+export function careDetails(
+  person: Pick<
+    Person,
+    'status' | 'contactClockStart' | 'contactDueAt' | 'lastContactedAt' | 'createdAt'
+  >,
+  urgency: CareUrgency,
+  now: Date = new Date(),
+) {
   const isNew = isNewContact(person)
   // The server sets both for every tracked person. The clock starts at the last contact,
   // when they were added if there's none, or when they were last moved to this status.
@@ -208,7 +215,7 @@ export function HomePage() {
               <Alert
                 title={`${groups.overdue.length} ${groups.overdue.length === 1 ? 'person is' : 'people are'} overdue for contact`}
                 action={
-                  <Button as="a" href="#overdue" variant="danger" className={styles.bannerAction}>
+                  <Button as={Link} to="/review" variant="danger" className={styles.bannerAction}>
                     Review now
                   </Button>
                 }
