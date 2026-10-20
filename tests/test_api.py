@@ -1792,7 +1792,9 @@ mutation U($id: UUID!, $input: UpdatePersonInput!) {
 
 
 def parse_time(value):
-    # Postgres text, e.g. "2026-10-20 17:14:56.3+00"; Python 3.10 needs "+00:00".
+    # Postgres text, e.g. "2026-10-20 17:14:56.3+00"; Python 3.10 needs "+00:00"
+    # and 3 or 6 fraction digits, but Postgres drops trailing zeros.
+    value = re.sub(r"\.(\d{1,6})", lambda m: "." + m.group(1).ljust(6, "0"), value)
     return datetime.fromisoformat(re.sub(r"([+-]\d\d)$", r"\1:00", value))
 
 
