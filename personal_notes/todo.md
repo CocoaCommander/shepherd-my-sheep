@@ -19,7 +19,7 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
 - [x] Build it. (server #37, web #42) Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
-- [ ] Existing dev databases need `make reset` to pick up V003 to V007 (migrations only run on a fresh volume).
+- [ ] Existing dev databases need `make reset` to pick up V003 to V008 (migrations only run on a fresh volume).
 - [x] **Expose the clock start (or the window) from `person_contact_state`.** The UI only gets `contactDueAt`, so Home's meter still hard-codes `WINDOW` (7 days / 72 hours) in `web/src/pages/HomePage.tsx` to find where the clock started. Return the start (e.g. `contactClockStart`) so Home can drop `WINDOW` and the Person page can draw its progress bar (Screens, Person page). (server #47, web #48)
 - [x] **Log contact API, from the user story.** (#36) A shepherd adds a person (`createPerson` takes an optional `comment`), and adding them is the first contact. Logging a contact takes a required date and note and an optional prayer burden (`LogContactInput.prayerBurden`, linked by `prayer_burden.contact_log_id`, removed on Undo). Any contact for a `new contact` is their follow-up; `isFollowUp` is deprecated and ignored. Migration `V005__contact_burdens.sql`.
 
@@ -52,10 +52,10 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
 - [ ] **Prayer list** (mocked up for web and mWeb, pending build): all active burdens across the people you shepherd.
   - [ ] Sort: longest standing (default), newest, or grouped by person. Filter by person.
-  - [ ] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo).
+  - [ ] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53).
   - [ ] Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16).
   - [ ] Nudge on burdens that have been on the list for over a year ("Still the right one to carry?").
-  - [ ] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. Needs a query for recently released burdens; today only `activePrayerBurdens` exists.
+  - [ ] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20).
   - [ ] Add prayer burden: pick the person, then write it (the existing form lives on the person page).
   - [x] Decided 2026-10-16: no visibility setting between co-shepherds, even though burden text can be sensitive (one seed comment says "keep this quiet"). Every shepherd of a person sees all of their prayer burdens.
   - [ ] Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes.
@@ -105,10 +105,10 @@ were already listed and aren't repeated here.
   count: milestones can be reached out of order), `activeBurdenCount`,
   `latestComment` (newest of any kind), and `shepherds` filled on list
   queries. The seed was brought in line with rules 5 and 6 in the same PR.
-- [ ] **Undo a prayer-burden release.** The Prayer list toast offers Undo,
+- [x] **Undo a prayer-burden release.** The Prayer list toast offers Undo,
   but `release_prayer_burden` is one-way. Add an
   `unrelease_prayer_burden` function (new migration) and an
-  `unreleasePrayerBurden(id)` mutation.
+  `unreleasePrayerBurden(id)` mutation. (#53)
 - [x] **`PrayerBurden.comments` is never populated.** Nothing sets it, yet
   it's declared non-null. The Prayer list needs the count ("Comment (4)")
   and the latest comment with author and time; fill it in
@@ -137,9 +137,9 @@ gap check).
   move (`person.status_changed_at`), and expose the clock start. Needed
   by the My people board. (Undo of a follow-up reverting the promotion
   is done, #37.) (#47)
-- [ ] Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
+- [x] Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
   person status on burdens, recently released query (Design gaps and
-  Prayer list). (step 1 #52)
+  Prayer list). (#52, #53)
 - [ ] No rate limiting on `searchUsers` or login.
   - Strategy (decided 2026-10-16): **token bucket**, which is the
     "leaky bucket as a meter" (same maths). It allows a small burst and
