@@ -53,9 +53,9 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 - [ ] **Prayer list** (mocked up for web and mWeb, pending build): all active burdens across the people you shepherd.
   - [x] Sort: longest standing (default), newest, or grouped by person. Filter by person. (#56)
   - [x] Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53). (#56)
-  - [ ] Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16).
-  - [ ] Nudge on burdens that have been on the list for over a year ("Still the right one to carry?").
-  - [ ] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20).
+  - [x] Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16). (#57)
+  - [x] Nudge on burdens that have been on the list for over a year ("Still the right one to carry?"). (#57)
+  - [x] "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20). (#57)
   - [ ] Add prayer burden: pick the person, then write it (the existing form lives on the person page).
   - [x] Decided 2026-10-16: no visibility setting between co-shepherds, even though burden text can be sensitive (one seed comment says "keep this quiet"). Every shepherd of a person sees all of their prayer burdens.
   - [ ] Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes.
