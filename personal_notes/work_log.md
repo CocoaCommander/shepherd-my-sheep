@@ -1,5 +1,53 @@
 # Work Log
 
+## 2026-10-19 — Add person + Log contact
+
+- **#37–#44 Add person + Log contact** — eight stacked PRs on top of #36
+  (log contact API: required date and note, optional burden). Built from
+  the design canvas: one **Log contact** dialog replaces the one-tap
+  contact buttons, and a new **Add person** page starts the 72-hour
+  clock. #37 and #38 merged that day; #39–#44 were left as drafts and
+  merged the next morning.
+  - **#37 Backend** — V006 adds `contact_log.promoted`, so Undo on a
+    follow-up moves the person back to `new contact` if they are still
+    `active`. `Comment.contactLogId` in the API. Person CHECKs: non-blank
+    name, age 0-120, year met 1900 to the current year (UTC+14, so the
+    web's check is never stricter than the server's).
+  - **#38 Web components** — `Dialog`, required/optional field labels and
+    error states, `DateField`, an undo toast hook, `StepsPanel`.
+  - **#39 Log contact dialog** — date (required), comment (required),
+    prayer burden (optional); Undo toast removes the contact, its note and
+    burden. Today sends the current time, an earlier date sends 12:00
+    local.
+  - **#40 Person page** — contact status banner with a Log contact button;
+    the page opens the dialog when sent there with `logContact` state.
+  - **#41 Add person page** at `/people/new`, with a confirmation screen
+    and "Log contact now". Replaces the inline form on My people.
+  - **#42 Home** — cards always say "Log contact" and open the dialog;
+    "Follow-up overdue" tag for new contacts; `quickContact` and its
+    placeholder note are gone.
+  - **#43 Shared KMP** — `logContact`, `deleteContact`, `contactAlerts`,
+    contact fields on people; `lastContactDate` dropped from the model.
+  - **#44 Wrap-up** — todo follow-ups, plus an end-to-end check.
+  - **Decisions:** keep the 20 s toast (accessibility) instead of the
+    brief's 8 s; the web never sends `isFollowUp`; back-dating before the
+    person was added is allowed. Board drag from New contact to Active
+    opens the Log contact dialog (confirmed, replaces that part of the
+    2026-10-16 decision). Review now and the Board are left out until
+    they're built.
+  - **Checks:** `make test` 239, `make test-seed` 17, web 273,
+    `:shared:allTests` passing; build clean. Manual run in headless
+    Chromium passed with no console errors. Dev DBs need `make reset` for
+    V006.
+  - Seen, not filed: the Person details card's "Active: Yes" flag is easy
+    to confuse with the `active` status (predates this work).
+
+**State at end of day:** on main with #37 and #38 merged, #39–#44 open as
+drafts (merge in order, retargeting each to main). Test counts are from
+the plan's step 8 notes. Open follow-ups (Android/iOS dialog and Add
+person, dark mode, exposing the clock start, dropping `lastContactDate`
+from the API) are in [todo.md](todo.md).
+
 ## 2026-10-15 — Polished UI design started, contact cadence rule
 
 - **Polished UI design started** in Claude Design, on the "Card & Gallery
