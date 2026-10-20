@@ -185,7 +185,7 @@ inline const char* PERSON_SELECT =
     "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
     "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name, "
     "       cs.last_contacted_at::date AS last_contact_date, cs.last_contacted_at, "
-    "       cs.contact_due_at, cs.contact_state, "
+    "       cs.contact_due_at, cs.contact_clock_start, cs.contact_state, "
     "       (SELECT string_agg(mp.milestone_id::text, ',' ORDER BY mp.milestone_id) "
     "          FROM milestone_person mp WHERE mp.person_id = p.id) AS milestone_ids, "
     "       (SELECT count(*) FROM prayer_burden pb "
@@ -210,16 +210,17 @@ inline const char* PERSON_SELECT =
 inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix = "");
 
 inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
-    auto dto             = PersonDto::createShared();
-    dto->id              = row["id"].c_str();
-    dto->name            = row["name"].c_str();
-    dto->lastContactDate = textOrNull(row["last_contact_date"]);
-    dto->lastContactedAt = textOrNull(row["last_contacted_at"]);
-    dto->contactDueAt    = textOrNull(row["contact_due_at"]);
-    dto->contactState    = row["contact_state"].c_str();
-    dto->isActive        = row["is_active"].as<bool>();
-    dto->createdAt       = row["created_at"].c_str();
-    dto->updatedAt       = row["updated_at"].c_str();
+    auto dto               = PersonDto::createShared();
+    dto->id                = row["id"].c_str();
+    dto->name              = row["name"].c_str();
+    dto->lastContactDate   = textOrNull(row["last_contact_date"]);
+    dto->lastContactedAt   = textOrNull(row["last_contacted_at"]);
+    dto->contactDueAt      = textOrNull(row["contact_due_at"]);
+    dto->contactClockStart = textOrNull(row["contact_clock_start"]);
+    dto->contactState      = row["contact_state"].c_str();
+    dto->isActive          = row["is_active"].as<bool>();
+    dto->createdAt         = row["created_at"].c_str();
+    dto->updatedAt         = row["updated_at"].c_str();
     if (!row["age"].is_null()) dto->age = row["age"].as<int>();
     if (!row["year_met"].is_null()) dto->yearMet = row["year_met"].as<int>();
     dto->activeBurdenCount = row["active_burden_count"].as<int>();

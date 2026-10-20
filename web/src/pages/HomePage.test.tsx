@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as G from '../generated/graphql'
 import { formatShortDate } from '../format'
-import { HomePage } from './HomePage'
+import { careDetails, HomePage } from './HomePage'
 
 vi.mock('../auth/AuthProvider', () => ({
   useAuth: () => ({ isSignedIn: true, signIn: () => {}, signOut: () => {} }),
@@ -30,6 +30,7 @@ function person(id: string, name: string, overrides: Record<string, unknown> = {
     yearMet: null,
     lastContactedAt: null,
     contactDueAt: null,
+    contactClockStart: null,
     contactState: G.ContactState.NotTracked,
     isActive: true,
     status: ACTIVE,
@@ -54,6 +55,7 @@ function active(id: string, name: string, daysAgo: number) {
   return person(id, name, {
     lastContactedAt: at(-daysAgo * DAY),
     contactDueAt: at(due),
+    contactClockStart: at(-daysAgo * DAY),
     contactState: state,
   })
 }
@@ -80,16 +82,32 @@ const TOM = person('p-tom', 'Tom Becker', {
   status: NEW,
   createdAt: at(-78 * HOUR),
   contactDueAt: at(-6 * HOUR),
+  contactClockStart: at(-78 * HOUR),
   contactState: G.ContactState.Overdue,
 })
 const AISHA = person('p-aisha', 'Aisha Bello', {
   status: NEW,
   lastContactedAt: at(-48 * HOUR),
   contactDueAt: at(24 * HOUR),
+  contactClockStart: at(-48 * HOUR),
   contactState: G.ContactState.DueSoon,
 })
 const MARIA = active('p-maria', 'Maria Santos', 3)
 const OMAR = person('p-omar', 'Omar Haddad', { status: INACTIVE })
+// Moved back to active two days ago; the move restarted the clock after a contact 10 days ago.
+const RUTH = person('p-ruth', 'Ruth Adeyemi', {
+  lastContactedAt: at(-10 * DAY),
+  contactClockStart: at(-2 * DAY),
+  contactDueAt: at(5 * DAY),
+  contactState: G.ContactState.OnTrack,
+})
+// Moved back to new contact five hours ago, never contacted.
+const KOJI = person('p-koji', 'Koji Tanaka', {
+  status: NEW,
+  contactClockStart: at(-5 * HOUR),
+  contactDueAt: at(67 * HOUR),
+  contactState: G.ContactState.OnTrack,
+})
 
 const meMock: MockedResponse = {
   request: { query: G.MeDocument },
@@ -199,6 +217,15 @@ describe('HomePage', () => {
     expect(
       within(section('On track')).getByRole('link', { name: 'Add note for Maria Santos' }),
     ).toHaveAttribute('href', '/people/p-maria')
+  })
+
+  it('says when a status move started the clock', async () => {
+    renderHome([RUTH, KOJI])
+    const ok = await screen.findByRole('region', { name: 'On track' })
+    expect(ok).toHaveTextContent('Moved to Active 2 days ago')
+    expect(ok).toHaveTextContent('Moved to New contact 5 hours ago')
+    expect(ok).not.toHaveTextContent('since last contact')
+    expect(ok).not.toHaveTextContent('no contact logged')
   })
 
   it('shows the stat tiles, linking only to sections that have people', async () => {
@@ -321,5 +348,27 @@ describe('HomePage', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(open).toHaveFocus()
+  })
+})
+
+describe('careDetails meter', () => {
+  const meter = (p: unknown, urgency: 'overdue' | 'soon' | 'ok') =>
+    careDetails(p as Parameters<typeof careDetails>[0], urgency, NOW).meter
+
+  it('spans a new contact’s 72 hours from when they were added', () => {
+    expect(meter(TOM, 'overdue')).toMatchObject({ value: 78 * HOUR, max: 72 * HOUR })
+  })
+
+  it('spans an active person’s 7 days from their last contact', () => {
+    expect(meter(MARIA, 'ok')).toMatchObject({ value: 3 * DAY, max: 7 * DAY })
+  })
+
+  it('starts from a status move when the server says the clock restarted there', () => {
+    expect(meter(RUTH, 'ok')).toMatchObject({
+      value: 2 * DAY,
+      max: 7 * DAY,
+      label: 'Moved to Active 2 days ago',
+    })
+    expect(meter(KOJI, 'ok')).toMatchObject({ value: 5 * HOUR, max: 72 * HOUR })
   })
 })

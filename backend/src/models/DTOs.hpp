@@ -144,12 +144,13 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "Person";
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
-    DTO_FIELD(Int32, age);               // nullable
-    DTO_FIELD(Int32, yearMet);           // nullable
-    DTO_FIELD(String, lastContactDate);  // nullable; deprecated, date part of lastContactedAt
-    DTO_FIELD(String, lastContactedAt);  // nullable
-    DTO_FIELD(String, contactDueAt);     // nullable — null when NOT_TRACKED
-    DTO_FIELD(String, contactState);     // ContactState enum value
+    DTO_FIELD(Int32, age);                 // nullable
+    DTO_FIELD(Int32, yearMet);             // nullable
+    DTO_FIELD(String, lastContactDate);    // nullable; deprecated, date part of lastContactedAt
+    DTO_FIELD(String, lastContactedAt);    // nullable
+    DTO_FIELD(String, contactDueAt);       // nullable — null when NOT_TRACKED
+    DTO_FIELD(String, contactClockStart);  // nullable — null when NOT_TRACKED
+    DTO_FIELD(String, contactState);       // ContactState enum value
     DTO_FIELD(Boolean, isActive);
     DTO_FIELD(oatpp::Object<StatusDto>, status);
     DTO_FIELD(String, createdAt);

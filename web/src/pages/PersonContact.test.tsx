@@ -50,6 +50,7 @@ function person(overrides: Record<string, unknown> = {}) {
     yearMet: 2024,
     lastContactedAt: at(-2 * DAY),
     contactDueAt: at(5 * DAY),
+    contactClockStart: at(-2 * DAY),
     contactState: G.ContactState.OnTrack,
     createdAt: at(-60 * DAY),
     isActive: true,
@@ -73,6 +74,7 @@ function newContact(overrides: Record<string, unknown> = {}) {
     yearMet: null,
     lastContactedAt: null,
     contactDueAt: at(71 * HOUR),
+    contactClockStart: at(-HOUR),
     createdAt: at(-HOUR),
     status: NEW,
     contacts: [],
@@ -191,6 +193,7 @@ describe('Person page contact banner', () => {
         isActive: false,
         contactState: G.ContactState.NotTracked,
         contactDueAt: null,
+        contactClockStart: null,
       }),
     )
     await logButton()
@@ -240,6 +243,7 @@ describe('Logging a contact from the Person page', () => {
     const after = person({
       lastContactedAt: at(0),
       contactDueAt: at(7 * DAY),
+      contactClockStart: at(0),
       prayerBurdens: [
         {
           __typename: 'PrayerBurden',
@@ -282,6 +286,7 @@ describe('Logging a contact from the Person page', () => {
     const after = person({
       lastContactedAt: at(0),
       contactDueAt: at(7 * DAY),
+      contactClockStart: at(0),
       comments: [note('n1', 'Met for lunch', 'c-new')],
       contacts: [contact('c-new', at(0))],
     })

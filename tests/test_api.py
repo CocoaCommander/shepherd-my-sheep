@@ -9,6 +9,7 @@ with the people assigned to those users.
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 import uuid
@@ -1285,3 +1286,76 @@ class TestPersonSummaries:
         )["logContact"]
         assert person["latestComment"]["content"] == "Lunch"
         assert person["recordedMilestoneIds"] == []
+
+
+# ── Contact clock restarts on a manual status move (business rule 6) ──
+
+UPDATE_STATUS = """
+mutation U($id: UUID!, $input: UpdatePersonInput!) {
+  updatePerson(id: $id, input: $input) { id contactState contactDueAt contactClockStart }
+}"""
+
+
+def parse_time(value):
+    # Postgres text, e.g. "2026-10-20 17:14:56.3+00"; Python 3.10 needs "+00:00".
+    return datetime.fromisoformat(re.sub(r"([+-]\d\d)$", r"\1:00", value))
+
+
+class TestContactClockStart:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    @pytest.fixture()
+    def backdate(self, db_connection):
+        def _backdate(person_id, days):
+            with db_connection.cursor() as cur:
+                cur.execute(
+                    "UPDATE person SET created_at = now() - %s * interval '1 day' WHERE id = %s", (days, person_id)
+                )
+
+        return _backdate
+
+    def test_clock_start_on_person_my_people_and_alerts(self, make_user, statuses, backdate):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        backdate(person_id, 10)
+
+        person = gql(PERSON.replace("isActive", "isActive contactClockStart"), {"id": person_id}, token)["person"]
+        [mine] = gql("query { myPeople { id contactClockStart } }", token=token)["myPeople"]
+        [alert] = gql("query { contactAlerts { id contactClockStart } }", token=token)["contactAlerts"]
+
+        assert person["contactClockStart"] == mine["contactClockStart"] == alert["contactClockStart"]
+        age = datetime.now(timezone.utc) - parse_time(person["contactClockStart"])
+        assert timedelta(days=9) < age < timedelta(days=11)  # no contacts: runs from created_at
+
+    def test_user_with_no_people_has_no_clock_starts(self, make_user):
+        token, _, _ = make_user()
+        assert gql("query { myPeople { id contactClockStart } }", token=token)["myPeople"] == []
+
+    def test_manual_move_back_to_active_restarts_the_clock(self, make_user, statuses, backdate):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        backdate(person_id, 10)
+        assert [p["id"] for p in gql(CONTACT_ALERTS, token=token)["contactAlerts"]] == [person_id]
+
+        inactive = gql(UPDATE_STATUS, {"id": person_id, "input": {"statusId": statuses["inactive"]}}, token)
+        assert inactive["updatePerson"]["contactClockStart"] is None
+        active = gql(UPDATE_STATUS, {"id": person_id, "input": {"statusId": statuses["active"]}}, token)
+        person = active["updatePerson"]
+
+        start, due = parse_time(person["contactClockStart"]), parse_time(person["contactDueAt"])
+        assert abs(datetime.now(timezone.utc) - start) < timedelta(minutes=5)
+        assert due - start == timedelta(days=7)
+        assert person["contactState"] == "ON_TRACK"
+        assert gql(CONTACT_ALERTS, token=token)["contactAlerts"] == []
+
+    @pytest.mark.parametrize("status_name", ["inactive", "lost contact"])
+    def test_clock_start_null_when_not_tracked(self, make_user, statuses, status_name):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses[status_name])
+        query = PERSON.replace("isActive", "isActive contactState contactClockStart")
+        person = gql(query, {"id": person_id}, token)["person"]
+        assert (person["contactState"], person["contactClockStart"]) == ("NOT_TRACKED", None)

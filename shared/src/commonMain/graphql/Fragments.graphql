@@ -25,6 +25,7 @@ fragment PersonSummary on Person {
   # show it as given and never recompute it.
   contactState
   contactDueAt
+  contactClockStart
   lastContactedAt
   createdAt
 }

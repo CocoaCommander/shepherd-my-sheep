@@ -39,6 +39,7 @@ internal fun PersonSummary.toModel() = Person(
     status = Status(id = status.id, name = status.name),
     contactState = contactState.toModel(),
     contactDueAt = contactDueAt,
+    contactClockStart = contactClockStart,
     lastContactedAt = lastContactedAt,
     createdAt = createdAt,
 )

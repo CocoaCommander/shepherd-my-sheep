@@ -8,6 +8,7 @@ fragment PersonSummary on Person {
   yearMet
   lastContactedAt
   contactDueAt
+  contactClockStart
   contactState
   isActive
   status {

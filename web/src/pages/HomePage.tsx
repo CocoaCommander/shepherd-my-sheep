@@ -27,13 +27,6 @@ import { LogContactDialog } from './LogContactDialog'
 
 type Person = MyPeopleQuery['myPeople'][number]
 
-const HOUR = 3_600_000
-const DAY = 24 * HOUR
-
-// The contact windows from business rule 6, as the person_contact_state view applies them.
-// Used only to place the meter's start, until the API exposes the clock start (todo.md).
-const WINDOW = { active: 7 * DAY, new: 72 * HOUR }
-
 const STATUS_BY_NAME: Record<string, PersonStatus> = {
   'new contact': 'new',
   active: 'active',
@@ -63,19 +56,24 @@ export function groupByContactState(people: readonly Person[]) {
   }
 }
 
-/** What the care card shows for a tracked person, worked out from their due time. */
+/** What the care card shows for a tracked person, worked out from their contact window. */
 export function careDetails(person: Person, urgency: CareUrgency, now: Date = new Date()) {
   const isNew = isNewContact(person)
-  const window = isNew ? WINDOW.new : WINDOW.active
+  // The server sets both for every tracked person. The clock starts at the last contact,
+  // when they were added if there's none, or when they were last moved to this status.
+  const start = parseDateTime(person.contactClockStart!).getTime()
   const due = parseDateTime(person.contactDueAt!).getTime()
-  // The clock starts at the last contact, or when they were added if there's none.
-  const sinceStart = now.getTime() - (due - window)
   const last = person.lastContactedAt ? parseDateTime(person.lastContactedAt).getTime() : null
+  const added = parseDateTime(person.createdAt).getTime()
 
-  const meterLabel =
-    last !== null
-      ? `${since(last, now)} since last contact`
-      : `Added ${since(parseDateTime(person.createdAt).getTime(), now)} ago, no contact logged`
+  let meterLabel: string
+  if (start > (last ?? added)) {
+    meterLabel = `Moved to ${isNew ? 'New contact' : 'Active'} ${since(start, now)} ago`
+  } else if (last !== null) {
+    meterLabel = `${since(last, now)} since last contact`
+  } else {
+    meterLabel = `Added ${since(added, now)} ago, no contact logged`
+  }
   const goal = isNew ? 'Follow up within 72 hours' : 'Goal: every 7 days'
 
   let dueLabel: string
@@ -88,7 +86,7 @@ export function careDetails(person: Person, urgency: CareUrgency, now: Date = ne
   }
 
   return {
-    meter: { value: sinceStart, max: window, label: meterLabel, goal },
+    meter: { value: now.getTime() - start, max: due - start, label: meterLabel, goal },
     dueLabel,
     // Adding someone is their first contact, so any contact logged for a new contact is their
     // follow-up, which makes them active.
