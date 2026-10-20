@@ -75,9 +75,11 @@ query Me {
   }
 }
 
+# createdAt starts a new contact's clock while no contact is logged.
 query MyPeople {
   myPeople {
     ...PersonSummary
+    createdAt
   }
 }
 

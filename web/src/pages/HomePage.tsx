@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Alert,
@@ -8,33 +8,30 @@ import {
   CountPill,
   PlusIcon,
   StatTile,
-  Toast,
   type CareUrgency,
   type CountTone,
   type PersonStatus,
 } from '../components'
-import { quickContact } from '../contacts'
 import { friendlyMessage } from '../errors'
-import { humanSpan, isToday, parseDateTime } from '../format'
+import { humanSpan, parseDateTime } from '../format'
 import {
-  ContactAlertsDocument,
   ContactState,
-  MyPeopleDocument,
-  useDeleteContactMutation,
-  useLogContactMutation,
   useMeQuery,
   useMyPeopleQuery,
-  type PersonSummaryFragment,
+  type MyPeopleQuery,
 } from '../generated/graphql'
+import { useLogContactToast } from './contactToast'
 import { Header } from './Header'
 import styles from './HomePage.module.css'
+import { LogContactDialog } from './LogContactDialog'
 
-type Person = PersonSummaryFragment
+type Person = MyPeopleQuery['myPeople'][number]
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 
 // The contact windows from business rule 6, as the person_contact_state view applies them.
+// Used only to place the meter's start, until the API exposes the clock start (todo.md).
 const WINDOW = { active: 7 * DAY, new: 72 * HOUR }
 
 const STATUS_BY_NAME: Record<string, PersonStatus> = {
@@ -42,10 +39,6 @@ const STATUS_BY_NAME: Record<string, PersonStatus> = {
   active: 'active',
   inactive: 'inactive',
   'lost contact': 'lost',
-}
-
-const reloadPeople = {
-  refetchQueries: [{ query: MyPeopleDocument }, { query: ContactAlertsDocument }],
 }
 
 const isNewContact = (person: Person) => person.status.name === 'new contact'
@@ -80,7 +73,9 @@ export function careDetails(person: Person, urgency: CareUrgency, now: Date = ne
   const last = person.lastContactedAt ? parseDateTime(person.lastContactedAt).getTime() : null
 
   const meterLabel =
-    last === null ? 'No contact logged yet' : `${since(last, now)} since last contact`
+    last !== null
+      ? `${since(last, now)} since last contact`
+      : `Added ${since(parseDateTime(person.createdAt).getTime(), now)} ago, no contact logged`
   const goal = isNew ? 'Follow up within 72 hours' : 'Goal: every 7 days'
 
   let dueLabel: string
@@ -92,17 +87,12 @@ export function careDetails(person: Person, urgency: CareUrgency, now: Date = ne
     dueLabel = 'On track'
   }
 
-  // Adding someone is their first contact, so any contact logged for a new contact is their
-  // follow-up, which makes them active.
-  const action = isNew ? 'Log follow-up' : 'Contacted today'
-  const isFollowUp = isNew
-
   return {
     meter: { value: sinceStart, max: window, label: meterLabel, goal },
     dueLabel,
-    action,
-    isFollowUp,
-    aside: isFollowUp ? 'Becomes a regular contact' : undefined,
+    // Adding someone is their first contact, so any contact logged for a new contact is their
+    // follow-up, which makes them active.
+    aside: isNew ? 'Becomes a regular contact' : undefined,
   }
 }
 
@@ -126,53 +116,15 @@ function overdueSummary(overdue: Person[], now: Date): string {
   return lines.join(' ')
 }
 
-type Confirmation = { message: string; undoId: string | null }
-
 export function HomePage() {
   const { data: me } = useMeQuery()
   const { data, loading, error } = useMyPeopleQuery()
-  const [logContact, logState] = useLogContactMutation(reloadPeople)
-  const [deleteContact] = useDeleteContactMutation(reloadPeople)
-  const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
-  const [pendingId, setPendingId] = useState<string | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  // Up for 20 seconds so everyone can reach Undo (WCAG 2.2.1).
-  useEffect(() => {
-    clearTimeout(timer.current)
-    if (confirmation) timer.current = setTimeout(() => setConfirmation(null), 20_000)
-    return () => clearTimeout(timer.current)
-  }, [confirmation])
-
-  async function log(person: Person, isFollowUp: boolean) {
-    setPendingId(person.id)
-    try {
-      const result = await logContact({ variables: { input: quickContact(person.id) } })
-      // contacts are newest first, so [0] is the one just logged. A follow-up can't be undone
-      // from here, since deleting it wouldn't undo the move to active.
-      const logged = result.data?.logContact.contacts[0]?.id ?? null
-      setConfirmation({
-        message: isFollowUp
-          ? `Follow-up logged. ${person.name} is now active.`
-          : `Contact with ${person.name} logged.`,
-        undoId: isFollowUp ? null : logged,
-      })
-    } catch {
-      // Shown from the mutation's `error` below.
-    } finally {
-      setPendingId(null)
-    }
-  }
-
-  async function undo() {
-    if (!confirmation?.undoId) return
-    try {
-      await deleteContact({ variables: { id: confirmation.undoId } })
-      setConfirmation({ message: 'Contact removed.', undoId: null })
-    } catch {
-      setConfirmation({ message: 'Could not undo. Try again from their page.', undoId: null })
-    }
-  }
+  // Who the Log contact dialog is open for; it mounts only while someone is chosen.
+  const [logging, setLogging] = useState<Person | null>(null)
+  const { showLogged, toastElement } = useLogContactToast({
+    floating: true,
+    className: styles.toast,
+  })
 
   const now = new Date()
   const firstName = me?.me.name.split(/\s+/)[0]
@@ -245,7 +197,6 @@ export function HomePage() {
 
         {loading && <p className={styles.muted}>Loading…</p>}
         {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
-        {logState.error && <Alert variant="inline">{friendlyMessage(logState.error)}</Alert>}
 
         {data && people.length === 0 && (
           // A new user has no one assigned yet (business rule 1).
@@ -336,8 +287,7 @@ export function HomePage() {
                           urgency={section.urgency}
                           tintIndex={i}
                           now={now}
-                          busy={pendingId === person.id}
-                          onLog={log}
+                          onLogContact={setLogging}
                         />
                       ))}
                     </div>
@@ -363,15 +313,19 @@ export function HomePage() {
         )}
       </main>
 
-      {confirmation && (
-        <Toast
-          floating
-          className={styles.toast}
-          message={confirmation.message}
-          actionLabel={confirmation.undoId ? 'Undo' : undefined}
-          onAction={confirmation.undoId ? undo : undefined}
+      {/* Saving and Undo reload MyPeople, which moves the card to its new group. */}
+      {logging && (
+        <LogContactDialog
+          person={logging}
+          open
+          onClose={() => setLogging(null)}
+          onSaved={(saved, wasNewContact) => {
+            setLogging(null)
+            showLogged(saved, wasNewContact)
+          }}
         />
       )}
+      {toastElement}
     </div>
   )
 }
@@ -386,20 +340,15 @@ function PersonCare({
   urgency,
   tintIndex,
   now,
-  busy,
-  onLog,
+  onLogContact,
 }: {
   person: Person
   urgency: CareUrgency
   tintIndex: number
   now: Date
-  busy: boolean
-  onLog: (person: Person, isFollowUp: boolean) => void
+  onLogContact: (person: Person) => void
 }) {
   const care = careDetails(person, urgency, now)
-  // As on the person page: an active person contacted today needs nothing more today.
-  const contactedToday =
-    !isNewContact(person) && !!person.lastContactedAt && isToday(person.lastContactedAt, now)
   const profile = `/people/${person.id}`
 
   return (
@@ -413,16 +362,14 @@ function PersonCare({
       avatarTint={avatarTint(tintIndex)}
       actions={
         <>
-          {!contactedToday && (
-            <Button
-              variant={urgency === 'overdue' ? 'danger' : 'primary'}
-              className={styles.primaryAction}
-              disabled={busy}
-              onClick={() => onLog(person, care.isFollowUp)}
-            >
-              {busy ? 'Saving…' : care.action}
-            </Button>
-          )}
+          <Button
+            variant={urgency === 'overdue' ? 'danger' : 'primary'}
+            className={styles.primaryAction}
+            aria-label={`Log contact with ${person.name}`}
+            onClick={() => onLogContact(person)}
+          >
+            Log contact
+          </Button>
           <Button
             as={Link}
             to={profile}
@@ -433,7 +380,7 @@ function PersonCare({
           </Button>
         </>
       }
-      aside={contactedToday ? 'Contacted today' : care.aside}
+      aside={care.aside}
     />
   )
 }

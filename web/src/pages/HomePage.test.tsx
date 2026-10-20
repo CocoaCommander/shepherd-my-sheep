@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as G from '../generated/graphql'
-import { quickContact } from '../contacts'
+import { formatShortDate } from '../format'
 import { HomePage } from './HomePage'
 
 vi.mock('../auth/AuthProvider', () => ({
@@ -33,6 +33,11 @@ function person(id: string, name: string, overrides: Record<string, unknown> = {
     contactState: G.ContactState.NotTracked,
     isActive: true,
     status: ACTIVE,
+    recordedMilestoneIds: [],
+    activeBurdenCount: 0,
+    latestComment: null,
+    shepherds: [],
+    createdAt: at(-90 * DAY),
     ...overrides,
   }
 }
@@ -73,6 +78,7 @@ const ELENA = active('p-elena', 'Elena Petrova', 21)
 const JAMES = active('p-james', 'James Whitfield', 10)
 const TOM = person('p-tom', 'Tom Becker', {
   status: NEW,
+  createdAt: at(-78 * HOUR),
   contactDueAt: at(-6 * HOUR),
   contactState: G.ContactState.Overdue,
 })
@@ -175,12 +181,19 @@ describe('HomePage', () => {
     expect(overdue).toHaveTextContent('21 days since last contact')
     // Adding Tom was his first contact, so what's overdue is the follow-up.
     expect(overdue).toHaveTextContent('6 hours overdue')
-    expect(within(overdue).getByRole('button', { name: 'Log follow-up' })).toBeInTheDocument()
+    expect(overdue).toHaveTextContent('Added 3 days ago, no contact logged')
+    for (const name of ['Elena Petrova', 'Tom Becker']) {
+      expect(
+        within(overdue).getByRole('button', { name: `Log contact with ${name}` }),
+      ).toHaveTextContent('Log contact')
+    }
 
     const soon = section('Coming up')
     expect(soon).toHaveTextContent('Due in 1 day')
     expect(soon).toHaveTextContent('Follow up within 72 hours')
-    expect(within(soon).getByRole('button', { name: 'Log follow-up' })).toBeInTheDocument()
+    expect(
+      within(soon).getByRole('button', { name: 'Log contact with Aisha Bello' }),
+    ).toBeInTheDocument()
     expect(soon).toHaveTextContent('Becomes a regular contact')
 
     expect(
@@ -201,7 +214,8 @@ describe('HomePage', () => {
 
   it('shows an all-clear instead of the banner when no one is overdue', async () => {
     renderHome([MARIA])
-    expect(await screen.findByRole('status')).toHaveTextContent('No one is overdue')
+    // Not by role: the always-mounted toast is a status too.
+    expect(await screen.findByText(/No one is overdue/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -216,26 +230,21 @@ describe('HomePage', () => {
     expect(screen.queryByRole('region')).not.toBeInTheDocument()
   })
 
-  it('logs a contact from a card and offers Undo', async () => {
+  it('logs a contact from a card through the dialog and offers Undo', async () => {
     const user = userEvent.setup()
     const logged = vi.fn(() => ({
-      data: {
-        logContact: {
-          ...active('p-elena', 'Elena Petrova', 0),
-          ...activity('c-new'),
-        },
-      },
+      data: { logContact: { ...active('p-elena', 'Elena Petrova', 0), ...activity('c-new') } },
     }))
-    const undone = vi.fn(() => ({
-      data: { deleteContact: { ...ELENA, ...activity() } },
-    }))
+    const undone = vi.fn(() => ({ data: { deleteContact: { ...ELENA, ...activity() } } }))
     renderHome(
       [ELENA],
       [
         {
           request: {
             query: G.LogContactDocument,
-            variables: { input: quickContact('p-elena') },
+            variables: {
+              input: { personId: 'p-elena', contactedAt: NOW.toISOString(), note: 'Coffee' },
+            },
           },
           result: logged,
         },
@@ -246,42 +255,71 @@ describe('HomePage', () => {
       ],
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
-    expect(await screen.findByText('Contact with Elena Petrova logged.')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: 'Log contact with Elena Petrova' }))
+    const dialog = screen.getByRole('dialog', { name: 'Log contact with Elena' })
+    await user.type(within(dialog).getByLabelText('Comment (required)'), 'Coffee')
+    await user.click(within(dialog).getByRole('button', { name: 'Save contact' }))
+
+    expect(
+      await screen.findByText(
+        `Contact logged with Elena. Next contact due ${formatShortDate(at(7 * DAY))}.`,
+      ),
+    ).toBeInTheDocument()
     expect(logged).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Undo' }))
-    expect(await screen.findByText('Contact removed.')).toBeInTheDocument()
+    expect(await screen.findByText('Contact with Elena removed.')).toBeInTheDocument()
     expect(undone).toHaveBeenCalledTimes(1)
   })
 
-  it('logs a follow-up for a new contact without an Undo', async () => {
+  it('offers Undo on a follow-up too, which the server reverts to new contact', async () => {
     const user = userEvent.setup()
     const logged = vi.fn(() => ({
-      data: {
-        logContact: {
-          ...active('p-aisha', 'Aisha Bello', 0),
-          ...activity('c-new'),
-        },
-      },
+      data: { logContact: { ...active('p-aisha', 'Aisha Bello', 0), ...activity('c-new') } },
     }))
+    const undone = vi.fn(() => ({ data: { deleteContact: { ...AISHA, ...activity() } } }))
     renderHome(
       [AISHA],
       [
         {
           request: {
             query: G.LogContactDocument,
-            variables: { input: quickContact('p-aisha') },
+            variables: {
+              input: { personId: 'p-aisha', contactedAt: NOW.toISOString(), note: 'Lunch' },
+            },
           },
           result: logged,
+        },
+        {
+          request: { query: G.DeleteContactDocument, variables: { id: 'c-new' } },
+          result: undone,
         },
       ],
     )
 
-    await user.click(await screen.findByRole('button', { name: 'Log follow-up' }))
+    await user.click(await screen.findByRole('button', { name: 'Log contact with Aisha Bello' }))
+    expect(screen.getByText(/Logging this contact moves Aisha to Active/)).toBeInTheDocument()
+    await user.type(screen.getByLabelText('Comment (required)'), 'Lunch')
+    await user.click(screen.getByRole('button', { name: 'Save contact' }))
+
     expect(
-      await screen.findByText('Follow-up logged. Aisha Bello is now active.'),
+      await screen.findByText(/^Contact logged with Aisha\. Aisha is now Active\./),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(await screen.findByText('Contact with Aisha removed.')).toBeInTheDocument()
+    expect(undone).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the dialog on Cancel without logging', async () => {
+    const user = userEvent.setup()
+    renderHome([MARIA])
+
+    const open = await screen.findByRole('button', { name: 'Log contact with Maria Santos' })
+    await user.click(open)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(open).toHaveFocus()
   })
 })
