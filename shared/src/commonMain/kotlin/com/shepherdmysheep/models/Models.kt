@@ -22,13 +22,38 @@ data class Person(
     val name: String,
     val age: Int? = null,
     val yearMet: Int? = null,
-    val lastContactDate: String? = null,
     val isActive: Boolean,
     val status: Status,
+    /** Computed by the server (business rule 6). Show it as given; never recompute it. */
+    val contactState: ContactState,
+    /** Null when contactState is NOT_TRACKED. */
+    val contactDueAt: String? = null,
+    /** Null until a contact is logged. */
+    val lastContactedAt: String? = null,
+    val createdAt: String,
     val shepherds: List<User> = emptyList(),
     val milestones: List<MilestonePerson> = emptyList(),
     val prayerBurdens: List<PrayerBurden> = emptyList(),
     val comments: List<Comment> = emptyList(),
+    /** Newest contactedAt first; may be empty. */
+    val contacts: List<ContactLog> = emptyList(),
+)
+
+/** Due soon is the last 48 hours before an active person's deadline, or the last 24 before a new contact's. */
+enum class ContactState { OVERDUE, DUE_SOON, ON_TRACK, NOT_TRACKED }
+
+/**
+ * A logged contact. Contacts are ordered by contactedAt, so a back-dated one
+ * isn't first: the one just logged is the one with the newest createdAt.
+ */
+data class ContactLog(
+    val id: String,
+    /** Null for imported history, or once that user is deleted. */
+    val contactedBy: User? = null,
+    val contactedAt: String,
+    /** True for the contact that followed up a new contact (and moved them to active). */
+    val isFollowUp: Boolean,
+    val createdAt: String,
 )
 
 data class Status(val id: String, val name: String)
@@ -59,6 +84,8 @@ data class Comment(
     val id: String,
     val author: User,
     val prayerBurdenId: String? = null,
+    /** Set when the note was written by logging that contact; shown as "Logged contact". */
+    val contactLogId: String? = null,
     val content: String,
     val createdAt: String,
     val updatedAt: String,

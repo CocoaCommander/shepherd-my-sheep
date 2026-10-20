@@ -1,0 +1,179 @@
+/*
+ * Add person: the form card beside "What happens next". The aside wraps under the card when
+ * there's no room for both; below 720px the buttons fill the width, primary on top.
+ */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-20) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+
+.breadcrumb {
+  color: var(--sms-muted);
+}
+.breadcrumb a {
+  color: var(--sms-brand-strong);
+}
+
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sms-space-24);
+}
+.card {
+  flex: 999 1 560px;
+  min-width: 0;
+  max-width: 720px;
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-28);
+}
+.aside {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.stepTitle {
+  display: block;
+  font-weight: 600;
+}
+.stepDetail {
+  color: var(--sms-muted);
+  font-size: 13px;
+}
+
+.form,
+.confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.lead {
+  margin: 4px 0 0;
+  color: var(--sms-ink-2);
+}
+
+.pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-16);
+}
+.pair > * {
+  flex: 1 1 180px;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-6) var(--sms-space-16);
+  margin: 0;
+  padding: var(--sms-space-12) var(--sms-space-14);
+  border-radius: var(--sms-radius-lg);
+  background: var(--sms-surface-sunken);
+  color: var(--sms-ink-2);
+}
+.facts > div {
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-6);
+}
+.facts dt {
+  color: var(--sms-muted);
+}
+.facts dd {
+  margin: 0;
+}
+.strong {
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-12);
+}
+.actions > * {
+  min-height: var(--sms-size-input);
+}
+.cancel {
+  padding: 0 var(--sms-space-12);
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sms-space-6);
+  text-align: center;
+}
+.doneIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--sms-radius-circle);
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}
+.doneTitle {
+  margin: 10px 0 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+/* Focus moves here programmatically; it isn't a control, so no ring. */
+.doneTitle:focus {
+  outline: none;
+}
+
+@media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-16) var(--sms-space-16) 40px;
+    gap: var(--sms-space-16);
+  }
+  .card {
+    padding: var(--sms-space-16);
+  }
+  .title {
+    font-size: 24px;
+  }
+  .doneTitle {
+    font-size: 22px;
+  }
+  /* Thumb-sized, stacked in source order, so the primary is on top. */
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sms-space-10);
+  }
+  .actions > * {
+    justify-content: center;
+  }
+}

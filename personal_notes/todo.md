@@ -18,21 +18,23 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 - [x] Decided: a new contact with nothing logged has 72 hours from when they were added (`person.created_at`). Tom Becker is on track at first. **The Home design shows "Log first contact" as overdue; update it to match.**
 - [x] Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
 - [x] Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
-- [ ] Build it. (server: #37; web Undo on follow-ups: step 6) Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
+- [x] Build it. (server #37, web #42) Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
 - [ ] Existing dev databases need `make reset` to pick up V003 to V006 (migrations only run on a fresh volume).
+- [ ] **Expose the clock start (or the window) from `person_contact_state`.** The UI only gets `contactDueAt`, so Home's meter still hard-codes `WINDOW` (7 days / 72 hours) in `web/src/pages/HomePage.tsx` to find where the clock started. Return the start (e.g. `contactClockStart`) so Home can drop `WINDOW` and the Person page can draw its progress bar (Screens, Person page).
 - [x] **Log contact API, from the user story.** (#36) A shepherd adds a person (`createPerson` takes an optional `comment`), and adding them is the first contact. Logging a contact takes a required date and note and an optional prayer burden (`LogContactInput.prayerBurden`, linked by `prayer_burden.contact_log_id`, removed on Undo). Any contact for a `new contact` is their follow-up; `isFollowUp` is deprecated and ignored. Migration `V005__contact_burdens.sql`.
 
 ## Screens (web + mWeb/mobile)
 
 The app needs both web and mobile-web layouts for every screen, then Android and iOS. Working through them as separate pages on the design canvas.
 
-- [ ] **Review now** (mocked up for web and mWeb, pending build): opens from "Review now" on Home and steps through overdue people, most urgent first. "Contacted today" logs a time, not just a date, so the 72-hour rule can be measured; Skip logs nothing and leaves the person overdue. Has a new-contact log step and a finished screen.
+- [ ] **Review now** (mocked up for web and mWeb, pending build): opens from "Review now" on Home and steps through overdue people, most urgent first. Each step hosts `LogContactForm` inline (`web/src/pages/LogContactForm.tsx`, written for this) with "Log contact" and "Skip for now"; Skip logs nothing and leaves the person overdue. The Finished screen lists each contact logged in the session, each with Undo.
 - [ ] **My people** (mocked up for web and mWeb, pending build): one page with a **Board / Gallery toggle**.
   - **Board** (default): columns for New contact, Active, Inactive, Lost contact. Each card shows name, last contact, milestone progress, prayer count and its contact-alert state.
     - [ ] Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging.
     - [ ] Keyboard and screen-reader alternative to dragging: a "Move to" menu on every card.
     - [ ] Toast with Undo after a move.
-    - [x] Decided 2026-10-16: what a status move means for the contact rule. Moving New contact to Active asks "Did a follow-up happen?": Yes logs a follow-up now (which promotes them); No just moves them, and the 7-day clock starts from the move. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. The design just moves them; update it to show the question.
+    - [x] Decided 2026-10-16: what a status move means for the contact rule. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. (The New contact to Active part, "Did a follow-up happen?" with Yes / No, was replaced on 2026-10-19; see below.)
+    - [x] Decided 2026-10-19: dragging New contact to Active opens the Log contact dialog instead of asking "Did they have a follow-up?" / "Move anyway". Since #36 any contact logged for a new contact is their follow-up and promotes them, so saving the dialog does the move; Cancel leaves the card where it was. There is no "move without a contact" path from New contact to Active. The design still just moves them; update it to open the dialog.
     - [ ] Build the clock-from-the-move part: `person_contact_state` needs to count from when the status last changed (e.g. a `person.status_changed_at`) when that is later than the last contact.
     - [ ] Persist the move optimistically and roll back if the mutation fails.
   - **Gallery**: full overview grid with search by name and status filter chips. 2-column cards on mWeb.
@@ -40,12 +42,13 @@ The app needs both web and mobile-web layouts for every screen, then Android and
     - [ ] Possible later: sort options (name, last contact, most overdue).
   - [x] Decided 2026-10-16: milestone progress stays four fixed segments in this order for the demo: baptised, joined small group, serving, leading. Configurable milestones are a separate item below.
 - [ ] **Person page** (mocked up for web and mWeb, pending build), using Maria Santos as the example.
-  - [ ] Header card with a contact-status banner (on track / due / overdue, with a progress bar against the 7-day or 72-hour goal) and a prominent "Contacted today" button. Replaces today's "Contacted today" link in the details card.
+  - [x] Header card with a contact-status banner (on track / due / overdue) and a prominent "Log contact" button that opens the Log contact dialog. Replaces today's "Contacted today" link in the details card. (#40)
+    - [ ] Progress bar against the 7-day or 72-hour goal. Left out because it needs the clock start from `person_contact_state`, not a hard-coded window.
   - [ ] Milestones as a four-step journey (baptised, small group, serving, leading) showing when and any note; unrecorded steps get a "Record" button.
   - [ ] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list.
   - [ ] Notes: standalone notes with an add-note box (comments with no prayer burden).
   - [ ] Sidebar (web) or stacked sections (mWeb): details, shepherds (add / remove, "You" and co-shepherd labels), contact rule reminder, delete person.
-  - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active asks whether a follow-up happened).
+  - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19).
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
 - [ ] **Prayer list** (mocked up for web and mWeb, pending build): all active burdens across the people you shepherd.
   - [ ] Sort: longest standing (default), newest, or grouped by person. Filter by person.
@@ -63,17 +66,20 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Decide on later: password reset, "stay signed in", and how a new user lands on an empty Home (business rule 1: zero people).
   - [x] Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
 - [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
-- [ ] **"Log contact" modal** (to design, probably on the design canvas
+- [x] **"Log contact" modal** (#39, #42) (to design, probably on the design canvas
   first). The one-tap buttons ("Contacted today" and "Log follow-up" on
   Home, "Contacted today" / "Followed up today" on the person card) open
   it instead of logging straight away. Fields: a date (defaults to the
   device's current date and time), a required note on what was talked
   about, and an optional prayer burden text field. Sends `logContact`
   with `contactedAt`, `note` and `prayerBurden`.
-  - [ ] Until it's built, the buttons log a placeholder note
+  - [x] (#42) Until it's built, the buttons log a placeholder note
     (`QUICK_CONTACT_NOTE` in `web/src/contacts.ts`), since the API now
     requires one. Remove `quickContact` once the modal replaces it.
   - [ ] Android and iOS need the same modal.
+- [x] **Add person page** (#41) at `/people/new`: name, age, year met and an optional first comment (status is always New contact), then a confirmation screen with the 72-hour follow-up deadline and "Log contact now". Replaces the inline form on My people.
+  - [ ] Android and iOS need the same screen. The shared module's `createPerson` already takes `comment` (#43).
+- [ ] **Dark mode for the `--sms-*` tokens.** `web/src/tokens.css` is light only, and the dark mode in `index.css` covers only the old palette, so the new screens (Home, Person, Add person, the Log contact dialog) stay light. Add dark values, then re-run the colour-contrast audit on the new screens in both themes (axe can't check contrast in jsdom, so do it in a browser).
 
 ## Design gaps (canvas vs API)
 
@@ -126,10 +132,10 @@ gap check).
   Review and Person builds, so settle it before they start.
 - [x] Per-person summaries on `myPeople` / `contactAlerts` (Design
   gaps). (#35) Every list screen in the canvas needs them.
-- [ ] Finish the contact-cadence backend: Undo of a follow-up reverts
-  the promotion, and the clock counts from a status move
-  (`person.status_changed_at`). Needed by the My people board and
-  Review Undo.
+- [ ] Finish the contact-cadence backend: the clock counts from a status
+  move (`person.status_changed_at`), and expose the clock start. Needed
+  by the My people board. (Undo of a follow-up reverting the promotion
+  is done, #37.)
 - [ ] Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
   person status on burdens, recently released query (Design gaps and
   Prayer list).
@@ -150,9 +156,8 @@ gap check).
   - Depends on the logging follow-up below: `peer_address` isn't
     populated today, so per-IP limits need the client address first
     (and `X-Forwarded-For` from a trusted proxy if one is put in front).
-- [ ] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts` and `logContact` to the shared module, then drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API.
-  Do this after the API changes above settle, so the shared module
-  only catches up once.
+- [x] KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts`, `logContact` and `deleteContact` to the shared module, and stop using `lastContactDate` there. (#43)
+- [ ] Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it.
 - [x] Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync). Confirmed 2026-10-16.
 - [x] Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one. Confirmed 2026-10-16.
 - [x] `backend/src/main.cpp` falls back to `0.0.0.0` / `8080` when

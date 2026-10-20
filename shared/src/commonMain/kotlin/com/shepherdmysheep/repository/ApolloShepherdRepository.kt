@@ -9,12 +9,14 @@ import com.shepherdmysheep.graphql.*
 import com.shepherdmysheep.graphql.type.CreateCommentInput
 import com.shepherdmysheep.graphql.type.CreatePersonInput
 import com.shepherdmysheep.graphql.type.CreatePrayerBurdenInput
+import com.shepherdmysheep.graphql.type.LogContactInput
 import com.shepherdmysheep.graphql.type.LoginInput
 import com.shepherdmysheep.graphql.type.RecordMilestoneInput
 import com.shepherdmysheep.graphql.type.RegisterInput
 import com.shepherdmysheep.graphql.type.UpdatePersonInput
 import com.shepherdmysheep.models.*
 import com.shepherdmysheep.network.TokenStore
+import kotlin.time.Instant
 
 /**
  * Apollo-backed implementation of ShepherdRepository.
@@ -63,15 +65,25 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
     override suspend fun getMyPeople(): List<Person> =
         execute(apolloClient.query(MyPeopleQuery())).myPeople.map { it.personSummary.toModel() }
 
+    override suspend fun getContactAlerts(): List<Person> =
+        execute(apolloClient.query(ContactAlertsQuery())).contactAlerts.map { it.personSummary.toModel() }
+
     override suspend fun getPerson(id: String): Person? =
         execute(apolloClient.query(PersonQuery(id = id))).person?.personDetail?.toModel()
 
-    override suspend fun createPerson(name: String, statusId: String, age: Int?, yearMet: Int?): Person {
+    override suspend fun createPerson(
+        name: String,
+        statusId: String,
+        age: Int?,
+        yearMet: Int?,
+        comment: String?,
+    ): Person {
         val input = CreatePersonInput(
             name = name,
             statusId = statusId,
             age = Optional.presentIfNotNull(age),
             yearMet = Optional.presentIfNotNull(yearMet),
+            comment = Optional.presentIfNotNull(comment),
         )
         return execute(apolloClient.mutation(CreatePersonMutation(input))).createPerson.personDetail.toModel()
     }
@@ -82,7 +94,6 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
         name: String?,
         age: Int?,
         yearMet: Int?,
-        lastContactDate: String?,
         isActive: Boolean?,
         statusId: String?,
     ): Person {
@@ -90,7 +101,6 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
             name = Optional.presentIfNotNull(name),
             age = Optional.presentIfNotNull(age),
             yearMet = Optional.presentIfNotNull(yearMet),
-            lastContactDate = Optional.presentIfNotNull(lastContactDate),
             isActive = Optional.presentIfNotNull(isActive),
             statusId = Optional.presentIfNotNull(statusId),
         )
@@ -109,6 +119,27 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
     override suspend fun unassignPerson(personId: String, userId: String): Person =
         execute(apolloClient.mutation(UnassignPersonMutation(personId = personId, userId = userId)))
             .unassignPerson.personDetail.toModel()
+
+    // ── Contacts ────────────────────────────────────────────
+
+    // isFollowUp is deprecated and ignored by the server, so it is never sent.
+    override suspend fun logContact(
+        personId: String,
+        contactedAt: Instant,
+        note: String,
+        prayerBurden: String?,
+    ): Person {
+        val input = LogContactInput(
+            personId = personId,
+            contactedAt = contactedAt.toString(),
+            note = note,
+            prayerBurden = Optional.presentIfNotNull(prayerBurden),
+        )
+        return execute(apolloClient.mutation(LogContactMutation(input))).logContact.personDetail.toModel()
+    }
+
+    override suspend fun deleteContact(id: String): Person =
+        execute(apolloClient.mutation(DeleteContactMutation(id = id))).deleteContact.personDetail.toModel()
 
     // ── Users ───────────────────────────────────────────────
 

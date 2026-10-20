@@ -1,11 +1,6 @@
-import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  MyPeopleDocument,
-  useCreatePersonMutation,
-  useMyPeopleQuery,
-  useStatusesQuery,
-} from '../generated/graphql'
+import { Button, PlusIcon } from '../components'
+import { useMyPeopleQuery } from '../generated/graphql'
 import { friendlyMessage } from '../errors'
 import { ContactStateBadge } from './ContactStateBadge'
 import { Header } from './Header'
@@ -49,99 +44,13 @@ export function PeoplePage() {
           </ul>
         )}
 
-        <AddPersonForm />
+        {/* Wrapped so the column doesn't stretch it full width. */}
+        <div>
+          <Button as={Link} to="/people/new" icon={<PlusIcon />}>
+            Add person
+          </Button>
+        </div>
       </main>
     </>
-  )
-}
-
-function AddPersonForm() {
-  const { data: statusData } = useStatusesQuery()
-  const [createPerson, { loading, error }] = useCreatePersonMutation({
-    refetchQueries: [{ query: MyPeopleDocument }],
-  })
-
-  const [name, setName] = useState('')
-  const [statusId, setStatusId] = useState('')
-  const [age, setAge] = useState('')
-  const [yearMet, setYearMet] = useState('')
-
-  const statuses = statusData?.statuses ?? []
-  const selectedStatus =
-    statusId || statuses.find((s) => s.name === 'new contact')?.id || statuses[0]?.id || ''
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    try {
-      await createPerson({
-        variables: {
-          input: {
-            name: name.trim(),
-            statusId: selectedStatus,
-            age: age ? Number(age) : null,
-            yearMet: yearMet ? Number(yearMet) : null,
-          },
-        },
-      })
-      setName('')
-      setAge('')
-      setYearMet('')
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  return (
-    <form className="card stack" onSubmit={handleSubmit}>
-      <h2>Add a person</h2>
-      <label>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
-      </label>
-      <label>
-        Status
-        <select value={selectedStatus} onChange={(e) => setStatusId(e.target.value)} required>
-          {statuses.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className="row">
-        <label>
-          <span>
-            Age <span className="muted">(optional)</span>
-          </span>
-          <input
-            type="number"
-            min={0}
-            max={150}
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-          />
-        </label>
-        <label>
-          <span>
-            Year met <span className="muted">(optional)</span>
-          </span>
-          <input
-            type="number"
-            min={1900}
-            max={2100}
-            value={yearMet}
-            onChange={(e) => setYearMet(e.target.value)}
-          />
-        </label>
-      </div>
-      {error && (
-        <p className="error" role="alert">
-          {friendlyMessage(error)}
-        </p>
-      )}
-      <button type="submit" disabled={loading || !selectedStatus}>
-        {loading ? 'Adding…' : 'Add person'}
-      </button>
-    </form>
   )
 }

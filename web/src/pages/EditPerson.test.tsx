@@ -3,9 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { quickContact } from '../contacts'
-import { formatDateTime } from '../format'
+import { describe, expect, it, vi } from 'vitest'
 import * as G from '../generated/graphql'
 import { PersonPage } from './PersonPage'
 
@@ -29,6 +27,7 @@ function person(overrides: Record<string, unknown> = {}) {
     yearMet: 2020,
     lastContactedAt: '2026-01-02 09:00:00+00',
     contactDueAt: '2026-01-09 09:00:00+00',
+    createdAt: '2025-12-01 09:00:00+00',
     contactState: G.ContactState.Overdue,
     isActive: true,
     status: ST_ACTIVE,
@@ -124,10 +123,6 @@ async function openForm(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Edit details' }))
   await screen.findByRole('button', { name: 'Save' })
 }
-
-afterEach(() => {
-  vi.useRealTimers()
-})
 
 describe('edit person form', () => {
   it('opens prefilled with the current values', async () => {
@@ -246,7 +241,8 @@ describe('edit person form', () => {
     await user.type(age, '31')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Age is not allowed')
+    // The overdue contact banner is an alert too.
+    expect(await screen.findByText('Age is not allowed')).toHaveAttribute('role', 'alert')
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
     expect(screen.getByLabelText(/^Age/)).toHaveValue(31)
   })
@@ -267,114 +263,5 @@ describe('edit person form', () => {
     await openForm(user)
     expect(screen.getByLabelText('Name')).toHaveValue('Sam Sheep')
     expect(result).not.toHaveBeenCalled()
-  })
-})
-
-describe('contacted today', () => {
-  // Local noon, 2026-10-14.
-  const NOW = new Date(2026, 9, 14, 12, 0, 0)
-
-  function freezeToday() {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(NOW)
-  }
-
-  /** LogContact returns the summary plus the logged contact's id. */
-  function logMock(updated: Record<string, unknown> = {}) {
-    const result = vi.fn(() => ({
-      data: {
-        logContact: {
-          ...summary({
-            lastContactedAt: NOW.toISOString(),
-            contactDueAt: new Date(NOW.getTime() + 7 * 86_400_000).toISOString(),
-            contactState: G.ContactState.OnTrack,
-            ...updated,
-          }),
-          contacts: [{ __typename: 'ContactLog', id: 'contact-new' }],
-        },
-      },
-    }))
-    return {
-      result,
-      mock: {
-        request: {
-          query: G.LogContactDocument,
-          variables: { input: quickContact(PERSON_ID) },
-        },
-        result,
-      } as MockedResponse,
-    }
-  }
-
-  it('logs a contact now and shows the new state, with an Undo', async () => {
-    freezeToday()
-    const user = userEvent.setup()
-    const { mock, result } = logMock()
-    renderPage(person(), [mock])
-    expect(await screen.findByText(/^Overdue/)).toBeInTheDocument()
-    await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
-
-    expect(await screen.findByText('Contact logged.')).toBeInTheDocument()
-    expect(screen.getByText(formatDateTime(NOW.toISOString()))).toBeInTheDocument()
-    expect(screen.getByText('On track')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
-    expect(result).toHaveBeenCalledTimes(1)
-  })
-
-  it('undo deletes the contact just logged', async () => {
-    freezeToday()
-    const user = userEvent.setup()
-    const { mock } = logMock()
-    const undone = vi.fn(() => ({
-      data: { deleteContact: { ...summary(), contacts: [] } },
-    }))
-    const undoMock: MockedResponse = {
-      request: { query: G.DeleteContactDocument, variables: { id: 'contact-new' } },
-      result: undone,
-    }
-    renderPage(person(), [mock, undoMock])
-    await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
-    await user.click(await screen.findByRole('button', { name: 'Undo' }))
-
-    expect(await screen.findByRole('button', { name: 'Contacted today' })).toBeInTheDocument()
-    expect(screen.getByText(/^Overdue/)).toBeInTheDocument()
-    expect(undone).toHaveBeenCalledTimes(1)
-  })
-
-  it('works for a person who has never been contacted', async () => {
-    freezeToday()
-    const user = userEvent.setup()
-    const { mock, result } = logMock()
-    renderPage(person({ lastContactedAt: null }), [mock])
-    await user.click(await screen.findByRole('button', { name: 'Contacted today' }))
-
-    expect(await screen.findByText('Contact logged.')).toBeInTheDocument()
-    expect(result).toHaveBeenCalledTimes(1)
-  })
-
-  it('offers a follow-up for a new contact, which moves them to active without an Undo', async () => {
-    freezeToday()
-    const user = userEvent.setup()
-    const { mock, result } = logMock({ status: ST_ACTIVE })
-    renderPage(person({ status: ST_NEW, contactState: G.ContactState.DueSoon }), [mock])
-    await user.click(await screen.findByRole('button', { name: 'Followed up today' }))
-
-    expect(await screen.findByText('Active', { selector: '.badge' })).toBeInTheDocument()
-    expect(result).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Followed up today' })).not.toBeInTheDocument()
-  })
-
-  it('does not offer a follow-up to someone who is already active', async () => {
-    renderPage(person())
-    await screen.findByRole('button', { name: 'Contacted today' })
-    expect(screen.queryByRole('button', { name: 'Followed up today' })).not.toBeInTheDocument()
-  })
-
-  it('is hidden when an active person was already contacted today', async () => {
-    freezeToday()
-    renderPage(person({ lastContactedAt: NOW.toISOString(), contactState: G.ContactState.OnTrack }))
-    await screen.findByRole('button', { name: 'Edit details' })
-    expect(screen.queryByRole('button', { name: 'Contacted today' })).not.toBeInTheDocument()
   })
 })

@@ -78,3 +78,17 @@ mutation CreateComment($input: CreateCommentInput!) {
 mutation DeleteComment($id: UUID!) {
   deleteComment(id: $id)
 }
+
+# Both return the person, so the contact state, notes and burdens update
+# in one round trip.
+mutation LogContact($input: LogContactInput!) {
+  logContact(input: $input) {
+    ...PersonDetail
+  }
+}
+
+mutation DeleteContact($id: UUID!) {
+  deleteContact(id: $id) {
+    ...PersonDetail
+  }
+}

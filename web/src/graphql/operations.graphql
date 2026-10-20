@@ -34,6 +34,39 @@ fragment PersonSummary on Person {
   }
 }
 
+# The lists a contact changes: logging one adds a contact, its note and maybe
+# a burden, and Undo removes them. The Person query and LogContact/DeleteContact
+# all select it, so the mutation results update the Person page's cache.
+# contactLogId marks a note written by logging a contact.
+fragment PersonActivity on Person {
+  id
+  prayerBurdens {
+    id
+    content
+    releasedDate
+    createdAt
+  }
+  comments {
+    id
+    content
+    createdAt
+    contactLogId
+    author {
+      id
+      name
+    }
+    prayerBurden {
+      id
+    }
+  }
+  contacts {
+    id
+    contactedAt
+    isFollowUp
+    createdAt
+  }
+}
+
 query Me {
   me {
     id
@@ -42,9 +75,11 @@ query Me {
   }
 }
 
+# createdAt starts a new contact's clock while no contact is logged.
 query MyPeople {
   myPeople {
     ...PersonSummary
+    createdAt
   }
 }
 
@@ -61,6 +96,7 @@ query ContactAlerts {
 query Person($id: UUID!) {
   person(id: $id) {
     ...PersonSummary
+    createdAt
     milestones {
       id
       dateAchieved
@@ -74,24 +110,7 @@ query Person($id: UUID!) {
         name
       }
     }
-    prayerBurdens {
-      id
-      content
-      releasedDate
-      createdAt
-    }
-    comments {
-      id
-      content
-      createdAt
-      author {
-        id
-        name
-      }
-      prayerBurden {
-        id
-      }
-    }
+    ...PersonActivity
   }
 }
 
@@ -132,9 +151,11 @@ mutation Register($input: RegisterInput!) {
   }
 }
 
+# contactDueAt is the 72-hour follow-up deadline the confirmation shows (business rule 6).
 mutation CreatePerson($input: CreatePersonInput!) {
   createPerson(input: $input) {
     ...PersonSummary
+    createdAt
   }
 }
 
@@ -227,21 +248,21 @@ mutation AssignPerson($personId: UUID!, $userId: UUID!) {
 }
 
 # Returns the person with their new contact state (and status, since a
-# follow-up promotes a new contact to active). contacts[0] is the newest.
+# follow-up promotes a new contact to active). contacts are ordered by
+# contactedAt, so a back-dated contact may not be contacts[0]; the one just
+# logged has the latest createdAt.
 mutation LogContact($input: LogContactInput!) {
   logContact(input: $input) {
     ...PersonSummary
-    contacts {
-      id
-    }
+    ...PersonActivity
   }
 }
 
+# Also moves the person back to new contact if this contact promoted them and
+# they are still active.
 mutation DeleteContact($id: UUID!) {
   deleteContact(id: $id) {
     ...PersonSummary
-    contacts {
-      id
-    }
+    ...PersonActivity
   }
 }

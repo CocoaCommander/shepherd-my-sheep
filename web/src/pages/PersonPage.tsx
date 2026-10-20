@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { ApolloError } from '@apollo/client'
 import { errorCode, friendlyMessage } from '../errors'
-import { formatDate, formatDateTime } from '../format'
+import { formatDate, formatDateTime, formatShortDate, isToday } from '../format'
 import {
   PersonDocument,
   useCreateCommentMutation,
@@ -17,8 +17,10 @@ import {
   type PersonQuery,
 } from '../generated/graphql'
 import { ActionButton } from './ActionButton'
+import { useLogContactToast } from './contactToast'
 import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
+import { LogContactDialog } from './LogContactDialog'
 import { PersonDetailsCard } from './PersonDetailsCard'
 
 export function PersonPage() {
@@ -65,16 +67,43 @@ function refetchPerson(personId: string) {
   }
 }
 
+/** Set by Add person's "Log contact now", to open the dialog on arrival. */
+type PersonLocationState = { logContact?: boolean } | null
+
 function PersonDetail({ person, meId }: { person: Person; meId: string | undefined }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const askedToLog = Boolean((location.state as PersonLocationState)?.logContact)
+  const [logging, setLogging] = useState(askedToLog)
+  const { showLogged, toastElement } = useLogContactToast({ floating: true })
+
+  // Clear the request, so Back or a reload doesn't open the dialog again.
+  useEffect(() => {
+    if (askedToLog) navigate(location.pathname, { replace: true, state: null })
+  }, [askedToLog, location.pathname, navigate])
+
   const activeBurdens = person.prayerBurdens.filter((b) => !b.releasedDate)
   const releasedBurdens = person.prayerBurdens.filter((b) => b.releasedDate)
   const commentsFor = (burdenId: string) =>
     person.comments.filter((c) => c.prayerBurden?.id === burdenId)
   const notes = person.comments.filter((c) => !c.prayerBurden)
+  const contactedAt = (contactLogId: string) =>
+    person.contacts.find((c) => c.id === contactLogId)?.contactedAt
 
   return (
     <>
-      <PersonDetailsCard person={person} meId={meId} />
+      <PersonDetailsCard person={person} meId={meId} onLogContact={() => setLogging(true)} />
+      {/* LogContact returns the person's activity, so the cache updates this page. */}
+      <LogContactDialog
+        person={person}
+        open={logging}
+        onClose={() => setLogging(false)}
+        onSaved={(saved, wasNewContact) => {
+          setLogging(false)
+          showLogged(saved, wasNewContact)
+        }}
+      />
+      {toastElement}
 
       <section className="card stack">
         <h2>Milestones</h2>
@@ -159,6 +188,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
           <ul className="list">
             {notes.map((c) => (
               <li key={c.id} className="list-item">
+                {c.contactLogId && <LoggedContactLabel contactedAt={contactedAt(c.contactLogId)} />}
                 <div className="item-head">
                   <p>{c.content}</p>
                   {c.author.id === meId && <DeleteCommentButton id={c.id} personId={person.id} />}
@@ -182,6 +212,15 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
   )
 }
 
+/** Marks a note written when logging a contact, with the contact's date. */
+function LoggedContactLabel({ contactedAt }: { contactedAt: string | undefined }) {
+  return (
+    <p className="muted small">
+      Logged contact{contactedAt && ` · ${formatShortDate(contactedAt)}`}
+    </p>
+  )
+}
+
 function Burden({
   personId,
   burden,
@@ -201,7 +240,10 @@ function Burden({
         <p>{burden.content}</p>
         {!released && <ReleaseBurdenButton id={burden.id} personId={personId} />}
       </div>
-      <p className="muted small">Added {formatDateTime(burden.createdAt)}</p>
+      <p className="muted small">
+        Added {isToday(burden.createdAt) ? 'today' : formatDateTime(burden.createdAt)}
+        {!released && comments.length === 0 && ' · Praying'}
+      </p>
       {/* A burden may have no comments (business rule 4). */}
       {comments.length > 0 && (
         <ul className="replies">

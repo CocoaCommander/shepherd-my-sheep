@@ -1,14 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApolloClient } from '@apollo/client'
-import { quickContact } from '../contacts'
-import { formatDateTime, isToday } from '../format'
+import { formatDateTime } from '../format'
 import {
   ContactAlertsDocument,
   MyPeopleDocument,
-  useDeleteContactMutation,
   useDeletePersonMutation,
-  useLogContactMutation,
   useStatusesQuery,
   useUnassignPersonMutation,
   useUpdatePersonMutation,
@@ -17,26 +14,48 @@ import {
 } from '../generated/graphql'
 import { ActionButton } from './ActionButton'
 import { AddShepherd } from './AddShepherd'
-import { ContactStateBadge } from './ContactStateBadge'
+import { ContactStatusBanner } from './ContactStatusBanner'
 import { ErrorMessage } from './ErrorMessage'
 
 type Person = NonNullable<PersonQuery['person']>
 
-/** The person's facts, with an inline form to edit them. */
-export function PersonDetailsCard({ person, meId }: { person: Person; meId: string | undefined }) {
+/** The contact rule for the person's status, in words (business rule 6). */
+function contactRule(status: string): string {
+  switch (status) {
+    case 'new contact':
+      return 'A new contact needs a follow-up within 72 hours of being added.'
+    case 'active':
+      return 'Active people need a contact at least every 7 days.'
+    default:
+      return 'Contact reminders are off while they are inactive or lost contact.'
+  }
+}
+
+/** The person's facts and contact status, with an inline form to edit the facts. */
+export function PersonDetailsCard({
+  person,
+  meId,
+  onLogContact,
+}: {
+  person: Person
+  meId: string | undefined
+  onLogContact: () => void
+}) {
   const [editing, setEditing] = useState(false)
+  const isNewContact = person.status.name === 'new contact'
 
   return (
     <section className="card stack">
       <div className="title-row">
         <h1>{person.name}</h1>
         <span className="badges">
-          <ContactStateBadge person={person} />
           <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
             {person.status.name}
           </span>
         </span>
       </div>
+
+      <ContactStatusBanner person={person} onLogContact={onLogContact} />
 
       {editing ? (
         // Mounted fresh each time, so it always starts from the saved values.
@@ -44,17 +63,19 @@ export function PersonDetailsCard({ person, meId }: { person: Person; meId: stri
       ) : (
         <>
           <dl className="facts">
-            <Fact label="Age" value={person.age} />
+            <Fact label="Age" value={person.age} empty="Not recorded" />
             <Fact label="Year met" value={person.yearMet} />
+            {isNewContact && <Fact label="Added" value={formatDateTime(person.createdAt)} />}
             <Fact
               label="Last contact"
               value={person.lastContactedAt && formatDateTime(person.lastContactedAt)}
+              empty="None yet"
             />
             <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
           </dl>
+          <p className="muted small">{contactRule(person.status.name)}</p>
           <Shepherds person={person} meId={meId} />
           <div className="card-actions">
-            <LogContactButtons person={person} />
             <button type="button" className="link" onClick={() => setEditing(true)}>
               Edit details
             </button>
@@ -66,13 +87,22 @@ export function PersonDetailsCard({ person, meId }: { person: Person; meId: stri
   )
 }
 
-function Fact({ label, value }: { label: string; value: string | number | null | undefined }) {
+function Fact({
+  label,
+  value,
+  empty = '—',
+}: {
+  label: string
+  value: string | number | null | undefined
+  /** Shown, muted, when there is no value. */
+  empty?: string
+}) {
   return (
     <div>
       <dt>{label}</dt>
       <dd>
         {value === null || value === undefined || value === '' ? (
-          <span className="muted">—</span>
+          <span className="muted">{empty}</span>
         ) : (
           value
         )}
@@ -192,81 +222,6 @@ function DeletePersonButton({ person }: { person: Person }) {
         leave()
       }}
     />
-  )
-}
-
-/**
- * Logs a contact now (business rule 6). For a new contact it is "Followed up
- * today", which moves them to active. A plain contact can be undone right
- * after; a follow-up can't, since undoing it wouldn't undo the status change.
- */
-function LogContactButtons({ person }: { person: Person }) {
-  const [logContact, logState] = useLogContactMutation(reloadMyPeople)
-  const [deleteContact, undoState] = useDeleteContactMutation(reloadMyPeople)
-  const [undoId, setUndoId] = useState<string | null>(null)
-
-  async function log(isFollowUp: boolean) {
-    try {
-      const result = await logContact({
-        variables: { input: quickContact(person.id) },
-      })
-      // contacts are newest first, so [0] is the one just logged.
-      const logged = result.data?.logContact.contacts[0]?.id
-      setUndoId(isFollowUp || !logged ? null : logged)
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  async function undo() {
-    if (!undoId) return
-    try {
-      await deleteContact({ variables: { id: undoId } })
-      setUndoId(null)
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  if (undoId) {
-    return (
-      <span className="action">
-        <span className="muted">Contact logged.</span>{' '}
-        <button type="button" className="link" disabled={undoState.loading} onClick={undo}>
-          {undoState.loading ? 'Undoing…' : 'Undo'}
-        </button>
-        <ErrorMessage error={undoState.error} />
-      </span>
-    )
-  }
-
-  const isNewContact = person.status.name === 'new contact'
-  if (!isNewContact && person.lastContactedAt && isToday(person.lastContactedAt)) return null
-
-  return (
-    <span className="action">
-      {isNewContact ? (
-        <button
-          type="button"
-          className="link"
-          disabled={logState.loading}
-          onClick={() => log(true)}
-          title="Logs a follow-up and moves them to active"
-        >
-          {logState.loading ? 'Saving…' : 'Followed up today'}
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="link"
-          disabled={logState.loading}
-          onClick={() => log(false)}
-        >
-          {logState.loading ? 'Saving…' : 'Contacted today'}
-        </button>
-      )}
-      <ErrorMessage error={logState.error} />
-    </span>
   )
 }
 

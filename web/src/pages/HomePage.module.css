@@ -143,7 +143,8 @@
   .hint {
     display: none;
   }
-  /* Thumb-sized: the banner action and each card's main action fill the width. */
+  /* Thumb-sized: Add person, the banner action and each card's main action fill the width. */
+  .addPerson,
   .bannerAction {
     width: 100%;
   }
