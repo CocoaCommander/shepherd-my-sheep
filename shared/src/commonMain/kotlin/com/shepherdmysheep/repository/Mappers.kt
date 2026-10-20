@@ -6,6 +6,7 @@ import com.shepherdmysheep.graphql.fragment.MilestonePersonFields
 import com.shepherdmysheep.graphql.fragment.PersonDetail
 import com.shepherdmysheep.graphql.fragment.PersonSummary
 import com.shepherdmysheep.graphql.fragment.PrayerBurdenFields
+import com.shepherdmysheep.graphql.fragment.PrayerListBurden
 import com.shepherdmysheep.graphql.fragment.UserFields
 import com.shepherdmysheep.models.Comment
 import com.shepherdmysheep.models.ContactLog
@@ -13,6 +14,7 @@ import com.shepherdmysheep.models.ContactState
 import com.shepherdmysheep.models.Milestone
 import com.shepherdmysheep.models.MilestonePerson
 import com.shepherdmysheep.models.Person
+import com.shepherdmysheep.models.PersonRef
 import com.shepherdmysheep.models.PrayerBurden
 import com.shepherdmysheep.models.Status
 import com.shepherdmysheep.models.User
@@ -88,6 +90,15 @@ internal fun PrayerBurdenFields.toModel() = PrayerBurden(
     releasedDate = releasedDate,
     createdAt = createdAt,
     updatedAt = updatedAt,
+)
+
+internal fun PrayerListBurden.toModel() = prayerBurdenFields.toModel().copy(
+    person = PersonRef(
+        id = person.id,
+        name = person.name,
+        status = Status(id = person.status.id, name = person.status.name),
+    ),
+    comments = comments.map { it.commentFields.toModel() },
 )
 
 internal fun CommentFields.toModel() = Comment(

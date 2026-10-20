@@ -48,14 +48,15 @@ query SearchUsers($query: String!) {
   }
 }
 
-# `person` is selected here and not in PrayerBurdenFields: only
-# activePrayerBurdens fills it, and other operations would get null.
 query ActivePrayerBurdens($personId: UUID) {
   activePrayerBurdens(personId: $personId) {
-    ...PrayerBurdenFields
-    person {
-      id
-      name
-    }
+    ...PrayerListBurden
+  }
+}
+
+# The latest 5 releases, of any age, newest release first.
+query RecentlyReleasedPrayerBurdens($personId: UUID) {
+  recentlyReleasedPrayerBurdens(personId: $personId) {
+    ...PrayerListBurden
   }
 }

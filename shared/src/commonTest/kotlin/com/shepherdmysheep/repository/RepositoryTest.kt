@@ -42,9 +42,14 @@ private fun comment(id: String, burdenId: String?, contactId: String? = null) =
  "prayerBurden":${burdenId?.let { """{"__typename":"PrayerBurden","id":"$it"}""" } ?: "null"},
  "contactLogId":${jsonOrNull(contactId)}}"""
 
-private fun burden(id: String, person: String = "") =
-    """{"__typename":"PrayerBurden","id":"$id","content":"burden $id","releasedDate":null,
+private fun burden(id: String, person: String = "", released: String? = null) =
+    """{"__typename":"PrayerBurden","id":"$id","content":"burden $id","releasedDate":${jsonOrNull(released)},
  "createdAt":"2026-01-03T00:00:00Z","updatedAt":"2026-01-03T00:00:00Z"$person}"""
+
+/** The `person { id name status { id name } }` and `comments` a prayer list burden carries. */
+private fun personAndComments(comments: String = "[]", status: String = "active") =
+    ""","person":{"__typename":"Person","id":"p1","name":"Sam Sheep",
+ "status":{"__typename":"Status","id":"s1","name":"$status"}},"comments":$comments"""
 
 private fun contact(id: String, contactedAt: String, by: String? = user(), isFollowUp: Boolean = false) =
     """{"__typename":"ContactLog","id":"$id","contactedAt":"$contactedAt","isFollowUp":$isFollowUp,
@@ -186,11 +191,90 @@ class RepositoryTest {
 
     @Test
     fun activePrayerBurdensFillsPerson() = runTest {
-        val withPerson = ""","person":{"__typename":"Person","id":"p1","name":"Sam Sheep"}"""
-        val body = data("""{"activePrayerBurdens":[${burden("b1", withPerson)}]}""")
+        val body = data("""{"activePrayerBurdens":[${burden("b1", personAndComments())}]}""")
         val result = repo(body).getActivePrayerBurdens()
         assertEquals("p1", result.single().person?.id)
         assertEquals("Sam Sheep", result.single().person?.name)
+        assertEquals("active", result.single().person?.status?.name)
+    }
+
+    @Test
+    fun activePrayerBurdensKeepCommentsNewestFirst() = runTest {
+        val two = "[${comment("c2", "b1")},${comment("c1", "b1")}]"
+        val body = data(
+            """{"activePrayerBurdens":[${burden(
+                "b1",
+                personAndComments(two),
+            )},${burden("b2", personAndComments())}]}""",
+        )
+        val (b1, b2) = repo(body).getActivePrayerBurdens()
+        assertEquals(listOf("c2", "c1"), b1.comments.map { it.id })
+        assertEquals("note c2", b1.comments.first().content)
+        assertEquals("u1", b1.comments.first().author.id)
+        assertEquals(emptyList(), b2.comments)
+    }
+
+    // ── Recently released / unrelease ───────────────────────
+
+    @Test
+    fun recentlyReleasedEmptyIsEmptyList() = runTest {
+        assertEquals(
+            emptyList(),
+            repo(data("""{"recentlyReleasedPrayerBurdens":[]}""")).getRecentlyReleasedPrayerBurdens(),
+        )
+    }
+
+    @Test
+    fun recentlyReleasedMapsReleasedDatePersonAndComments() = runTest {
+        val extra = personAndComments("[${comment("c1", "b1")}]", status = "inactive")
+        val body = data(
+            """{"recentlyReleasedPrayerBurdens":[${burden("b1", extra, released = "2026-02-01T00:00:00Z")}]}""",
+        )
+        val result = repo(body).getRecentlyReleasedPrayerBurdens().single()
+        assertEquals("2026-02-01T00:00:00Z", result.releasedDate)
+        assertEquals("p1", result.person?.id)
+        assertEquals("inactive", result.person?.status?.name)
+        assertEquals(listOf("c1"), result.comments.map { it.id })
+    }
+
+    @Test
+    fun recentlyReleasedSendsPersonIdOnlyWhenGiven() = runTest {
+        val body = data("""{"recentlyReleasedPrayerBurdens":[]}""")
+        val with = FakeEngine(body = body)
+        repo("", engine = with).getRecentlyReleasedPrayerBurdens("p1")
+        assertTrue(variables(with.requestBodies.single()).contains(""""personId":"p1""""))
+
+        val without = FakeEngine(body = body)
+        repo("", engine = without).getRecentlyReleasedPrayerBurdens()
+        // The query text names $personId too, so look for the JSON key.
+        assertFalse(variables(without.requestBodies.single()).contains("\"personId\":"))
+    }
+
+    @Test
+    fun recentlyReleasedErrorsMapThrough() = runTest {
+        assertFailsWith<ShepherdException.Api.NotFound> {
+            repo(errorBody("NOT_FOUND", "gone")).getRecentlyReleasedPrayerBurdens("p1")
+        }
+    }
+
+    @Test
+    fun unreleaseSendsIdAndClearsReleasedDate() = runTest {
+        val engine = FakeEngine(
+            body = data("""{"unreleasePrayerBurden":${burden("b1", personAndComments("[${comment("c1", "b1")}]"))}}"""),
+        )
+        val result = repo("", engine = engine).unreleasePrayerBurden("b1")
+        assertTrue(variables(engine.requestBodies.single()).contains(""""id":"b1""""))
+        assertNull(result.releasedDate)
+        assertEquals("p1", result.person?.id)
+        assertEquals("active", result.person?.status?.name)
+        assertEquals(listOf("c1"), result.comments.map { it.id })
+    }
+
+    @Test
+    fun unreleaseMissingBurdenIsNotFound() = runTest {
+        assertFailsWith<ShepherdException.Api.NotFound> {
+            repo(errorBody("NOT_FOUND", "gone")).unreleasePrayerBurden("b1")
+        }
     }
 
     @Test
@@ -199,11 +283,24 @@ class RepositoryTest {
     }
 
     @Test
-    fun createAndReleaseBurdenHaveNoPerson() = runTest {
-        val created = repo(data("""{"createPrayerBurden":${burden("b1")}}""")).createPrayerBurden("p1", "text")
-        assertNull(created.person)
-        val released = repo(data("""{"releasePrayerBurden":${burden("b1")}}""")).releasePrayerBurden("b1")
-        assertNull(released.person)
+    fun createBurdenCarriesPersonAndNoComments() = runTest {
+        val body = data("""{"createPrayerBurden":${burden("b1", personAndComments())}}""")
+        val created = repo(body).createPrayerBurden("p1", "text")
+        assertEquals("p1", created.person?.id)
+        assertEquals("Sam Sheep", created.person?.name)
+        assertEquals("active", created.person?.status?.name)
+        assertEquals(emptyList(), created.comments)
+    }
+
+    @Test
+    fun releaseBurdenCarriesDatePersonAndComments() = runTest {
+        val extra = personAndComments("[${comment("c1", "b1")}]")
+        val body = data("""{"releasePrayerBurden":${burden("b1", extra, released = "2026-02-01T00:00:00Z")}}""")
+        val released = repo(body).releasePrayerBurden("b1")
+        assertEquals("2026-02-01T00:00:00Z", released.releasedDate)
+        assertEquals("p1", released.person?.id)
+        assertEquals("active", released.person?.status?.name)
+        assertEquals(listOf("c1"), released.comments.map { it.id })
     }
 
     @Test
