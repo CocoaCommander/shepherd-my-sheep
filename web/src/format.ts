@@ -82,6 +82,17 @@ export function dateAgo(value: string, now: Date = new Date()): string {
   return daysAgo(Math.round((today - then) / 86_400_000))
 }
 
+/** A DateTime → "today", "yesterday", "3 days ago", "2 weeks ago", counted in local calendar days. */
+export function calendarAgo(value: string, now: Date = new Date()): string {
+  const ago = dateAgo(todayIsoDate(parseDateTime(value)), now)
+  return ago === '1 day ago' ? 'yesterday' : ago
+}
+
+/** True if two DateTimes fall on different dates in the user's time zone. */
+export function differentDays(a: string, b: string): boolean {
+  return todayIsoDate(parseDateTime(a)) !== todayIsoDate(parseDateTime(b))
+}
+
 function daysAgo(days: number): string {
   if (days < 1) return 'today'
   if (days === 1) return '1 day ago'

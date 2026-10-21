@@ -1,10 +1,11 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as G from '../generated/graphql'
+import { calendarAgo, contactDateToTimestamp, formatShortDate, todayIsoDate } from '../format'
 import { PersonPage } from './PersonPage'
 
 // Header calls useAuth(); the real provider would build a network client.
@@ -68,6 +69,8 @@ function person(overrides: Record<string, unknown> = {}) {
     prayerBurdens: [],
     comments: [],
     contacts: [],
+    lastPrayer: null,
+    prayers: [],
     ...overrides,
   }
 }
@@ -808,5 +811,401 @@ describe('PersonPage delete comment confirmation', () => {
       'Something went wrong. Please try again.',
     )
     expect(screen.getByText('My note')).toBeInTheDocument()
+  })
+})
+
+describe('PersonPage prayer log', () => {
+  const NOT_FOUND = new GraphQLError('gone', { extensions: { code: 'NOT_FOUND' } })
+  const meUser = { __typename: 'User', id: ME.id, name: ME.name }
+  const otherUser = { __typename: 'User', id: OTHER.id, name: OTHER.name }
+  const NOW = new Date()
+  /** Local time `hour` o'clock, `n` calendar days ago, as an ISO DateTime. */
+  const localDay = (n: number, hour = 12) =>
+    new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - n, hour).toISOString()
+  /** The "YYYY-MM-DD" value `n` days ago (negative: ahead). */
+  const isoDay = (n: number) =>
+    todayIsoDate(new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - n))
+
+  function prayer(
+    id: string,
+    prayedAt: string,
+    opts: { createdAt?: string; by?: typeof meUser | null } = {},
+  ) {
+    return {
+      __typename: 'PrayerLog',
+      id,
+      prayedAt,
+      createdAt: opts.createdAt ?? prayedAt,
+      prayedBy: opts.by === undefined ? meUser : opts.by,
+    }
+  }
+
+  const last = (p: ReturnType<typeof prayer> | undefined) =>
+    p ? { __typename: 'PrayerLog', id: p.id, prayedAt: p.prayedAt, prayedBy: p.prayedBy } : null
+
+  function maria(
+    prayers: ReturnType<typeof prayer>[] = [],
+    overrides: Record<string, unknown> = {},
+  ) {
+    return person({
+      name: 'Maria Santos',
+      recordedMilestoneIds: [],
+      activeBurdenCount: 0,
+      latestComment: null,
+      shepherds: [meUser],
+      prayers,
+      lastPrayer: last(prayers[0]),
+      ...overrides,
+    })
+  }
+
+  /** RecordPrayer returns the person with the new record first. */
+  function recordMock(
+    base: ReturnType<typeof maria>,
+    created: ReturnType<typeof prayer>,
+    variables: Record<string, unknown>,
+    opts: { delay?: number; fail?: boolean } = {},
+  ) {
+    const result = vi.fn(() =>
+      opts.fail
+        ? { errors: [new GraphQLError('boom')] }
+        : {
+            data: {
+              recordPrayer: {
+                ...base,
+                prayers: [created, ...(base.prayers as unknown[])],
+                lastPrayer: last(created),
+              },
+            },
+          },
+    )
+    return {
+      result,
+      mutation: {
+        request: { query: G.RecordPrayerDocument, variables } as MockedResponse['request'],
+        result,
+        delay: opts.delay,
+      } as MockedResponse,
+    }
+  }
+
+  // The space before "for" is tolerated here so one test (below) reports a missing space alone.
+  const prayedButton = () => screen.findByRole('button', { name: /^Prayed ?for Maria Santos$/ })
+  const logged = (text: string) =>
+    waitFor(() => expect(burdens().getByRole('status')).toHaveTextContent(text))
+  const burdens = () => section('Prayer burdens')
+
+  it('offers Prayed and Another day above the burdens, for a person with no burdens or prayers', async () => {
+    renderPage(maria())
+    expect(await prayedButton()).toHaveTextContent('Prayed')
+    expect(burdens().getByRole('button', { name: 'Prayed for Maria Santos' })).toBeInTheDocument()
+    const another = burdens().getByRole('button', { name: 'Another day' })
+    expect(another).toHaveAttribute('aria-expanded', 'false')
+    expect(burdens().getByText(EMPTY_BURDENS)).toBeInTheDocument()
+    expect(burdens().getByText('Nobody has prayed for Maria yet.')).toBeInTheDocument()
+    expect(
+      burdens().getByText(
+        'Tap Prayed each time you pray for Maria. Every shepherd of Maria sees the same history.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Prayer history' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /prayer history/ })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [0, 'today'],
+    [1, 'yesterday'],
+    [3, '3 days ago'],
+  ])('says last prayed %i days ago as "%s" by calendar day', async (n, words) => {
+    // 11 PM yesterday is "yesterday" even when under 24 hours ago.
+    const p = prayer('p1', localDay(n, n === 1 ? 23 : 12))
+    renderPage(maria([p]))
+    expect(await screen.findByText(`Last prayed for Maria ${words}`)).toBeInTheDocument()
+    expect(screen.getByText(`By you · ${formatShortDate(p.prayedAt)}`)).toBeInTheDocument()
+    expect(screen.queryByText('Nobody has prayed for Maria yet.')).not.toBeInTheDocument()
+  })
+
+  it('names a co-shepherd, or "someone" when the shepherd is unknown, in the last-prayed line', async () => {
+    const p = prayer('p1', localDay(1), { by: otherUser })
+    renderPage(maria([p]))
+    expect(
+      await screen.findByText(`By Other Shepherd · ${formatShortDate(p.prayedAt)}`),
+    ).toBeInTheDocument()
+  })
+
+  it('says "someone" when prayedBy is null', async () => {
+    const p = prayer('p1', localDay(1), { by: null })
+    renderPage(maria([p]))
+    expect(
+      await screen.findByText(`By someone · ${formatShortDate(p.prayedAt)}`),
+    ).toBeInTheDocument()
+  })
+
+  it('Prayed sends recordPrayer with only personId and shows a status with Undo', async () => {
+    const user = userEvent.setup()
+    const created = prayer('p-new', new Date().toISOString())
+    const { mutation, result } = recordMock(maria(), created, { personId: PERSON_ID })
+    renderPage(maria(), { mutation })
+    await user.click(await prayedButton())
+    await waitFor(() => expect(result).toHaveBeenCalledTimes(1))
+    await logged('Prayer logged for Maria.')
+    expect(burdens().getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+    expect(await screen.findByText('Last prayed for Maria today')).toBeInTheDocument()
+  })
+
+  it('disables Prayed while sending, so a second click sends nothing', async () => {
+    const user = userEvent.setup()
+    const created = prayer('p-new', new Date().toISOString())
+    const { mutation, result } = recordMock(
+      maria(),
+      created,
+      { personId: PERSON_ID },
+      { delay: 100 },
+    )
+    renderPage(maria(), { mutation })
+    const button = await prayedButton()
+    await user.click(button)
+    expect(button).toBeDisabled()
+    await user.click(button)
+    await logged('Prayer logged for Maria.')
+    expect(result).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the friendly error when recording fails, and enables Prayed again', async () => {
+    const user = userEvent.setup()
+    const created = prayer('p-new', new Date().toISOString())
+    const { mutation } = recordMock(maria(), created, { personId: PERSON_ID }, { fail: true })
+    renderPage(maria(), { mutation })
+    await user.click(await prayedButton())
+    expect(await burdens().findByRole('alert')).toHaveTextContent(
+      'Something went wrong. Please try again.',
+    )
+    expect(await prayedButton()).toBeEnabled()
+    expect(screen.queryByText('Prayer logged for Maria.')).not.toBeInTheDocument()
+  })
+
+  it('Undo sends deletePrayer for the new record and clears the message', async () => {
+    const user = userEvent.setup()
+    const existing = prayer('p-old', localDay(2))
+    const base = maria([existing])
+    const created = prayer('p-new', new Date().toISOString())
+    const record = recordMock(base, created, { personId: PERSON_ID })
+    const undo = mutationMock(G.DeletePrayerDocument, { id: 'p-new' }, { deletePrayer: base })
+    renderPage(base, { mutations: [record.mutation, undo.mutation] })
+    await user.click(await prayedButton())
+    await logged('Prayer logged for Maria.')
+    await user.click(burdens().getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(undo.result).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.queryByText('Prayer logged for Maria.')).not.toBeInTheDocument(),
+    )
+  })
+
+  it('shows the friendly error when Undo fails', async () => {
+    const user = userEvent.setup()
+    const base = maria()
+    const created = prayer('p-new', new Date().toISOString())
+    const record = recordMock(base, created, { personId: PERSON_ID })
+    const undo = {
+      request: { query: G.DeletePrayerDocument, variables: { id: 'p-new' } },
+      result: { errors: [NOT_FOUND] },
+    } as MockedResponse
+    renderPage(base, { mutations: [record.mutation, undo] })
+    await user.click(await prayedButton())
+    await logged('Prayer logged for Maria.')
+    await user.click(burdens().getByRole('button', { name: 'Undo' }))
+    expect(await burdens().findByRole('alert')).toHaveTextContent(
+      'This was changed or removed by someone else.',
+    )
+  })
+
+  describe('Another day', () => {
+    async function openForm(user: ReturnType<typeof userEvent.setup>) {
+      await prayedButton()
+      await user.click(await burdens().findByRole('button', { name: 'Another day' }))
+      return burdens().getByLabelText('Day you prayed (required)') as HTMLInputElement
+    }
+
+    it('opens a form defaulting to today, and Cancel and Escape close it', async () => {
+      const user = userEvent.setup()
+      renderPage(maria())
+      const input = await openForm(user)
+      expect(burdens().getByRole('button', { name: 'Another day' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      )
+      expect(input).toHaveValue(todayIsoDate())
+      expect(input).toHaveAttribute('max', todayIsoDate())
+      expect(
+        burdens().getByText(
+          'For a prayer you forgot to log. It shows in the history as back-dated. It can’t be in the future.',
+        ),
+      ).toBeInTheDocument()
+      expect(burdens().getByRole('button', { name: 'Save prayer' })).toBeInTheDocument()
+      await user.click(burdens().getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByLabelText('Day you prayed (required)')).not.toBeInTheDocument()
+      expect(burdens().getByRole('button', { name: 'Another day' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+      await user.click(await openForm(user))
+      await user.keyboard('{Escape}')
+      expect(screen.queryByLabelText('Day you prayed (required)')).not.toBeInTheDocument()
+    })
+
+    it('asks for a day when the date is cleared, and sends nothing', async () => {
+      const user = userEvent.setup()
+      const created = prayer('p-new', new Date().toISOString())
+      const { mutation, result } = recordMock(maria(), created, { personId: PERSON_ID })
+      renderPage(maria(), { mutation })
+      const input = await openForm(user)
+      fireEvent.change(input, { target: { value: '' } })
+      await user.click(burdens().getByRole('button', { name: 'Save prayer' }))
+      expect(await burdens().findByText('Choose the day you prayed.')).toBeInTheDocument()
+      expect(result).not.toHaveBeenCalled()
+    })
+
+    it('rejects a future date and sends nothing', async () => {
+      const user = userEvent.setup()
+      const created = prayer('p-new', new Date().toISOString())
+      const { mutation, result } = recordMock(maria(), created, { personId: PERSON_ID })
+      renderPage(maria(), { mutation })
+      const input = await openForm(user)
+      fireEvent.change(input, { target: { value: isoDay(-3) } })
+      await user.click(burdens().getByRole('button', { name: 'Save prayer' }))
+      expect(await burdens().findByText('The date can’t be in the future.')).toBeInTheDocument()
+      expect(result).not.toHaveBeenCalled()
+    })
+
+    it('saving today sends only personId and closes the form', async () => {
+      const user = userEvent.setup()
+      const created = prayer('p-new', new Date().toISOString())
+      const { mutation, result } = recordMock(maria(), created, { personId: PERSON_ID })
+      renderPage(maria(), { mutation })
+      await openForm(user)
+      await user.click(burdens().getByRole('button', { name: 'Save prayer' }))
+      await waitFor(() => expect(result).toHaveBeenCalledTimes(1))
+      await logged('Prayer logged for Maria.')
+      expect(screen.queryByLabelText('Day you prayed (required)')).not.toBeInTheDocument()
+    })
+
+    it('saving a past day sends that day at local noon and names it in the message', async () => {
+      const user = userEvent.setup()
+      const day = isoDay(3)
+      const prayedAt = contactDateToTimestamp(day)
+      const created = prayer('p-new', prayedAt, { createdAt: new Date().toISOString() })
+      const { mutation, result } = recordMock(maria(), created, { personId: PERSON_ID, prayedAt })
+      renderPage(maria(), { mutation })
+      const input = await openForm(user)
+      fireEvent.change(input, { target: { value: day } })
+      await user.click(burdens().getByRole('button', { name: 'Save prayer' }))
+      await waitFor(() => expect(result).toHaveBeenCalledTimes(1))
+      await logged(`Prayer logged for Maria on ${formatShortDate(prayedAt)}.`)
+      expect(screen.queryByLabelText('Day you prayed (required)')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('history', () => {
+    const history = () => burdens().getByRole('list', { name: 'Prayer history' })
+    const items = () => within(history()).getAllByRole('listitem')
+
+    it('is open by default, toggles, and shows each record with its date, age and shepherd', async () => {
+      const user = userEvent.setup()
+      const mine = prayer('p1', localDay(1))
+      const theirs = prayer('p2', localDay(2), { by: otherUser })
+      const unknown = prayer('p3', localDay(3), { by: null })
+      renderPage(maria([mine, theirs, unknown]))
+      await prayedButton()
+      const toggle = await burdens().findByRole('button', { name: 'Hide prayer history (3)' })
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      const [a, b, c] = items()
+      expect(a).toHaveTextContent(
+        `${formatShortDate(mine.prayedAt)} · ${calendarAgo(mine.prayedAt)}`,
+      )
+      expect(a).toHaveTextContent('You')
+      expect(a).not.toHaveTextContent('Back-dated')
+      expect(b).toHaveTextContent('Other Shepherd')
+      expect(c).toHaveTextContent('Someone')
+      await user.click(toggle)
+      expect(screen.queryByRole('list', { name: 'Prayer history' })).not.toBeInTheDocument()
+      expect(burdens().getByRole('button', { name: 'Show prayer history (3)' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+    })
+
+    it('shows the newest 3 of 5, then all and fewer', async () => {
+      const user = userEvent.setup()
+      const five = [0, 1, 2, 3, 4].map((n) => prayer(`p${n}`, localDay(n)))
+      renderPage(maria(five))
+      await prayedButton()
+      await burdens().findByRole('button', { name: 'Hide prayer history (5)' })
+      expect(items()).toHaveLength(3)
+      await user.click(burdens().getByRole('button', { name: 'Show 2 earlier' }))
+      expect(items()).toHaveLength(5)
+      await user.click(burdens().getByRole('button', { name: 'Show fewer' }))
+      expect(items()).toHaveLength(3)
+      expect(burdens().getByRole('button', { name: 'Show 2 earlier' })).toBeInTheDocument()
+    })
+
+    it('has no earlier toggle with 3 or fewer records', async () => {
+      renderPage(maria([prayer('p0', localDay(0)), prayer('p1', localDay(1))]))
+      await prayedButton()
+      await burdens().findByRole('button', { name: 'Hide prayer history (2)' })
+      expect(screen.queryByRole('button', { name: /earlier|Show fewer/ })).not.toBeInTheDocument()
+    })
+
+    it('marks a back-dated record with a pill and when it was logged', async () => {
+      const backDated = prayer('p1', localDay(3), { createdAt: localDay(1) })
+      renderPage(maria([backDated]))
+      await prayedButton()
+      await burdens().findByRole('button', { name: 'Hide prayer history (1)' })
+      const [item] = items()
+      expect(within(item).getByText('Back-dated')).toBeInTheDocument()
+      expect(item).toHaveTextContent('You · logged yesterday')
+    })
+
+    it('orders by prayed day newest first, ties by newest createdAt', async () => {
+      const older = prayer('older', localDay(2))
+      const tieEarly = prayer('tie-early', localDay(1, 8), { by: otherUser })
+      const tieLate = prayer('tie-late', localDay(1, 20), { by: null })
+      const newest = prayer('newest', localDay(0, 1))
+      renderPage(maria([older, tieEarly, newest, tieLate]))
+      await prayedButton()
+      await burdens().findByRole('button', { name: 'Hide prayer history (4)' })
+      const [first, second, third] = items()
+      expect(first).toHaveTextContent(formatShortDate(newest.prayedAt))
+      expect(second).toHaveTextContent('Someone') // tie-late
+      expect(third).toHaveTextContent('Other Shepherd') // tie-early
+    })
+  })
+
+  describe('sidebar', () => {
+    const lastPrayedValue = () => {
+      const term = within(screen.getByRole('complementary', { name: 'About' })).getByText(
+        'Last prayed',
+      )
+      return term.nextElementSibling
+    }
+
+    it.each([
+      [0, 'Today'],
+      [1, 'Yesterday'],
+      [3, '3 days ago'],
+    ])('shows Last prayed %i days ago as "%s", after Last contact', async (n, words) => {
+      renderPage(maria([prayer('p1', localDay(n))]))
+      await prayedButton()
+      expect(lastPrayedValue()).toHaveTextContent(words)
+      const terms = within(screen.getByRole('complementary', { name: 'About' }))
+        .getAllByRole('term')
+        .map((t) => t.textContent)
+      expect(terms.indexOf('Last prayed')).toBe(terms.indexOf('Last contact') + 1)
+    })
+
+    it('shows Never when nobody has prayed', async () => {
+      renderPage(maria())
+      await prayedButton()
+      expect(lastPrayedValue()).toHaveTextContent('Never')
+    })
   })
 })

@@ -59,11 +59,13 @@ function person(overrides: Record<string, unknown> = {}) {
     recordedMilestoneIds: [],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds: [{ __typename: 'User', id: ME.id, name: ME.name }],
     milestones: [],
     prayerBurdens: [],
     comments: [],
     contacts: [contact('c-old', at(-2 * DAY))],
+    prayers: [],
     ...overrides,
   }
 }
@@ -91,6 +93,9 @@ function result(p: ReturnType<typeof person>) {
   delete rest.milestones
   return rest
 }
+
+/** The floating toast; the prayer box has its own, empty, status region. */
+const toast = () => screen.getAllByRole('status').find((el) => el.textContent !== '') as HTMLElement
 
 function LocationState() {
   return <div data-testid="location-state">{JSON.stringify(useLocation().state)}</div>
@@ -301,7 +306,7 @@ describe('Logging a contact from the Person page', () => {
     expect(screen.getByText('New job')).toBeInTheDocument()
     expect(screen.getByText('Added today · Praying')).toBeInTheDocument()
     expect(screen.getByText('Contacted today. Next contact due in 7 days.')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Contact logged with Maria.')
+    expect(toast()).toHaveTextContent('Contact logged with Maria.')
   })
 
   it('moves a new contact to active, and Undo moves them back', async () => {
@@ -330,7 +335,7 @@ describe('Logging a contact from the Person page', () => {
       await screen.findByText('Contacted today. Next contact due in 7 days.'),
     ).toBeInTheDocument()
     expect(statusPill()).toHaveTextContent(/^Active$/)
-    expect(screen.getByRole('status')).toHaveTextContent('Maria is now Active.')
+    expect(toast()).toHaveTextContent('Maria is now Active.')
 
     await user.click(screen.getByRole('button', { name: 'Undo' }))
     expect(await screen.findByText('Contact with Maria removed.')).toBeInTheDocument()

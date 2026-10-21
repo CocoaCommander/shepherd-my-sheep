@@ -84,6 +84,7 @@ const PERSON_SUMMARY = {
   recordedMilestoneIds: [],
   activeBurdenCount: 1,
   latestComment: null,
+  lastPrayer: null,
   shepherds: [],
   createdAt: ago(90),
 }

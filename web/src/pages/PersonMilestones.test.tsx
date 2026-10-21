@@ -71,6 +71,8 @@ function person(overrides: Record<string, unknown> = {}) {
     prayerBurdens: [],
     comments: [],
     contacts: [],
+    lastPrayer: null,
+    prayers: [],
     ...overrides,
   }
 }

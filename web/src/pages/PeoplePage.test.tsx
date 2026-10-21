@@ -50,6 +50,7 @@ function person(id: string, name: string, overrides: Record<string, unknown> = {
     recordedMilestoneIds: [] as string[],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds: [],
     createdAt: at(-90 * DAY),
     ...overrides,

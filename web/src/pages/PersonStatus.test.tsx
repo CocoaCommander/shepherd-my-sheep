@@ -47,11 +47,13 @@ function person(overrides: Record<string, unknown> = {}) {
     recordedMilestoneIds: [],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds: [{ __typename: 'User', id: ME.id, name: ME.name }],
     milestones: [],
     prayerBurdens: [],
     comments: [],
     contacts: [],
+    prayers: [],
     ...overrides,
   }
 }

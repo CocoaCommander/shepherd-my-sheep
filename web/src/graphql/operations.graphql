@@ -30,15 +30,25 @@ fragment PersonSummary on Person {
       id
     }
   }
+  # Latest by prayedAt, so a back-dated record may not be the one just made.
+  lastPrayer {
+    id
+    prayedAt
+    prayedBy {
+      id
+      name
+    }
+  }
   shepherds {
     id
     name
   }
 }
 
-# The lists a contact changes: logging one adds a contact, its note and maybe
-# a burden, and Undo removes them. The Person query and LogContact/DeleteContact
-# all select it, so the mutation results update the Person page's cache.
+# The lists a contact or prayer changes: logging a contact adds it, its note and
+# maybe a burden, recording a prayer adds to prayers, and Undo removes them. The
+# Person query and the contact and prayer mutations all select it, so the
+# mutation results update the Person page's cache.
 # contactLogId marks a note written by logging a contact.
 fragment PersonActivity on Person {
   id
@@ -67,6 +77,17 @@ fragment PersonActivity on Person {
     isFollowUp
     createdAt
   }
+  # Every record, newest prayedAt first; a record is back-dated when its
+  # prayedAt and createdAt fall on different days.
+  prayers {
+    id
+    prayedAt
+    createdAt
+    prayedBy {
+      id
+      name
+    }
+  }
 }
 
 query Me {
@@ -92,7 +113,7 @@ query ContactAlerts {
   }
 }
 
-# milestones, prayerBurdens, comments and contacts are only loaded by
+# milestones, prayerBurdens, comments, contacts and prayers are only loaded by
 # `person` and mutations returning Person; never select them on myPeople
 # or contactAlerts (PersonSummary's counts and latestComment cover those).
 query Person($id: UUID!) {
@@ -305,6 +326,24 @@ mutation LogContact($input: LogContactInput!) {
 # they are still active.
 mutation DeleteContact($id: UUID!) {
   deleteContact(id: $id) {
+    ...PersonSummary
+    ...PersonActivity
+  }
+}
+
+# Each call is its own record. prayedAt is optional (now); a back-dated one
+# may not become lastPrayer if a later prayer exists.
+mutation RecordPrayer($personId: UUID!, $prayedAt: DateTime) {
+  recordPrayer(personId: $personId, prayedAt: $prayedAt) {
+    ...PersonSummary
+    ...PersonActivity
+  }
+}
+
+# Undo of a prayer. Only the shepherd who recorded it may delete it; anyone
+# else gets NOT_FOUND.
+mutation DeletePrayer($id: UUID!) {
+  deletePrayer(id: $id) {
     ...PersonSummary
     ...PersonActivity
   }

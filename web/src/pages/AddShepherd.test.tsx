@@ -36,11 +36,13 @@ function person(shepherds: object[]) {
     recordedMilestoneIds: [],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds,
     milestones: [],
     prayerBurdens: [],
     comments: [],
     contacts: [],
+    prayers: [],
   }
 }
 
