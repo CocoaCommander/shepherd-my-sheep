@@ -65,6 +65,10 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Change the sort label "Longest standing" (mWeb "Longest") to
     "Oldest" in `web/src/pages/PrayerListPage.tsx`, and update
     `PrayerListPage.test.tsx` to match.
+  - [ ] **Record when shepherds pray for a person.** Save a timestamp
+    (and which shepherd) each time someone prays for a person, e.g. a
+    `prayer_log` table alongside `contact_log`. Where it's recorded and
+    shown (Prayer list, Person page) is still to decide.
 - [ ] **Sign in / register** (mocked up for web and mWeb, pending build): same fields and rules as today's `LoginPage` (name up to 100, username up to 50, password at least 8 on register).
   - [ ] One screen, no tabs: Sign in by default, with a "New here? Create an account" link below the button (and "Already have an account? Sign in" when registering). On web, a brand panel beside the form; on mWeb, a short brand header above it.
   - [ ] Inline field errors on submit (missing name, username or password; password under 8 characters), a wrong-credentials banner, and a Show / Hide password toggle.
@@ -219,6 +223,12 @@ gap check).
   fallback) the way the Makefile does.
 - [ ] Regenerate `docs/diagrams/schema.svg` from `schema.mmd`. The PNG
   shows `comment.contact_log_id` (V004); the SVG doesn't yet.
+- [ ] **Clean up the todo list.** Move completed items from
+  `personal_notes/todo.md` into `personal_notes/work_log.md`, so the todo
+  list only holds open work.
+- [ ] **Skill for running a plan.** Make a skill that takes a plan file
+  path, reads the plan, then starts its next unfinished step (one stacked
+  PR per step).
 
 ## Done
 
