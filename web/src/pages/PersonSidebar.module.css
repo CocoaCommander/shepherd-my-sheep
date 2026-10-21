@@ -1,0 +1,22 @@
+/* The Person page's sidebar. On phones it's part of the single column, in the canvas order. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+  min-width: 0;
+}
+
+@media (max-width: 719px) {
+  .shepherds {
+    order: 1;
+  }
+  .rule {
+    order: 2;
+  }
+  .details {
+    order: 3;
+  }
+  .delete {
+    order: 4;
+  }
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { ApolloError } from '@apollo/client'
 import { errorCode, friendlyMessage } from '../errors'
@@ -21,7 +21,9 @@ import { useLogContactToast } from './contactToast'
 import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
 import { LogContactDialog } from './LogContactDialog'
-import { PersonDetailsCard } from './PersonDetailsCard'
+import { PersonHeaderCard } from './PersonHeaderCard'
+import styles from './PersonPage.module.css'
+import { PersonSidebar } from './PersonSidebar'
 import { sharedWithShepherds } from './sharing'
 
 export function PersonPage() {
@@ -37,9 +39,15 @@ export function PersonPage() {
     <>
       <Header />
       <main className="page stack">
-        <Link to="/people" className="back">
-          ← My people
-        </Link>
+        <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
+          <Link to="/people">My people</Link>
+          {data?.person && (
+            <>
+              {' '}
+              <span aria-hidden="true">/</span> {data.person.name}
+            </>
+          )}
+        </nav>
 
         {loading && <p className="muted">Loading…</p>}
         {error && !notFound && (
@@ -77,6 +85,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
   const askedToLog = Boolean((location.state as PersonLocationState)?.logContact)
   const [logging, setLogging] = useState(askedToLog)
   const { showLogged, toastElement } = useLogContactToast({ floating: true })
+  const notesFieldId = useId()
 
   // Clear the request, so Back or a reload doesn't open the dialog again.
   useEffect(() => {
@@ -93,7 +102,12 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
 
   return (
     <>
-      <PersonDetailsCard person={person} meId={meId} onLogContact={() => setLogging(true)} />
+      <PersonHeaderCard
+        person={person}
+        meId={meId}
+        notesFieldId={notesFieldId}
+        onLogContact={() => setLogging(true)}
+      />
       {/* LogContact returns the person's activity, so the cache updates this page. */}
       <LogContactDialog
         person={person}
@@ -106,110 +120,120 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
       />
       {toastElement}
 
-      <section className="card stack">
-        <h2>Milestones</h2>
-        {person.milestones.length === 0 ? (
-          // Someone we've just met has none (business rule 2).
-          <p className="empty">No milestones yet.</p>
-        ) : (
-          <ul className="list">
-            {person.milestones.map((m) => (
-              <li key={m.id} className="list-item">
-                <div className="item-head">
-                  <span>
-                    <strong>{m.milestone.name}</strong>
-                    {m.dateAchieved && (
-                      <span className="muted"> · {formatDate(m.dateAchieved)}</span>
-                    )}
-                  </span>
-                  <RemoveMilestoneButton
-                    personId={person.id}
-                    milestoneId={m.milestone.id}
-                    name={m.milestone.name}
-                  />
-                </div>
-                {m.notes && <p>{m.notes}</p>}
-                {m.recordedBy && <p className="muted small">Recorded by {m.recordedBy.name}</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-        <RecordMilestoneForm
-          personId={person.id}
-          recordedIds={person.milestones.map((m) => m.milestone.id)}
-        />
-      </section>
-
-      <section className="card stack">
-        <h2>Prayer burdens</h2>
-        {person.prayerBurdens.length === 0 ? (
-          // Burdens are added over time (business rule 3).
-          <p className="empty">No prayer burdens yet.</p>
-        ) : (
-          <>
-            {activeBurdens.length > 0 && (
+      <div className={styles.columns}>
+        <div className={styles.main}>
+          <section className="card stack">
+            <h2>Milestones</h2>
+            {person.milestones.length === 0 ? (
+              // Someone we've just met has none (business rule 2).
+              <p className="empty">No milestones yet.</p>
+            ) : (
               <ul className="list">
-                {activeBurdens.map((b) => (
-                  <Burden
-                    key={b.id}
-                    personId={person.id}
-                    burden={b}
-                    comments={commentsFor(b.id)}
-                    meId={meId}
-                  />
+                {person.milestones.map((m) => (
+                  <li key={m.id} className="list-item">
+                    <div className="item-head">
+                      <span>
+                        <strong>{m.milestone.name}</strong>
+                        {m.dateAchieved && (
+                          <span className="muted"> · {formatDate(m.dateAchieved)}</span>
+                        )}
+                      </span>
+                      <RemoveMilestoneButton
+                        personId={person.id}
+                        milestoneId={m.milestone.id}
+                        name={m.milestone.name}
+                      />
+                    </div>
+                    {m.notes && <p>{m.notes}</p>}
+                    {m.recordedBy && <p className="muted small">Recorded by {m.recordedBy.name}</p>}
+                  </li>
                 ))}
               </ul>
             )}
-            {releasedBurdens.length > 0 && (
-              <details>
-                <summary className="muted">Released ({releasedBurdens.length})</summary>
-                <ul className="list">
-                  {releasedBurdens.map((b) => (
-                    <Burden
-                      key={b.id}
-                      personId={person.id}
-                      burden={b}
-                      comments={commentsFor(b.id)}
-                      meId={meId}
-                    />
-                  ))}
-                </ul>
-              </details>
-            )}
-          </>
-        )}
-        <AddPrayerBurdenForm personId={person.id} />
-        <p className="muted small">{sharedWithShepherds(person.name)}</p>
-      </section>
+            <RecordMilestoneForm
+              personId={person.id}
+              recordedIds={person.milestones.map((m) => m.milestone.id)}
+            />
+          </section>
 
-      <section className="card stack">
-        <h2>Notes</h2>
-        {notes.length === 0 ? (
-          <p className="empty">No notes yet.</p>
-        ) : (
-          <ul className="list">
-            {notes.map((c) => (
-              <li key={c.id} className="list-item">
-                {c.contactLogId && <LoggedContactLabel contactedAt={contactedAt(c.contactLogId)} />}
-                <div className="item-head">
-                  <p>{c.content}</p>
-                  {c.author.id === meId && <DeleteCommentButton id={c.id} personId={person.id} />}
-                </div>
-                <p className="muted small">
-                  {c.author.name} · {formatDateTime(c.createdAt)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* A comment needn't link to a burden (business rule 5). */}
-        <CommentForm
-          personId={person.id}
-          prayerBurdenId={null}
-          label="New note"
-          submitLabel="Add note"
-        />
-      </section>
+          <section className="card stack">
+            <h2>Prayer burdens</h2>
+            {person.prayerBurdens.length === 0 ? (
+              // Burdens are added over time (business rule 3).
+              <p className="empty">No prayer burdens yet.</p>
+            ) : (
+              <>
+                {activeBurdens.length > 0 && (
+                  <ul className="list">
+                    {activeBurdens.map((b) => (
+                      <Burden
+                        key={b.id}
+                        personId={person.id}
+                        burden={b}
+                        comments={commentsFor(b.id)}
+                        meId={meId}
+                      />
+                    ))}
+                  </ul>
+                )}
+                {releasedBurdens.length > 0 && (
+                  <details>
+                    <summary className="muted">Released ({releasedBurdens.length})</summary>
+                    <ul className="list">
+                      {releasedBurdens.map((b) => (
+                        <Burden
+                          key={b.id}
+                          personId={person.id}
+                          burden={b}
+                          comments={commentsFor(b.id)}
+                          meId={meId}
+                        />
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </>
+            )}
+            <AddPrayerBurdenForm personId={person.id} />
+            <p className="muted small">{sharedWithShepherds(person.name)}</p>
+          </section>
+
+          <section className="card stack">
+            <h2>Notes</h2>
+            {notes.length === 0 ? (
+              <p className="empty">No notes yet.</p>
+            ) : (
+              <ul className="list">
+                {notes.map((c) => (
+                  <li key={c.id} className="list-item">
+                    {c.contactLogId && (
+                      <LoggedContactLabel contactedAt={contactedAt(c.contactLogId)} />
+                    )}
+                    <div className="item-head">
+                      <p>{c.content}</p>
+                      {c.author.id === meId && (
+                        <DeleteCommentButton id={c.id} personId={person.id} />
+                      )}
+                    </div>
+                    <p className="muted small">
+                      {c.author.name} · {formatDateTime(c.createdAt)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* A comment needn't link to a burden (business rule 5). */}
+            <CommentForm
+              personId={person.id}
+              prayerBurdenId={null}
+              label="New note"
+              submitLabel="Add note"
+              fieldId={notesFieldId}
+            />
+          </section>
+        </div>
+        <PersonSidebar person={person} meId={meId} />
+      </div>
     </>
   )
 }
@@ -379,12 +403,15 @@ function CommentForm({
   label,
   submitLabel,
   compact = false,
+  fieldId,
 }: {
   personId: string
   prayerBurdenId: string | null
   label: string
   submitLabel: string
   compact?: boolean
+  /** The textarea's id, for something else on the page to focus it. */
+  fieldId?: string
 }) {
   const [createComment, { loading, error }] = useCreateCommentMutation(refetchPerson(personId))
 
@@ -396,6 +423,7 @@ function CommentForm({
       loading={loading}
       error={error}
       compact={compact}
+      fieldId={fieldId}
       onSubmit={(content) =>
         createComment({ variables: { input: { personId, prayerBurdenId, content } } })
       }
@@ -411,6 +439,7 @@ function TextEntryForm({
   loading,
   error,
   compact = false,
+  fieldId,
   onSubmit,
 }: {
   label: string
@@ -419,6 +448,7 @@ function TextEntryForm({
   loading: boolean
   error: ApolloError | undefined
   compact?: boolean
+  fieldId?: string
   onSubmit: (content: string) => Promise<unknown>
 }) {
   const [content, setContent] = useState('')
@@ -439,6 +469,7 @@ function TextEntryForm({
       <label>
         {label}
         <textarea
+          id={fieldId}
           rows={compact ? 1 : 2}
           value={content}
           onChange={(e) => setContent(e.target.value)}

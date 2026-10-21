@@ -198,7 +198,7 @@ describe('edit person form', () => {
     await user.click(screen.getByLabelText('Active'))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText('Sam Lamb')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sam Lamb' })).toBeInTheDocument()
     expect(result).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
@@ -263,7 +263,7 @@ describe('edit person form', () => {
 
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
     expect(screen.queryByText('Abandoned')).not.toBeInTheDocument()
-    expect(screen.getByText('Sam Sheep')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Sam Sheep' })).toBeInTheDocument()
     await openForm(user)
     expect(screen.getByLabelText('Name')).toHaveValue('Sam Sheep')
     expect(result).not.toHaveBeenCalled()

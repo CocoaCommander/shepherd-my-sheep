@@ -1,0 +1,84 @@
+/* The Person page's header card: identity and actions on top, the contact panel below. */
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'identity actions'
+    'contact contact'
+    'edit edit';
+  gap: var(--sms-space-20);
+  align-items: center;
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-24);
+}
+
+.identity {
+  grid-area: identity;
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-18);
+  min-width: 0;
+}
+.who {
+  min-width: 0;
+}
+.nameRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-10);
+}
+.name {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.subtitle {
+  margin: var(--sms-space-4) 0 0;
+  color: var(--sms-muted);
+}
+
+.actions {
+  grid-area: actions;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-8);
+}
+.contact {
+  grid-area: contact;
+}
+.edit {
+  grid-area: edit;
+}
+
+/* Phones only. The extra class beats the Button's own display. */
+@media (min-width: 720px) {
+  .actions .narrowOnly {
+    display: none;
+  }
+}
+
+/* Phones: one column, the actions under the contact panel, the short subtitle. */
+@media (max-width: 719px) {
+  .card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'identity'
+      'contact'
+      'actions'
+      'edit';
+    gap: var(--sms-space-16);
+    padding: var(--sms-space-16);
+  }
+  .name {
+    font-size: 22px;
+  }
+  .actions > * {
+    flex: 1;
+  }
+  .wideOnly {
+    display: none;
+  }
+}

@@ -14,8 +14,8 @@ import {
 } from '../generated/graphql'
 import { ActionButton } from './ActionButton'
 import { AddShepherd } from './AddShepherd'
-import { ContactStatusBanner } from './ContactStatusBanner'
 import { ErrorMessage } from './ErrorMessage'
+import styles from './PersonSidebar.module.css'
 
 type Person = NonNullable<PersonQuery['person']>
 
@@ -31,59 +31,40 @@ function contactRule(status: string): string {
   }
 }
 
-/** The person's facts and contact status, with an inline form to edit the facts. */
-export function PersonDetailsCard({
-  person,
-  meId,
-  onLogContact,
-}: {
-  person: Person
-  meId: string | undefined
-  onLogContact: () => void
-}) {
-  const [editing, setEditing] = useState(false)
+/**
+ * The Person page's sidebar (web) or lower sections (phones): facts, the contact rule,
+ * shepherds and Delete. Phones show them in a different order, set by the stylesheet.
+ */
+export function PersonSidebar({ person, meId }: { person: Person; meId: string | undefined }) {
   const isNewContact = person.status.name === 'new contact'
 
   return (
-    <section className="card stack">
-      <div className="title-row">
-        <h1>{person.name}</h1>
-        <span className="badges">
-          <span className={`badge${person.isActive ? '' : ' badge-muted'}`}>
-            {person.status.name}
-          </span>
-        </span>
+    <aside className={styles.sidebar} aria-label="About">
+      <section className={`card stack ${styles.details}`}>
+        <h2>Details</h2>
+        <dl className="facts">
+          <Fact label="Age" value={person.age} empty="Not recorded" />
+          <Fact label="Year met" value={person.yearMet} />
+          {isNewContact && <Fact label="Added" value={formatDateTime(person.createdAt)} />}
+          <Fact
+            label="Last contact"
+            value={person.lastContactedAt && formatDateTime(person.lastContactedAt)}
+            empty="None yet"
+          />
+          <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
+        </dl>
+      </section>
+      <section className={`card stack ${styles.shepherds}`}>
+        <Shepherds person={person} meId={meId} />
+      </section>
+      <section className={`card stack ${styles.rule}`}>
+        <h2>Contact rule</h2>
+        <p className="muted small">{contactRule(person.status.name)}</p>
+      </section>
+      <div className={styles.delete}>
+        <DeletePersonButton person={person} />
       </div>
-
-      <ContactStatusBanner person={person} onLogContact={onLogContact} />
-
-      {editing ? (
-        // Mounted fresh each time, so it always starts from the saved values.
-        <EditPersonForm person={person} onDone={() => setEditing(false)} />
-      ) : (
-        <>
-          <dl className="facts">
-            <Fact label="Age" value={person.age} empty="Not recorded" />
-            <Fact label="Year met" value={person.yearMet} />
-            {isNewContact && <Fact label="Added" value={formatDateTime(person.createdAt)} />}
-            <Fact
-              label="Last contact"
-              value={person.lastContactedAt && formatDateTime(person.lastContactedAt)}
-              empty="None yet"
-            />
-            <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
-          </dl>
-          <p className="muted small">{contactRule(person.status.name)}</p>
-          <Shepherds person={person} meId={meId} />
-          <div className="card-actions">
-            <button type="button" className="link" onClick={() => setEditing(true)}>
-              Edit details
-            </button>
-            <DeletePersonButton person={person} />
-          </div>
-        </>
-      )}
-    </section>
+    </aside>
   )
 }
 
@@ -141,7 +122,7 @@ function Shepherds({ person, meId }: { person: Person; meId: string | undefined 
 
   return (
     <div className="shepherds">
-      <h3 className="facts-label">Shepherds</h3>
+      <h2>Shepherds</h2>
       <ul className="list">
         {person.shepherds.map((s) => (
           <li key={s.id} className="item-head">
@@ -229,7 +210,7 @@ const toText = (value: number | string | null | undefined) =>
   value === null || value === undefined ? '' : String(value)
 const toNumber = (value: string) => (value === '' ? null : Number(value))
 
-function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void }) {
+export function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void }) {
   const { data: statusData } = useStatusesQuery()
   // The result carries PersonSummary, which the cache merges into this person.
   const [updatePerson, { loading, error }] = useUpdatePersonMutation(reloadMyPeople)
