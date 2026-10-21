@@ -26,6 +26,7 @@ function person(shepherds: object[]) {
     lastContactedAt: null,
     contactDueAt: null,
     contactClockStart: null,
+    statusChangedAt: null,
     createdAt: '2026-10-14 18:26:10.89+00',
     contactState: 'NOT_TRACKED',
     isActive: true,

@@ -11,7 +11,7 @@
 #
 # Errors: every entry in errors[] carries extensions.code:
 #   UNAUTHENTICATED (also HTTP 401), NOT_FOUND (missing or not yours;
-#   deliberately indistinguishable), CONFLICT (already exists),
+#   deliberately indistinguishable), CONFLICT (already exists, or changed since),
 #   BAD_USER_INPUT (message is safe to show), UNAVAILABLE (busy, retry),
 #   INTERNAL (generic message; details only in server logs).
 
@@ -43,6 +43,7 @@ type Person {
   contactState: ContactState!
   isActive: Boolean!
   status: Status!
+  statusChangedAt: DateTime       # nullable — when the status was last moved by hand; null until then. Names the move for undoStatusChange
   # Summaries, loaded everywhere a Person is returned (myPeople and
   # contactAlerts too), so list screens don't need the nested lists.
   recordedMilestoneIds: [UUID!]!  # ids of the Milestones recorded, in no set order; may be empty. Steps can be reached out of order
@@ -168,6 +169,11 @@ type Mutation {
   # People
   createPerson(input: CreatePersonInput!): Person!
   updatePerson(id: UUID!, input: UpdatePersonInput!): Person!
+  # Undo of a status move: puts back the status and the contact clock from
+  # before it, rather than restarting the clock as a move back would. Name
+  # the move by the status it set and its statusChangedAt. One level only.
+  # CONFLICT if the person has moved or been promoted since, or was never moved.
+  undoStatusChange(personId: UUID!, statusId: UUID!, statusChangedAt: DateTime!): Person!
   deletePerson(id: UUID!): Boolean!
   assignPerson(personId: UUID!, userId: UUID!): Person!
   unassignPerson(personId: UUID!, userId: UUID!): Person!

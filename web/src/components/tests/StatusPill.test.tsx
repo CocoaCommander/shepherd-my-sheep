@@ -30,6 +30,13 @@ describe('DueTag', () => {
       expect(tag.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     },
   )
+
+  it('shows the none tone (not tracked) with a dash icon and words', () => {
+    render(<DueTag tone="none">Not tracked</DueTag>)
+    const tag = screen.getByText('Not tracked')
+    expect(tag).toHaveClass(styles.tag, styles.none)
+    expect(tag.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
 })
 
 describe('CountPill', () => {

@@ -1,10 +1,11 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { Link, MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Button } from '../Button/Button'
 import { AddPersonTile, CareCard, MiniPersonCard, PersonCard } from '../PersonCard/PersonCard'
 import styles from '../PersonCard/PersonCard.module.css'
 import progress from '../Progress/Progress.module.css'
+import shared from '../shared.module.css'
 
 describe('PersonCard', () => {
   it('shows everything about one person', () => {
@@ -32,7 +33,7 @@ describe('PersonCard', () => {
     )
     expect(card).toHaveTextContent('52 years old · Met 2016')
     expect(card).toHaveTextContent('Active')
-    expect(card).toHaveTextContent('1 week ago')
+    expect(card).toHaveTextContent('Last contact: 1 week ago')
     expect(
       within(card).getByRole('img', { name: /3 of 4: Baptised, Serving, Leading/ }),
     ).toBeInTheDocument()
@@ -47,9 +48,85 @@ describe('PersonCard', () => {
     const card = screen.getByRole('article')
     expect(within(card).getByRole('heading', { name: 'Tom Becker' })).toBeInTheDocument()
     expect(card).toHaveTextContent('No contact yet')
+    expect(card).not.toHaveTextContent('Last contact:')
     expect(card).toHaveTextContent('No milestones yet')
     expect(card).toHaveTextContent('0 praying')
     expect(within(card).queryByRole('img', { name: /Shepherded/ })).not.toBeInTheDocument()
+  })
+
+  it('shows the tag beside the status pill', () => {
+    render(
+      <PersonCard
+        name="Elena Petrova"
+        status="active"
+        tag={<span>14 days overdue</span>}
+        milestones={[]}
+        prayerCount={0}
+      />,
+    )
+    const tag = screen.getByText('14 days overdue')
+    expect(tag.parentElement).toContainElement(screen.getByText('Active'))
+  })
+
+  it('reads the prayer count bare, with " praying" for screen readers only', () => {
+    render(<PersonCard name="Ann Lee" status="active" milestones={[]} prayerCount={3} />)
+    const hidden = screen.getByText('praying')
+    expect(hidden).toHaveClass(shared.srOnly)
+    expect(hidden.parentElement).toHaveTextContent('3 praying')
+  })
+
+  it('shows the shepherds with the name', () => {
+    render(
+      <PersonCard
+        name="Ann Lee"
+        status="active"
+        milestones={[]}
+        prayerCount={0}
+        shepherds={{ names: ['Grace Lin'], label: 'Shepherded by Grace Lin' }}
+      />,
+    )
+    expect(screen.getByRole('img', { name: 'Shepherded by Grace Lin' })).toBeInTheDocument()
+  })
+})
+
+describe('PersonCard compact', () => {
+  it('shows only the avatar, name, status, tag and compact milestone bar', () => {
+    render(
+      <PersonCard
+        compact
+        name="David Mensah"
+        subtitle="52 years old · Met 2016"
+        status="active"
+        tag={<span>On track</span>}
+        lastContact="1 week ago"
+        milestones={['Baptised', 'Serving']}
+        shepherds={{ names: ['Grace Lin'], label: 'Shepherded by Grace Lin' }}
+        prayerCount={2}
+      />,
+    )
+    const card = screen.getByRole('article')
+    expect(card).toHaveClass(styles.compact)
+    expect(within(card).getByRole('heading', { name: 'David Mensah' })).toBeInTheDocument()
+    expect(card).toHaveTextContent('Active')
+    expect(card).toHaveTextContent('On track')
+    const bar = within(card).getByRole('img', { name: /2 of 4/ })
+    expect(bar.parentElement).toHaveClass(progress.compact)
+    expect(bar.parentElement).toHaveClass(styles.compactBar)
+    expect(card).not.toHaveTextContent('52 years old')
+    expect(card).not.toHaveTextContent('Last contact')
+    expect(card).not.toHaveTextContent('praying')
+    expect(card).not.toHaveTextContent('Baptised')
+    expect(within(card).queryByRole('img', { name: /Shepherded/ })).not.toBeInTheDocument()
+  })
+
+  it('is not compact by default', () => {
+    render(<PersonCard name="Ann Lee" status="active" milestones={[]} prayerCount={0} />)
+    expect(screen.getByRole('article')).not.toHaveClass(styles.compact)
+  })
+
+  it('renders someone with no milestones (rule 2)', () => {
+    render(<PersonCard compact name="Tom Becker" status="new" milestones={[]} prayerCount={0} />)
+    expect(screen.getByRole('img', { name: /No milestones yet/ })).toBeInTheDocument()
   })
 })
 
@@ -161,6 +238,66 @@ describe('MiniPersonCard', () => {
       />,
     )
     expect(screen.queryByText('Overdue:')).not.toBeInTheDocument()
+  })
+})
+
+describe('MiniPersonCard on the board', () => {
+  it('shows the contact tag and actions together in the footer', () => {
+    render(
+      <MiniPersonCard
+        name="Maria Santos"
+        prayerCount={0}
+        milestones={[]}
+        tag={<span>On track</span>}
+        actions={
+          <select aria-label="Move Maria Santos to another status">
+            <option>Move to</option>
+          </select>
+        }
+      />,
+    )
+    const card = screen.getByRole('article')
+    const foot = screen.getByText('On track').parentElement!
+    expect(foot).toHaveClass(styles.miniFoot)
+    expect(within(foot).getByRole('combobox')).toBeInTheDocument()
+    expect(card).toContainElement(foot)
+  })
+
+  it('has no footer without a tag or actions', () => {
+    const { container } = render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    expect(container.querySelector(`.${styles.miniFoot}`)).not.toBeInTheDocument()
+  })
+
+  it('shows grip dots only when asked, hidden from assistive tech', () => {
+    const { rerender } = render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    expect(screen.getByRole('article').querySelector(`.${styles.grip}`)).not.toBeInTheDocument()
+    rerender(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} grip />)
+    expect(screen.getByRole('article').querySelector(`.${styles.grip}`)).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+  })
+
+  it('passes drag props to the article', () => {
+    const onDragStart = vi.fn()
+    render(
+      <MiniPersonCard
+        name="Ann Lee"
+        prayerCount={0}
+        milestones={[]}
+        draggable
+        onDragStart={onDragStart}
+      />,
+    )
+    const card = screen.getByRole('article')
+    expect(card).toHaveAttribute('draggable', 'true')
+    fireEvent.dragStart(card)
+    expect(onDragStart).toHaveBeenCalledTimes(1)
+  })
+
+  it('is not draggable by default', () => {
+    render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    expect(screen.getByRole('article')).not.toHaveAttribute('draggable')
   })
 })
 

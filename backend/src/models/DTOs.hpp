@@ -159,6 +159,7 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(String, contactState);       // ContactState enum value
     DTO_FIELD(Boolean, isActive);
     DTO_FIELD(oatpp::Object<StatusDto>, status);
+    DTO_FIELD(String, statusChangedAt);  // nullable — null until the first move by hand
     DTO_FIELD(String, createdAt);
     DTO_FIELD(String, updatedAt);
 

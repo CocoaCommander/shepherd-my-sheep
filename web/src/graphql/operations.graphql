@@ -15,6 +15,7 @@ fragment PersonSummary on Person {
     id
     name
   }
+  statusChangedAt
   recordedMilestoneIds
   activeBurdenCount
   latestComment {
@@ -204,6 +205,14 @@ mutation DeleteComment($id: UUID!) {
 # entry for them, without a refetch.
 mutation UpdatePerson($id: UUID!, $input: UpdatePersonInput!) {
   updatePerson(id: $id, input: $input) {
+    ...PersonSummary
+  }
+}
+
+# Undo of a status move; statusId and statusChangedAt are the person's after
+# the move. Puts back the earlier status without restarting the contact clock.
+mutation UndoStatusChange($personId: UUID!, $statusId: UUID!, $statusChangedAt: DateTime!) {
+  undoStatusChange(personId: $personId, statusId: $statusId, statusChangedAt: $statusChangedAt) {
     ...PersonSummary
   }
 }

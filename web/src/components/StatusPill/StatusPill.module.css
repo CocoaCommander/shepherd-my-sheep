@@ -49,6 +49,10 @@
   background: var(--sms-brand-tint);
   color: var(--sms-brand-strong);
 }
+.none {
+  background: var(--sms-inactive-tint);
+  color: var(--sms-inactive-ink);
+}
 
 /* CountPill: the number beside a section title. */
 .count {

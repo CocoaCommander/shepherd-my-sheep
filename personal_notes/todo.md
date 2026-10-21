@@ -28,17 +28,17 @@ Decided 2026-10-15. Drives the new home page (see the "Card & Gallery Views" des
 The app needs both web and mobile-web layouts for every screen, then Android and iOS. Working through them as separate pages on the design canvas.
 
 - [x] **Review now** (#61, #62): opens from "Review now" on Home and steps through overdue people, most urgent first. Each step hosts `LogContactForm` inline (`web/src/pages/LogContactForm.tsx`, written for this) with "Log contact" and "Skip for now"; Skip logs nothing and leaves the person overdue. The Finished screen lists each contact logged in the session, each with Undo.
-- [ ] **My people** (mocked up for web and mWeb, pending build): one page with a **Board / Gallery toggle**.
+- [x] **My people** (#65, #66, #67): one page with a **Board / Gallery toggle**.
   - **Board** (default): columns for New contact, Active, Inactive, Lost contact. Each card shows name, last contact, milestone progress, prayer count and its contact-alert state.
-    - [ ] Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging.
-    - [ ] Keyboard and screen-reader alternative to dragging: a "Move to" menu on every card.
-    - [ ] Toast with Undo after a move.
+    - [x] Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging. (#66)
+    - [x] Keyboard and screen-reader alternative to dragging: a "Move to" menu on every card. (#66)
+    - [x] Toast with Undo after a move. (#65, #66)
     - [x] Decided 2026-10-16: what a status move means for the contact rule. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. (The New contact to Active part, "Did a follow-up happen?" with Yes / No, was replaced on 2026-10-19; see below.)
     - [x] Decided 2026-10-19: dragging New contact to Active opens the Log contact dialog instead of asking "Did they have a follow-up?" / "Move anyway". Since #36 any contact logged for a new contact is their follow-up and promotes them, so saving the dialog does the move; Cancel leaves the card where it was. There is no "move without a contact" path from New contact to Active. The design still just moves them; update it to open the dialog.
     - [x] Build the clock-from-the-move part: `person_contact_state` needs to count from when the status last changed (e.g. a `person.status_changed_at`) when that is later than the last contact. (#47)
-    - [ ] Persist the move optimistically and roll back if the mutation fails.
+    - [x] Persist the move optimistically and roll back if the mutation fails. (#66)
   - **Gallery**: full overview grid with search by name and status filter chips. 2-column cards on mWeb.
-    - [ ] Remember the chosen view (board or gallery) per device, in `localStorage` (decided 2026-10-16).
+    - [x] Remember the chosen view (board or gallery) per device, in `localStorage` (decided 2026-10-16). (#67)
     - [ ] Possible later: sort options (name, last contact, most overdue).
   - [x] Decided 2026-10-16: milestone progress stays four fixed segments in this order for the demo: baptised, joined small group, serving, leading. Configurable milestones are a separate item below.
 - [ ] **Person page** (mocked up for web and mWeb, pending build), using Maria Santos as the example.
@@ -179,6 +179,9 @@ gap check).
   comments, shepherds), prayer list. `MainActivity.kt` is still a shell.
 - [ ] **iOS screens** (SwiftUI): same screens; `ContentView.swift` is still a
   placeholder.
+- [ ] KMP shared module: add `Person.statusChangedAt` and the
+  `undoStatusChange` mutation (#65) when the mobile My people
+  board needs Undo after a move.
 
 ## Backend follow-ups (low priority)
 

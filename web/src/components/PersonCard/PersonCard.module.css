@@ -79,9 +79,25 @@
 
 .statusRow {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--sms-space-8);
+}
+
+/* The 2-up mobile gallery card: everything centred in one column. */
+.compact {
+  padding: var(--sms-space-14) var(--sms-space-12);
+  align-items: center;
+  text-align: center;
+  gap: var(--sms-space-8);
+}
+.compact .name {
+  max-width: 100%;
+  font-size: 14px;
+}
+.compactBar {
+  width: 100%;
 }
 .lastContact {
   display: flex;
@@ -91,6 +107,25 @@
 .miniPray {
   font-size: 12px;
   gap: 4px;
+}
+.grip {
+  flex: none;
+  color: var(--sms-border-dashed);
+}
+.mini[draggable='true'] {
+  cursor: grab;
+}
+/* Wraps when a long tag ("14 days overdue") and the actions don't fit side by side. */
+.miniFoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sms-space-6);
+}
+/* Wrapped, the actions stay on the right. */
+.miniFoot > :last-child {
+  margin-left: auto;
 }
 
 .foot {

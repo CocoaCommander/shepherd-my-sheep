@@ -33,7 +33,10 @@ public:
     using std::runtime_error::runtime_error;
 };
 
-/** The record already exists, e.g. a taken username or a repeated milestone. */
+/**
+ * The record already exists, e.g. a taken username or a repeated milestone,
+ * or it has changed since the client last saw it.
+ */
 class Conflict : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
@@ -183,7 +186,7 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
 // queries can show them without loading the nested lists.
 inline const char* PERSON_SELECT =
     "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
-    "       p.created_at, p.updated_at, s.id AS status_id, s.name AS status_name, "
+    "       p.created_at, p.updated_at, p.status_changed_at, s.id AS status_id, s.name AS status_name, "
     "       cs.last_contacted_at::date AS last_contact_date, cs.last_contacted_at, "
     "       cs.contact_due_at, cs.contact_clock_start, cs.contact_state, "
     "       (SELECT string_agg(mp.milestone_id::text, ',' ORDER BY mp.milestone_id) "
@@ -218,6 +221,7 @@ inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     dto->contactDueAt      = textOrNull(row["contact_due_at"]);
     dto->contactClockStart = textOrNull(row["contact_clock_start"]);
     dto->contactState      = row["contact_state"].c_str();
+    dto->statusChangedAt   = textOrNull(row["status_changed_at"]);
     dto->isActive          = row["is_active"].as<bool>();
     dto->createdAt         = row["created_at"].c_str();
     dto->updatedAt         = row["updated_at"].c_str();

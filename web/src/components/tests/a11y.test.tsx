@@ -209,6 +209,25 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             prayerCount={1}
           />
           <C.PersonCard
+            name="Elena Petrova"
+            headingLevel={2}
+            status="active"
+            tag={<C.DueTag tone="overdue">14 days overdue</C.DueTag>}
+            subtitle="52 years old · Met 2016"
+            lastContact="3 weeks ago"
+            milestones={['Baptised']}
+            prayerCount={0}
+          />
+          <C.PersonCard
+            compact
+            name="Maria Santos"
+            headingLevel={2}
+            status="active"
+            tag={<C.DueTag tone="ok">On track</C.DueTag>}
+            milestones={['Baptised', 'Serving']}
+            prayerCount={2}
+          />
+          <C.PersonCard
             name="Tom Becker"
             headingLevel={2}
             status="new"
@@ -236,6 +255,35 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             />
           </C.BoardColumn>
           <C.BoardColumn status="lost" count={0} />
+          <C.BoardColumn
+            status="new"
+            count={1}
+            rule="Follow up within 72 hours"
+            empty="Drop someone here"
+          >
+            <C.MiniPersonCard
+              name="Maria Santos"
+              lastContact="3 days ago"
+              prayerCount={1}
+              milestones={['Baptised']}
+              grip
+              draggable
+              tag={<C.DueTag tone="soon">Due today</C.DueTag>}
+              actions={
+                <C.Select aria-label="Move Maria Santos to another status" defaultValue="">
+                  <option value="">Move to</option>
+                  <option value="inactive">Inactive</option>
+                </C.Select>
+              }
+            />
+          </C.BoardColumn>
+          <C.BoardColumn
+            status="inactive"
+            count={0}
+            rule="Not tracked for alerts"
+            empty="Drop someone here"
+          />
+          <C.DueTag tone="none">Not tracked</C.DueTag>
         </main>,
       ),
     ).toEqual([])

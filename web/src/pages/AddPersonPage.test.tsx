@@ -33,6 +33,7 @@ function added(overrides: Record<string, unknown> = {}) {
     lastContactedAt: null,
     contactDueAt: DUE_AT,
     contactClockStart: at(0),
+    statusChangedAt: null,
     contactState: G.ContactState.OnTrack,
     isActive: true,
     status: NEW,

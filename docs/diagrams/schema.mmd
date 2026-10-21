@@ -41,6 +41,8 @@ erDiagram
         boolean is_active
         uuid status_id FK
         timestamptz status_changed_at
+        uuid previous_status_id FK
+        timestamptz previous_status_changed_at
     }
     user_person {
         uuid id PK
