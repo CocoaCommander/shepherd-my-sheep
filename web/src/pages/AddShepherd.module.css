@@ -1,0 +1,33 @@
+/* The user search under the Person page's Shepherds list. */
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.empty {
+  margin: 0;
+  color: var(--sms-muted);
+}
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sms-space-12);
+  border-top: 1px solid var(--sms-border);
+}
+.result:first-child {
+  border-top: 0;
+}
+.who {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.username {
+  font-size: 12px;
+  color: var(--sms-muted);
+}

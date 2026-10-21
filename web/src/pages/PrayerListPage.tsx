@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Alert,
@@ -6,15 +6,11 @@ import {
   avatarTint,
   Button,
   ClockIcon,
-  Dialog,
-  initials,
   PlusIcon,
   SegmentedControl,
   Select,
   StatusPill,
   Switch,
-  TextArea,
-  TextField,
   useUndoToast,
   type AvatarTint,
 } from '../components'
@@ -25,19 +21,21 @@ import {
   MyPeopleDocument,
   RecentlyReleasedPrayerBurdensDocument,
   useActivePrayerBurdensQuery,
-  useCreateCommentMutation,
-  useCreatePrayerBurdenMutation,
   useMeQuery,
   useMyPeopleQuery,
   useRecentlyReleasedPrayerBurdensQuery,
-  useReleasePrayerBurdenMutation,
-  useUnreleasePrayerBurdenMutation,
-  type MyPeopleQuery,
   type PrayerListBurdenFragment,
 } from '../generated/graphql'
 import { Header } from './Header'
 import { STATUS_BY_NAME } from './personStatus'
 import styles from './PrayerListPage.module.css'
+import {
+  AddBurdenDialog,
+  BurdenCommentForm,
+  commentAuthor,
+  Thread,
+  useReleaseBurden,
+} from './PrayerThread'
 import { sharedWithShepherds } from './sharing'
 
 type Burden = PrayerListBurdenFragment
@@ -120,9 +118,8 @@ export function PrayerListPage() {
     fetchPolicy: 'cache-and-network',
   })
   const { data: me } = useMeQuery()
-  const [release] = useReleasePrayerBurdenMutation(RELOAD_PRAYER_LISTS)
-  const [unrelease] = useUnreleasePrayerBurdenMutation(RELOAD_PRAYER_LISTS)
   const { show, toastElement } = useUndoToast({ floating: true, className: styles.toast })
+  const release = useReleaseBurden(show, RELOAD_PRAYER_LISTS)
 
   const [sort, setSort] = useState<Sort>('standing')
   // Kept as the person, not just the id, so the option stays when their last burden goes.
@@ -165,26 +162,19 @@ export function PrayerListPage() {
     })
 
   const onRelease = (burden: Burden) => {
-    const first = firstName(burden.person.name)
     setReleaseError(null)
     setHidden(burden.id, true)
-    release({ variables: { id: burden.id } }).then(
-      () =>
-        show(`Released prayer burden for ${first}`, () => {
-          unrelease({ variables: { id: burden.id } }).then(
-            () => setHidden(burden.id, false),
-            (e) => {
-              show(`Couldn't undo. ${friendlyMessage(e)}`)
-              // Another shepherd changed it; show the list as it now is.
-              if (errorCode(e) === 'NOT_FOUND') refetch()
-            },
-          )
-        }),
-      (e) => {
+    release(burden.id, burden.person.name, {
+      failed: (message) => {
         setHidden(burden.id, false)
-        setReleaseError(friendlyMessage(e))
+        setReleaseError(message)
       },
-    )
+      undone: () => setHidden(burden.id, false),
+      // Another shepherd changed it; show the list as it now is.
+      undoFailed: (e) => {
+        if (errorCode(e) === 'NOT_FOUND') refetch()
+      },
+    })
   }
 
   return (
@@ -322,6 +312,7 @@ export function PrayerListPage() {
         <AddBurdenDialog
           people={people?.myPeople ?? []}
           initialPersonId={filter?.id}
+          reload={RELOAD_PRAYER_LISTS}
           onClose={() => setAdding(false)}
           onAdded={(name) => {
             setAdding(false)
@@ -380,7 +371,7 @@ function BurdenRow({
         {latest && !hideDetails && !open && (
           <p className={styles.comment}>
             <span className={styles.muted}>
-              {author(latest, meId)}, {timeAgo(latest.createdAt, now)}:
+              {commentAuthor(latest, meId)}, {timeAgo(latest.createdAt, now)}:
             </span>{' '}
             {latest.content}
           </p>
@@ -413,188 +404,23 @@ function BurdenRow({
         </Button>
       </div>
       {open && (
-        <Thread id={threadId} burden={burden} meId={meId} now={now} hideDetails={hideDetails} />
+        <Thread
+          id={threadId}
+          className={styles.thread}
+          comments={comments}
+          meId={meId}
+          now={now}
+          hideDetails={hideDetails}
+        >
+          <BurdenCommentForm
+            personId={person.id}
+            burdenId={burden.id}
+            reload={RELOAD_PRAYER_LISTS}
+            help={sharedWithShepherds(person.name)}
+          />
+        </Thread>
       )}
     </article>
-  )
-}
-
-const author = (comment: Burden['comments'][number], meId?: string) =>
-  comment.author.id === meId ? 'You' : comment.author.name
-
-/** A burden's comments, oldest first, with the latest two shown until asked for the rest. */
-function Thread({
-  id,
-  burden,
-  meId,
-  now,
-  hideDetails,
-}: {
-  id: string
-  burden: Burden
-  meId?: string
-  now: Date
-  hideDetails: boolean
-}) {
-  const [showAll, setShowAll] = useState(false)
-  const oldestFirst = [...burden.comments].reverse()
-  const earlier = Math.max(0, oldestFirst.length - 2)
-  const shown = showAll ? oldestFirst : oldestFirst.slice(earlier)
-
-  return (
-    <div id={id} className={styles.thread}>
-      {earlier > 0 && (
-        <Button variant="text" className={styles.earlier} onClick={() => setShowAll((s) => !s)}>
-          {showAll
-            ? 'Hide earlier comments'
-            : `Show ${plural(earlier, 'earlier comment', 'earlier comments')}`}
-        </Button>
-      )}
-      {shown.length > 0 && (
-        <ul className={styles.comments}>
-          {shown.map((c) => (
-            <li key={c.id} className={styles.threadComment}>
-              <span aria-hidden="true" className={styles.commentAvatar}>
-                {initials(c.author.name)}
-              </span>
-              <div className={styles.commentBody}>
-                <p className={styles.commentMeta}>
-                  <span className={styles.commentAuthor}>{author(c, meId)}</span> ·{' '}
-                  {timeAgo(c.createdAt, now)}
-                </p>
-                <p className={hideDetails ? styles.muted : undefined}>
-                  {hideDetails ? 'Details hidden' : c.content}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-      <CommentForm burden={burden} />
-    </div>
-  )
-}
-
-/** Adds a comment linked to the burden; clears itself once it is saved. */
-function CommentForm({ burden }: { burden: Burden }) {
-  const [content, setContent] = useState('')
-  const [createComment, { loading, error }] = useCreateCommentMutation(RELOAD_PRAYER_LISTS)
-  const trimmed = content.trim()
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!trimmed || loading) return
-    try {
-      await createComment({
-        variables: {
-          input: { personId: burden.person.id, prayerBurdenId: burden.id, content: trimmed },
-        },
-      })
-      setContent('')
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  return (
-    <form className={styles.commentForm} onSubmit={handleSubmit}>
-      <div className={styles.commentRow}>
-        <TextField
-          label={<span className={styles.srOnly}>Add a comment on this burden</span>}
-          placeholder="Add a comment on this burden"
-          className={styles.commentField}
-          help={sharedWithShepherds(burden.person.name)}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
-        <Button type="submit" disabled={!trimmed || loading}>
-          Comment
-        </Button>
-      </div>
-      {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
-    </form>
-  )
-}
-
-type MyPerson = MyPeopleQuery['myPeople'][number]
-
-/**
- * Adds a burden for one of the user's people, starting on the filtered person (or the only one).
- * The host mounts it only while open, so it starts empty each time.
- */
-function AddBurdenDialog({
-  people,
-  initialPersonId,
-  onClose,
-  onAdded,
-}: {
-  people: readonly MyPerson[]
-  initialPersonId?: string
-  onClose: () => void
-  onAdded: (name: string) => void
-}) {
-  const formId = useId()
-  const sorted = [...people].sort(byName)
-  const [personId, setPersonId] = useState(
-    initialPersonId ?? (sorted.length === 1 ? sorted[0].id : ''),
-  )
-  const [content, setContent] = useState('')
-  const [createPrayerBurden, { loading, error }] =
-    useCreatePrayerBurdenMutation(RELOAD_PRAYER_LISTS)
-  const person = sorted.find((p) => p.id === personId)
-  const trimmed = content.trim()
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!person || !trimmed || loading) return
-    try {
-      await createPrayerBurden({ variables: { input: { personId: person.id, content: trimmed } } })
-      onAdded(person.name)
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title="Add prayer burden"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form={formId} disabled={!person || !trimmed || loading}>
-            {loading ? 'Adding…' : 'Add prayer burden'}
-          </Button>
-        </>
-      }
-    >
-      <form id={formId} className={styles.addForm} onSubmit={handleSubmit}>
-        <Select
-          label="Person"
-          className={styles.personField}
-          value={personId}
-          onChange={(e) => setPersonId(e.target.value)}
-        >
-          <option value="">Choose a person</option>
-          {sorted.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </Select>
-        <TextArea
-          label="Prayer burden"
-          rows={3}
-          value={content}
-          help={sharedWithShepherds(person?.name)}
-          onChange={(e) => setContent(e.target.value)}
-        />
-        {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
-      </form>
-    </Dialog>
   )
 }
 

@@ -1,0 +1,91 @@
+/* The Person page's sidebar. On phones it's part of the single column, in the canvas order. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+  min-width: 0;
+}
+
+/* Sidebar cards are a little tighter than the main column's (PersonSection.module.css);
+   the extra class makes these win over its gap whatever order the stylesheets load in. */
+.sidebar .card {
+  gap: var(--sms-space-12);
+  min-width: 0;
+}
+.title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sms-space-8) var(--sms-space-16);
+  margin: 0;
+}
+.fact {
+  display: contents;
+}
+.fact dt {
+  color: var(--sms-muted);
+}
+.fact dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.empty {
+  color: var(--sms-muted);
+}
+
+.shepherdList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+.shepherd {
+  display: flex;
+  align-items: center;
+  gap: var(--sms-space-10);
+}
+.who {
+  flex: 1;
+  min-width: 0;
+}
+.name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.role {
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+
+.sidebar .rule {
+  gap: var(--sms-space-8);
+}
+.ruleText {
+  margin: 0;
+}
+
+.delete {
+  align-self: flex-start;
+}
+
+@media (max-width: 719px) {
+  .shepherds {
+    order: 1;
+  }
+  .rule {
+    order: 2;
+  }
+  .details {
+    order: 3;
+  }
+  .delete {
+    order: 4;
+  }
+}

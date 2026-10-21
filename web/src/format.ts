@@ -71,7 +71,18 @@ export function humanSpan(ms: number): string {
 
 /** "today", "3 days ago", "1 week ago", "5 months ago", "2 years ago": how long ago a time was. */
 export function timeAgo(value: string, now: Date = new Date()): string {
-  const days = Math.floor((now.getTime() - parseDateTime(value).getTime()) / 86_400_000)
+  return daysAgo(Math.floor((now.getTime() - parseDateTime(value).getTime()) / 86_400_000))
+}
+
+/** A Date ("2026-10-14") → "today", "3 days ago", … counted in whole local calendar days. */
+export function dateAgo(value: string, now: Date = new Date()): string {
+  const [year, month, day] = value.split('-').map(Number)
+  const then = Date.UTC(year, month - 1, day)
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())
+  return daysAgo(Math.round((today - then) / 86_400_000))
+}
+
+function daysAgo(days: number): string {
   if (days < 1) return 'today'
   if (days === 1) return '1 day ago'
   if (days < 7) return `${days} days ago`

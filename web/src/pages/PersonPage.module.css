@@ -1,0 +1,28 @@
+/* The Person page: breadcrumb, header card, then the main column beside the sidebar. */
+.breadcrumb {
+  color: var(--sms-muted);
+}
+.breadcrumb a {
+  color: var(--sms-brand-strong);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--sms-space-24);
+  align-items: start;
+}
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+  min-width: 0;
+}
+
+/* Phones: one column, the sidebar's sections after Notes. */
+@media (max-width: 719px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sms-space-20);
+  }
+}

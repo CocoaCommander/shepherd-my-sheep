@@ -1,5 +1,5 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -134,10 +134,8 @@ describe('edit person form', () => {
     renderPage(person({ status: ST_AWAY, isActive: false }))
     await openForm(user)
     expect(screen.getByLabelText('Name')).toHaveValue('Sam Sheep')
-    expect(await screen.findByLabelText('Status')).toHaveValue('st-2')
     expect(screen.getByLabelText(/^Age/)).toHaveValue(30)
     expect(screen.getByLabelText(/^Year met/)).toHaveValue(2020)
-    expect(screen.getByLabelText('Active')).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
 
@@ -148,6 +146,24 @@ describe('edit person form', () => {
     expect(screen.getByLabelText('Name')).toBeRequired()
     expect(screen.getByLabelText(/^Age/)).toBeRequired()
     expect(screen.getByLabelText(/^Year met/)).toBeRequired()
+  })
+
+  it('has no status field: the Person page dropdown changes status', async () => {
+    const user = userEvent.setup()
+    renderPage(person())
+    await openForm(user)
+    const form = screen.getByRole('button', { name: 'Save' }).closest('form') as HTMLElement
+    expect(within(form).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(form).queryByLabelText('Status')).not.toBeInTheDocument()
+    expect(within(form).queryByText('Status')).not.toBeInTheDocument()
+  })
+
+  it('has no Active checkbox: status has its own dropdown', async () => {
+    const user = userEvent.setup()
+    renderPage(person())
+    await openForm(user)
+    expect(screen.queryByLabelText('Active')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
   it('has no last contact field: contacts are logged, not edited', async () => {
@@ -183,22 +199,17 @@ describe('edit person form', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
-  it('trims the name and sends status and active changes', async () => {
+  it('trims the name and sends only the name, never isActive', async () => {
     const user = userEvent.setup()
-    const { mock, result } = updateMock(
-      { name: 'Sam Lamb', statusId: 'st-2', isActive: false },
-      { status: ST_AWAY },
-    )
+    const { mock, result } = updateMock({ name: 'Sam Lamb' })
     renderPage(person(), [mock])
     await openForm(user)
     const name = screen.getByLabelText('Name')
     await user.clear(name)
     await user.type(name, '  Sam Lamb  ')
-    await user.selectOptions(await screen.findByLabelText('Status'), 'Away')
-    await user.click(screen.getByLabelText('Active'))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText('Sam Lamb')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sam Lamb' })).toBeInTheDocument()
     expect(result).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
@@ -246,7 +257,7 @@ describe('edit person form', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     // The overdue contact banner is an alert too.
-    expect(await screen.findByText('Age is not allowed')).toHaveAttribute('role', 'alert')
+    expect((await screen.findByText('Age is not allowed')).closest('[role="alert"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
     expect(screen.getByLabelText(/^Age/)).toHaveValue(31)
   })
@@ -263,7 +274,7 @@ describe('edit person form', () => {
 
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
     expect(screen.queryByText('Abandoned')).not.toBeInTheDocument()
-    expect(screen.getByText('Sam Sheep')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Sam Sheep' })).toBeInTheDocument()
     await openForm(user)
     expect(screen.getByLabelText('Name')).toHaveValue('Sam Sheep')
     expect(result).not.toHaveBeenCalled()

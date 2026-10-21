@@ -25,26 +25,16 @@ import {
   type ViewMode,
 } from '../components'
 import { friendlyMessage } from '../errors'
-import { firstName, timeAgo } from '../format'
-import {
-  ContactState,
-  useMilestonesQuery,
-  useMyPeopleQuery,
-  useStatusesQuery,
-  useUndoStatusChangeMutation,
-  useUpdatePersonMutation,
-  type UpdatePersonMutation,
-} from '../generated/graphql'
+import { timeAgo } from '../format'
+import { useMilestonesQuery, useMyPeopleQuery } from '../generated/graphql'
 import { NARROW, useMediaQuery } from '../useMediaQuery'
-import { RELOAD_CONTACT_LISTS, useLogContactToast } from './contactToast'
+import { useLogContactToast } from './contactToast'
 import { Header } from './Header'
 import { LogContactDialog } from './LogContactDialog'
 import {
   byUrgency,
   contactTag,
-  isTracked,
   milestoneLabels,
-  movedMessage,
   readView,
   shepherdingCount,
   storeView,
@@ -55,9 +45,7 @@ import {
 } from './peopleBoard'
 import { PeopleGallery } from './PeopleGallery'
 import styles from './PeoplePage.module.css'
-import { STATUS_BY_NAME } from './personStatus'
-
-type Summary = UpdatePersonMutation['updatePerson']
+import { useStatusMove } from './useStatusMove'
 
 /** How a move was asked for; a move from the menu puts focus back on the card's menu. */
 type Via = 'menu' | 'drop'
@@ -71,10 +59,7 @@ export function PeoplePage() {
   const narrow = useMediaQuery(NARROW)
   const [view, setView] = useState<ViewMode>(readView)
   const { data, loading, error } = useMyPeopleQuery()
-  const { data: statusData } = useStatusesQuery()
   const { data: milestoneData } = useMilestonesQuery()
-  const [updatePerson] = useUpdatePersonMutation()
-  const [undoStatusChange] = useUndoStatusChangeMutation()
   // Who the Log contact dialog is open for (a move from New contact to Active).
   const [logging, setLogging] = useState<Person | null>(null)
   const { show, showLogged, toastElement } = useLogContactToast({
@@ -87,14 +72,6 @@ export function PeoplePage() {
 
   const now = new Date()
   const people = useMemo(() => data?.myPeople ?? [], [data])
-  const statusIds = useMemo(() => {
-    const ids = new Map<PersonStatus, { id: string; name: string }>()
-    for (const s of statusData?.statuses ?? []) {
-      const status = STATUS_BY_NAME[s.name]
-      if (status) ids.set(status, s)
-    }
-    return ids
-  }, [statusData])
   const milestoneNames = useMemo(
     () => new Map((milestoneData?.milestones ?? []).map((m) => [m.id, m.name])),
     [milestoneData],
@@ -122,66 +99,17 @@ export function PeoplePage() {
     }
   }, [refocus, people])
 
-  function undo(saved: Summary) {
-    const first = firstName(saved.name)
-    if (!saved.statusChangedAt) return undefined
-    const variables = {
-      personId: saved.id,
-      statusId: saved.status.id,
-      statusChangedAt: saved.statusChangedAt,
-    }
-    return () => {
-      undoStatusChange({ variables, ...RELOAD_CONTACT_LISTS }).then(
-        ({ data: undone }) => {
-          const back = undone && statusOf(undone.undoStatusChange)
-          show(back ? `${first} is back in ${STATUS_LABELS[back]}.` : `Moved ${first} back.`)
-        },
-        (e) => show(`Couldn't undo. ${friendlyMessage(e)}`),
-      )
-    }
-  }
+  const { move: moveTo, canMove } = useStatusMove<Person>({
+    show,
+    narrow,
+    onLogContact: setLogging,
+  })
 
   function move(person: Person, to: PersonStatus, via: Via) {
-    const from = statusOf(person)
-    if (from === to) return
-    // A new contact becomes active only by logging their follow-up (business rule 6).
-    if (from === 'new' && to === 'active') {
-      setLogging(person)
-      return
-    }
-    const status = statusIds.get(to)
-    if (!status) return
-    if (via === 'menu') setRefocus({ id: person.id, to })
-    updatePerson({
-      variables: { id: person.id, input: { statusId: status.id } },
-      // The card moves at once; Apollo drops this layer if the mutation fails, so it moves back.
-      // Any move restarts or stops the clock, so the due time waits for the server.
-      optimisticResponse: {
-        updatePerson: {
-          // createdAt rides along; Apollo writes only the fields the mutation selects.
-          ...person,
-          __typename: 'Person',
-          status: { __typename: 'Status', ...status },
-          contactState: isTracked(to) ? ContactState.OnTrack : ContactState.NotTracked,
-          contactDueAt: null,
-          contactClockStart: null,
-        },
-      },
-      // The bell's count: a move can take someone out of the alerts or put them back.
-      ...RELOAD_CONTACT_LISTS,
-    }).then(
-      ({ data: moved }) => {
-        // Undo names the move by the server's statusChangedAt, so it waits for the response.
-        if (moved) show(movedMessage(person.name, to, narrow), undo(moved.updatePerson))
-      },
-      (e) => {
-        setRefocus(null)
-        show(`Couldn't move ${firstName(person.name)}. ${friendlyMessage(e)}`)
-      },
-    )
+    const sent = moveTo(person, to, () => setRefocus(null))
+    if (sent && via === 'menu') setRefocus({ id: person.id, to })
   }
 
-  const canMove = statusIds.size > 0
   const card = (person: Person, drag?: (e: DragEvent) => void) => (
     <BoardCard
       key={person.id}

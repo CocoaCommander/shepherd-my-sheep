@@ -82,8 +82,19 @@ function renderPage(shepherds: object[], extra: MockedResponse[] = []) {
 
 // The header also shows my name, so look only inside the Shepherds section.
 function shepherdsSection() {
-  return within(screen.getByText('Shepherds').parentElement as HTMLElement)
+  const heading = screen.getByRole('heading', { level: 2, name: 'Shepherds' })
+  return within((heading.closest('section') ?? heading.parentElement) as HTMLElement)
 }
+
+/** The shepherd's row in the Shepherds list: the list item holding their name. */
+function rowOf(name: string) {
+  return shepherdsSection().getByText(name, { exact: false }).closest('li') as HTMLElement
+}
+
+const removeButton = (shepherd: string) =>
+  screen.getByRole('button', { name: `Remove ${shepherd} as shepherd` })
+const stopButton = () => screen.getByRole('button', { name: 'Stop shepherding Sam Sheep' })
+const openDialog = (title: string) => screen.getByRole('dialog', { name: title })
 
 function unassignMock(userId: string, shepherds: object[]) {
   const result = vi.fn(() => ({
@@ -128,21 +139,33 @@ function failing(
 }
 
 describe('Shepherds list', () => {
-  it('with only me, offers no Remove or Stop shepherding buttons', async () => {
+  it('with only me, shows me as You and offers no Remove buttons at all', async () => {
     renderPage([ME_SHEPHERD])
-    const heading = await screen.findByText('Shepherds')
-    expect(heading).toBeInTheDocument()
-    expect(shepherdsSection().getByText(ME.name, { exact: false })).toBeInTheDocument()
+    await screen.findByRole('heading', { level: 2, name: 'Shepherds' })
+    const row = within(rowOf(ME.name))
+    expect(row.getByText(ME.name)).toBeInTheDocument()
+    expect(row.getByText('You')).toBeInTheDocument()
+    expect(
+      shepherdsSection().queryByRole('button', { name: /^Remove|^Stop shepherding/ }),
+    ).toBeNull()
     expect(screen.queryByRole('button', { name: /as shepherd$/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Stop shepherding' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Stop shepherding/ })).not.toBeInTheDocument()
+    expect(shepherdsSection().getByRole('button', { name: 'Add shepherd' })).toBeInTheDocument()
   })
 
-  it('with two shepherds, offers Remove for the other and Stop shepherding for me', async () => {
+  it('with two shepherds, offers Remove for the co-shepherd and Stop shepherding on my row', async () => {
     renderPage([ME_SHEPHERD, OTHER])
+    await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` })
+    const other = within(rowOf(OTHER.name))
+    expect(other.getByText('Co-shepherd')).toBeInTheDocument()
     expect(
-      await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Stop shepherding' })).toBeInTheDocument()
+      other.getByRole('button', { name: `Remove ${OTHER.name} as shepherd` }),
+    ).toHaveTextContent('Remove')
+    const mine = within(rowOf(ME.name))
+    expect(mine.getByText('You')).toBeInTheDocument()
+    expect(mine.getByRole('button', { name: 'Stop shepherding Sam Sheep' })).toHaveTextContent(
+      'Remove',
+    )
     expect(
       screen.queryByRole('button', { name: `Remove ${ME.name} as shepherd` }),
     ).not.toBeInTheDocument()
@@ -150,38 +173,54 @@ describe('Shepherds list', () => {
 })
 
 describe('Removing another shepherd', () => {
-  it('confirms, sends the other shepherd id and shows the returned list', async () => {
+  it('confirms in a dialog, sends the other shepherd id, shows the returned list and stays', async () => {
     const user = userEvent.setup()
     const { mock, result } = unassignMock(OTHER.id, [ME_SHEPHERD])
     renderPage([ME_SHEPHERD, OTHER], [mock])
-    await user.click(
-      await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` }),
-    )
+    await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` })
+    await user.click(removeButton(OTHER.name))
     expect(result).not.toHaveBeenCalled()
-    expect(screen.getByText(`Remove ${OTHER.name} as a shepherd?`)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+    const dialog = openDialog(`Remove ${OTHER.name} as a shepherd?`)
+    await user.click(within(dialog).getByRole('button', { name: 'Yes, remove' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     await waitFor(() => expect(shepherdsSection().queryByText(OTHER.name)).not.toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(shepherdsSection().getByText(ME.name, { exact: false })).toBeInTheDocument()
     expect(screen.queryByText('People list stub')).not.toBeInTheDocument()
   })
 
-  it('cancel sends nothing', async () => {
+  it('Cancel closes the dialog and sends nothing', async () => {
     const user = userEvent.setup()
     const { mock, result } = unassignMock(OTHER.id, [ME_SHEPHERD])
     renderPage([ME_SHEPHERD, OTHER], [mock])
+    await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` })
+    await user.click(removeButton(OTHER.name))
     await user.click(
-      await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` }),
+      within(openDialog(`Remove ${OTHER.name} as a shepherd?`)).getByRole('button', {
+        name: 'Cancel',
+      }),
     )
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByText(`Remove ${OTHER.name} as a shepherd?`)).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: `Remove ${OTHER.name} as shepherd` }),
-    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(removeButton(OTHER.name)).toBeInTheDocument()
     expect(result).not.toHaveBeenCalled()
   })
 
-  it('shows a BAD_USER_INPUT message as-is and stays on the page', async () => {
+  it('the dialog Close button closes it and sends nothing', async () => {
+    const user = userEvent.setup()
+    const { mock, result } = unassignMock(OTHER.id, [ME_SHEPHERD])
+    renderPage([ME_SHEPHERD, OTHER], [mock])
+    await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` })
+    await user.click(removeButton(OTHER.name))
+    await user.click(
+      within(openDialog(`Remove ${OTHER.name} as a shepherd?`)).getByRole('button', {
+        name: 'Close',
+      }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(result).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open with a BAD_USER_INPUT message as-is, and the shepherd listed', async () => {
     const user = userEvent.setup()
     const message = 'A person needs at least one shepherd. Delete them instead.'
     const mock = failing(
@@ -191,13 +230,13 @@ describe('Removing another shepherd', () => {
       'BAD_USER_INPUT',
     )
     renderPage([ME_SHEPHERD, OTHER], [mock])
-    await user.click(
-      await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` }),
-    )
+    await screen.findByRole('button', { name: `Remove ${OTHER.name} as shepherd` })
+    await user.click(removeButton(OTHER.name))
     await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    const dialog = openDialog(`Remove ${OTHER.name} as a shepherd?`)
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message)
     expect(screen.queryByText('People list stub')).not.toBeInTheDocument()
-    expect(screen.getByText('Shepherds')).toBeInTheDocument()
+    expect(shepherdsSection().getByText(OTHER.name)).toBeInTheDocument()
   })
 })
 
@@ -206,72 +245,93 @@ describe('Stop shepherding', () => {
     const user = userEvent.setup()
     const { mock, result } = unassignMock(ME.id, [OTHER])
     const { myPeople } = renderPage([ME_SHEPHERD, OTHER], [mock])
-    await user.click(await screen.findByRole('button', { name: 'Stop shepherding' }))
+    await screen.findByRole('button', { name: 'Stop shepherding Sam Sheep' })
+    await user.click(stopButton())
     expect(result).not.toHaveBeenCalled()
-    expect(screen.getByText(/^Stop shepherding Sam Sheep\?/)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Yes, stop' }))
+    const dialog = openDialog('Stop shepherding Sam Sheep?')
+    await user.click(within(dialog).getByRole('button', { name: 'Yes, stop' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     expect(await screen.findByText('People list stub')).toBeInTheDocument()
     await waitFor(() => expect(myPeople).toHaveBeenCalled())
   })
 
-  it('cancel sends nothing and stays on the page', async () => {
+  it('Cancel closes the dialog, sends nothing and stays on the page', async () => {
     const user = userEvent.setup()
     const { mock, result } = unassignMock(ME.id, [OTHER])
     renderPage([ME_SHEPHERD, OTHER], [mock])
-    await user.click(await screen.findByRole('button', { name: 'Stop shepherding' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.getByRole('button', { name: 'Stop shepherding' })).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Stop shepherding Sam Sheep' })
+    await user.click(stopButton())
+    await user.click(
+      within(openDialog('Stop shepherding Sam Sheep?')).getByRole('button', { name: 'Cancel' }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(stopButton()).toBeInTheDocument()
     expect(result).not.toHaveBeenCalled()
     expect(screen.queryByText('People list stub')).not.toBeInTheDocument()
   })
 
-  it('shows the error in an alert and does not navigate when it fails', async () => {
+  it('keeps the dialog with the error in an alert and does not navigate when it fails', async () => {
     const user = userEvent.setup()
+    const message = 'A person needs at least one shepherd. Delete them instead.'
     const mock = failing(
       G.UnassignPersonDocument,
       { personId: PERSON_ID, userId: ME.id },
-      'A person needs at least one shepherd. Delete them instead.',
+      message,
       'BAD_USER_INPUT',
     )
     renderPage([ME_SHEPHERD, OTHER], [mock])
-    await user.click(await screen.findByRole('button', { name: 'Stop shepherding' }))
+    await screen.findByRole('button', { name: 'Stop shepherding Sam Sheep' })
+    await user.click(stopButton())
     await user.click(screen.getByRole('button', { name: 'Yes, stop' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'A person needs at least one shepherd. Delete them instead.',
-    )
+    const dialog = openDialog('Stop shepherding Sam Sheep?')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(message)
     expect(screen.queryByText('People list stub')).not.toBeInTheDocument()
   })
 })
 
 describe('Delete person', () => {
-  it('warns about every shepherd, deletes by id, refetches MyPeople and navigates', async () => {
+  const deleteButton = () => screen.findByRole('button', { name: 'Delete Sam Sheep' })
+
+  it('shows the button with the name and warns in the dialog that it cannot be undone', async () => {
+    const user = userEvent.setup()
+    renderPage([ME_SHEPHERD])
+    const button = await deleteButton()
+    expect(button).toHaveTextContent('Delete Sam Sheep')
+    await user.click(button)
+    const dialog = openDialog('Delete Sam Sheep?')
+    expect(dialog).toHaveTextContent("It can't be undone.")
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+  })
+
+  it('deletes by id, refetches MyPeople and navigates', async () => {
     const user = userEvent.setup()
     const { mock, result } = deleteMock()
     const { myPeople } = renderPage([ME_SHEPHERD], [mock])
-    await user.click(await screen.findByRole('button', { name: 'Delete person' }))
+    await user.click(await deleteButton())
     expect(result).not.toHaveBeenCalled()
-    expect(screen.getByText(/^Delete Sam Sheep\?/)).toBeInTheDocument()
-    expect(screen.getByText(/for every shepherd/i)).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+    await user.click(
+      within(openDialog('Delete Sam Sheep?')).getByRole('button', { name: 'Yes, delete' }),
+    )
     await waitFor(() => expect(result).toHaveBeenCalled())
     expect(await screen.findByText('People list stub')).toBeInTheDocument()
     await waitFor(() => expect(myPeople).toHaveBeenCalled())
   })
 
-  it('cancel sends nothing and restores the button', async () => {
+  it('Cancel closes the dialog and sends nothing', async () => {
     const user = userEvent.setup()
     const { mock, result } = deleteMock()
     renderPage([ME_SHEPHERD, OTHER], [mock])
-    await user.click(await screen.findByRole('button', { name: 'Delete person' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByText(/^Delete Sam Sheep\?/)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete person' })).toBeInTheDocument()
+    await user.click(await deleteButton())
+    await user.click(
+      within(openDialog('Delete Sam Sheep?')).getByRole('button', { name: 'Cancel' }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete Sam Sheep' })).toBeInTheDocument()
     expect(result).not.toHaveBeenCalled()
     expect(screen.queryByText('People list stub')).not.toBeInTheDocument()
   })
 
-  it('shows a BAD_USER_INPUT message in an alert and stays put', async () => {
+  it('keeps the dialog with a BAD_USER_INPUT message in an alert and stays put', async () => {
     const user = userEvent.setup()
     const mock = failing(
       G.DeletePersonDocument,
@@ -280,9 +340,10 @@ describe('Delete person', () => {
       'BAD_USER_INPUT',
     )
     renderPage([ME_SHEPHERD], [mock])
-    await user.click(await screen.findByRole('button', { name: 'Delete person' }))
+    await user.click(await deleteButton())
     await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
-    const alert = await screen.findByRole('alert')
+    const dialog = openDialog('Delete Sam Sheep?')
+    const alert = await within(dialog).findByRole('alert')
     expect(within(alert).getByText('Cannot delete this one')).toBeInTheDocument()
     expect(screen.queryByText('People list stub')).not.toBeInTheDocument()
   })

@@ -1,0 +1,115 @@
+/* The Person page's Milestones section: four columns on the web, a vertical timeline on phones. */
+.journey,
+.timeline,
+.others {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  min-width: 0;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sms-space-4);
+  min-width: 0;
+}
+.label {
+  font-weight: 600;
+}
+.when {
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.note {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.step .record {
+  border: 1.5px dashed var(--sms-border-dashed);
+  margin-top: var(--sms-space-4);
+}
+
+/* Web: each step is a column under its own bar segment. */
+.journey {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sms-space-12);
+}
+.journey .step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+.journey .marker {
+  height: 6px;
+  border-radius: var(--sms-radius-xs);
+  background: var(--sms-border);
+}
+.journey .done .marker {
+  background: var(--sms-brand);
+}
+.journey .tick {
+  display: none;
+}
+
+/* Phones: a dot per step (ticked when recorded) joined by a line. */
+.timeline .step {
+  position: relative;
+  display: flex;
+  gap: var(--sms-space-12);
+}
+.timeline .marker {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  border-radius: var(--sms-radius-circle);
+  border: 2px solid var(--sms-border-dashed);
+  background: var(--sms-surface);
+  color: var(--sms-on-brand);
+}
+.timeline .done .marker {
+  border-color: var(--sms-brand);
+  background: var(--sms-brand);
+}
+/* The line from this dot down to the next. */
+.timeline .step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  left: 10px;
+  width: 2px;
+  background: var(--sms-border);
+}
+.timeline .body {
+  padding-bottom: var(--sms-space-14);
+}
+
+/* Milestones that aren't one of the four. */
+.othersTitle {
+  margin: 0;
+  font-size: 15px;
+}
+.others {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.others .marker {
+  display: none;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+}

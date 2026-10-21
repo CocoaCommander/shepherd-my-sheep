@@ -1,0 +1,24 @@
+/* A section card on the Person page's main column: Milestones, Prayer burdens, Notes. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-20);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sms-space-12);
+}
+.title {
+  margin: 0;
+  font-size: 18px;
+}
+.count {
+  color: var(--sms-muted);
+}

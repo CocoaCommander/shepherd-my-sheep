@@ -1,0 +1,74 @@
+/* The Person page's Prayer burdens section: active burdens with threads, released ones folded away. */
+/* The Add burden button sits level with the heading. */
+.head {
+  align-items: center;
+}
+.empty,
+.shared {
+  margin: 0;
+  color: var(--sms-muted);
+}
+.shared {
+  font-size: 12px;
+}
+
+.list,
+.releasedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.list {
+  gap: var(--sms-space-16);
+}
+
+.burden {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-16);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-lg);
+}
+.burdenHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sms-space-12);
+}
+.burdenText {
+  min-width: 0;
+}
+.content {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+
+/* Released: collapsed, read-only. */
+.released summary {
+  cursor: pointer;
+  color: var(--sms-muted);
+  font-weight: 600;
+}
+.releasedList {
+  gap: var(--sms-space-8);
+  margin-top: var(--sms-space-12);
+}
+.releasedItem {
+  padding: var(--sms-space-12);
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-lg);
+}
+.latest {
+  margin: 4px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}

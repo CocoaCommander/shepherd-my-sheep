@@ -20,6 +20,7 @@ import {
   type MyPeopleQuery,
 } from '../generated/graphql'
 import { useLogContactToast } from './contactToast'
+import { contactWindow, contactWindowLabel } from './contactWindow'
 import { Header } from './Header'
 import styles from './HomePage.module.css'
 import { LogContactDialog } from './LogContactDialog'
@@ -59,34 +60,23 @@ export function careDetails(
   now: Date = new Date(),
 ) {
   const isNew = isNewContact(person)
-  // The server sets both for every tracked person. The clock starts at the last contact,
-  // when they were added if there's none, or when they were last moved to this status.
-  const start = parseDateTime(person.contactClockStart!).getTime()
-  const due = parseDateTime(person.contactDueAt!).getTime()
-  const last = person.lastContactedAt ? parseDateTime(person.lastContactedAt).getTime() : null
-  const added = parseDateTime(person.createdAt).getTime()
-
-  let meterLabel: string
-  if (start > (last ?? added)) {
-    meterLabel = `Moved to ${isNew ? 'New contact' : 'Active'} ${since(start, now)} ago`
-  } else if (last !== null) {
-    meterLabel = `${since(last, now)} since last contact`
-  } else {
-    meterLabel = `Added ${since(added, now)} ago, no contact logged`
-  }
+  // careDetails is only called for tracked people, who always have a window.
+  const clock = contactWindow(person, now)!
+  const meterLabel = contactWindowLabel(clock, isNew)
   const goal = isNew ? 'Follow up within 72 hours' : 'Goal: every 7 days'
 
+  const dueIn = clock.max - clock.value
   let dueLabel: string
   if (urgency === 'overdue') {
-    dueLabel = `${humanSpan(now.getTime() - due)} overdue`
+    dueLabel = `${humanSpan(-dueIn)} overdue`
   } else if (urgency === 'soon') {
-    dueLabel = `Due in ${humanSpan(due - now.getTime())}`
+    dueLabel = `Due in ${humanSpan(dueIn)}`
   } else {
     dueLabel = 'On track'
   }
 
   return {
-    meter: { value: now.getTime() - start, max: due - start, label: meterLabel, goal },
+    meter: { value: clock.value, max: clock.max, label: meterLabel, goal },
     dueLabel,
     // Adding someone is their first contact, so any contact logged for a new contact is their
     // follow-up, which makes them active.
