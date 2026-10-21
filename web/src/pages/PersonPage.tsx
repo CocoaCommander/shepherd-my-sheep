@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Alert } from '../components'
 import { errorCode, friendlyMessage } from '../errors'
 import { useMeQuery, usePersonQuery, type PersonQuery } from '../generated/graphql'
 import { NARROW, useMediaQuery } from '../useMediaQuery'
@@ -25,9 +26,9 @@ export function PersonPage() {
     (data && !data.person) || ['BAD_USER_INPUT', 'NOT_FOUND'].includes(errorCode(error) ?? '')
 
   return (
-    <>
+    <div className={styles.page}>
       <Header />
-      <main className="page stack">
+      <main className={styles.main}>
         <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
           <Link to="/people">My people</Link>
           {data?.person && (
@@ -38,19 +39,15 @@ export function PersonPage() {
           )}
         </nav>
 
-        {loading && <p className="muted">Loading…</p>}
-        {error && !notFound && (
-          <p className="error" role="alert">
-            {friendlyMessage(error)}
-          </p>
-        )}
+        {loading && <p className={styles.muted}>Loading…</p>}
+        {error && !notFound && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
 
         {/* null for someone who doesn't exist or isn't assigned to you */}
-        {notFound && <p className="empty">This person was not found.</p>}
+        {notFound && <p className={styles.muted}>This person was not found.</p>}
 
         {data?.person && <PersonDetail person={data.person} meId={meData?.me.id} />}
       </main>
-    </>
+    </div>
   )
 }
 

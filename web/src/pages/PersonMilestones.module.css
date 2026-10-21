@@ -56,6 +56,14 @@
 .journey .tick {
   display: none;
 }
+/* Narrow columns (a tablet-width main column) wrap instead of spilling into the next step. */
+.journey .label {
+  overflow-wrap: anywhere;
+}
+.journey .record {
+  max-width: 100%;
+  white-space: normal;
+}
 
 /* Phones: a dot per step (ticked when recorded) joined by a line. */
 .timeline .step {

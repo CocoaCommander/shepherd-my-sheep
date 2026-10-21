@@ -1,4 +1,24 @@
 /* The Person page: breadcrumb, header card, then the main column beside the sidebar. */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-32) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+.muted {
+  color: var(--sms-muted);
+}
+
 .breadcrumb {
   color: var(--sms-muted);
 }
@@ -21,6 +41,9 @@
 
 /* Phones: one column, the sidebar's sections after Notes. */
 @media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-20) var(--sms-space-16) 40px;
+  }
   .columns {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--sms-space-20);
