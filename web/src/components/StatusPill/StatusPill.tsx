@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CheckIcon, ClockIcon, WarningIcon } from '../icons'
+import { CheckIcon, ClockIcon, MinusIcon, WarningIcon } from '../icons'
 import { cx, STATUS_LABELS, type PersonStatus } from '../utils'
 import styles from './StatusPill.module.css'
 
@@ -21,12 +21,14 @@ export function StatusPill({
   )
 }
 
-export type DueTone = 'overdue' | 'soon' | 'ok'
+/** `none`: not tracked for contact alerts (inactive and lost contact, business rule 6). */
+export type DueTone = 'overdue' | 'soon' | 'ok' | 'none'
 
 const dueIcons: Record<DueTone, ReactNode> = {
   overdue: <WarningIcon />,
   soon: <ClockIcon />,
   ok: <CheckIcon />,
+  none: <MinusIcon />,
 }
 
 /** Contact timing on a person card. Always an icon and words, never colour alone. */
@@ -36,7 +38,7 @@ export function DueTag({
   className,
 }: {
   tone: DueTone
-  /** e.g. "14 days overdue", "Due in 2 days", "On track". */
+  /** e.g. "14 days overdue", "Due in 2 days", "On track", "Not tracked". */
   children: ReactNode
   className?: string
 }) {

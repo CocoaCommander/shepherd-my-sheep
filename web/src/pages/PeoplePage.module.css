@@ -1,0 +1,166 @@
+/*
+ * My people: four status columns on desktop. Below 720px the page renders tabs instead (the
+ * layouts differ in structure, so PeoplePage picks one with useMediaQuery, not CSS alone).
+ */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-32) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+
+.intro {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--sms-space-16);
+}
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.subline {
+  margin: 4px 0 0;
+  color: var(--sms-muted);
+}
+.muted {
+  margin: 0;
+  color: var(--sms-muted);
+}
+.help {
+  margin: 0;
+  color: var(--sms-muted);
+}
+
+.empty {
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-6);
+}
+.emptyTitle {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sms-space-16);
+  align-items: start;
+}
+/* A column is a drop target down to the board's foot, even when short. */
+.board > section {
+  min-height: 260px;
+}
+
+.move {
+  font-size: 12px;
+  min-height: 32px;
+  max-width: 96px;
+  padding: 0 4px;
+  color: var(--sms-brand-strong);
+}
+
+/* Mobile web: tabs per status. */
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  background: var(--sms-surface-sunken);
+  border-radius: var(--sms-radius-xl);
+  padding: 4px;
+}
+.tab {
+  min-height: 52px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sms-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.tab[aria-selected='true'] {
+  background: var(--sms-surface);
+  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.15);
+}
+.tab:focus-visible,
+.panel:focus-visible {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+.tabCount {
+  font-size: 15px;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-10);
+}
+.rule {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.emptyTab {
+  margin: 0;
+  border: 1.5px dashed var(--sms-border-dashed);
+  border-radius: var(--sms-radius-2xl);
+  padding: 28px var(--sms-space-12);
+  text-align: center;
+  color: var(--sms-muted);
+}
+.narrowCard {
+  padding: var(--sms-space-14);
+}
+.narrowCard .move {
+  font-size: 14px;
+  min-height: var(--sms-size-touch);
+  max-width: none;
+  padding: 0 8px;
+}
+
+@media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-20) var(--sms-space-16) 40px;
+    gap: var(--sms-space-14);
+  }
+  .title {
+    font-size: 24px;
+  }
+  .subline {
+    margin-top: 2px;
+  }
+  /* Thumb-sized. */
+  .addPerson {
+    width: 100%;
+  }
+  .toast {
+    left: var(--sms-space-16);
+    right: var(--sms-space-16);
+  }
+}

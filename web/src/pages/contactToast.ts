@@ -44,7 +44,8 @@ export function contactLoggedMessage(person: LoggedPerson, wasNewContact: boolea
 
 /**
  * The confirmation toast after logging a contact. Undo deletes the contact, which also removes
- * its note and burden, and moves a follow-up back to new contact on the server.
+ * its note and burden, and moves a follow-up back to new contact on the server. `show` is the
+ * same toast, for a page's other messages, so two toasts never stack.
  */
 export function useLogContactToast(options?: Parameters<typeof useUndoToast>[0]) {
   const { show, hide, toastElement } = useUndoToast(options)
@@ -66,5 +67,5 @@ export function useLogContactToast(options?: Parameters<typeof useUndoToast>[0])
     [deleteContact, show],
   )
 
-  return { showLogged, hide, toastElement }
+  return { show, showLogged, hide, toastElement }
 }

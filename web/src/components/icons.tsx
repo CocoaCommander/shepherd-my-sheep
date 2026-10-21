@@ -52,6 +52,37 @@ export function CheckIcon({ size = 14, ...rest }: IconProps) {
   )
 }
 
+/** A dash, for "not tracked". */
+export function MinusIcon({ size = 14, ...rest }: IconProps) {
+  return (
+    <svg {...stroke(size, '0 0 16 16', 2, rest)}>
+      <path d="M4 8h8" />
+    </svg>
+  )
+}
+
+/** The grip dots on a draggable card. Filled, unlike the stroke icons. */
+export function GripIcon({ size = 16, ...rest }: IconProps) {
+  return (
+    <svg
+      aria-hidden
+      width={(size * 10) / 16}
+      height={size}
+      viewBox="0 0 10 16"
+      fill="currentColor"
+      focusable={false}
+      {...rest}
+    >
+      {[3, 8, 13].map((cy) => (
+        <g key={cy}>
+          <circle cx="2.5" cy={cy} r="1.4" />
+          <circle cx="7.5" cy={cy} r="1.4" />
+        </g>
+      ))}
+    </svg>
+  )
+}
+
 export function CloseIcon({ size = 16, ...rest }: IconProps) {
   return (
     <svg {...stroke(size, '0 0 16 16', 1.8, rest)}>

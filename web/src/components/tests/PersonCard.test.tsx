@@ -1,6 +1,6 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { Link, MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Button } from '../Button/Button'
 import { AddPersonTile, CareCard, MiniPersonCard, PersonCard } from '../PersonCard/PersonCard'
 import styles from '../PersonCard/PersonCard.module.css'
@@ -161,6 +161,66 @@ describe('MiniPersonCard', () => {
       />,
     )
     expect(screen.queryByText('Overdue:')).not.toBeInTheDocument()
+  })
+})
+
+describe('MiniPersonCard on the board', () => {
+  it('shows the contact tag and actions together in the footer', () => {
+    render(
+      <MiniPersonCard
+        name="Maria Santos"
+        prayerCount={0}
+        milestones={[]}
+        tag={<span>On track</span>}
+        actions={
+          <select aria-label="Move Maria Santos to another status">
+            <option>Move to</option>
+          </select>
+        }
+      />,
+    )
+    const card = screen.getByRole('article')
+    const foot = screen.getByText('On track').parentElement!
+    expect(foot).toHaveClass(styles.miniFoot)
+    expect(within(foot).getByRole('combobox')).toBeInTheDocument()
+    expect(card).toContainElement(foot)
+  })
+
+  it('has no footer without a tag or actions', () => {
+    const { container } = render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    expect(container.querySelector(`.${styles.miniFoot}`)).not.toBeInTheDocument()
+  })
+
+  it('shows grip dots only when asked, hidden from assistive tech', () => {
+    const { rerender } = render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    expect(screen.getByRole('article').querySelector(`.${styles.grip}`)).not.toBeInTheDocument()
+    rerender(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} grip />)
+    expect(screen.getByRole('article').querySelector(`.${styles.grip}`)).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    )
+  })
+
+  it('passes drag props to the article', () => {
+    const onDragStart = vi.fn()
+    render(
+      <MiniPersonCard
+        name="Ann Lee"
+        prayerCount={0}
+        milestones={[]}
+        draggable
+        onDragStart={onDragStart}
+      />,
+    )
+    const card = screen.getByRole('article')
+    expect(card).toHaveAttribute('draggable', 'true')
+    fireEvent.dragStart(card)
+    expect(onDragStart).toHaveBeenCalledTimes(1)
+  })
+
+  it('is not draggable by default', () => {
+    render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    expect(screen.getByRole('article')).not.toHaveAttribute('draggable')
   })
 })
 

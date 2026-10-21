@@ -236,6 +236,35 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             />
           </C.BoardColumn>
           <C.BoardColumn status="lost" count={0} />
+          <C.BoardColumn
+            status="new"
+            count={1}
+            rule="Follow up within 72 hours"
+            empty="Drop someone here"
+          >
+            <C.MiniPersonCard
+              name="Maria Santos"
+              lastContact="3 days ago"
+              prayerCount={1}
+              milestones={['Baptised']}
+              grip
+              draggable
+              tag={<C.DueTag tone="soon">Due today</C.DueTag>}
+              actions={
+                <C.Select aria-label="Move Maria Santos to another status" defaultValue="">
+                  <option value="">Move to</option>
+                  <option value="inactive">Inactive</option>
+                </C.Select>
+              }
+            />
+          </C.BoardColumn>
+          <C.BoardColumn
+            status="inactive"
+            count={0}
+            rule="Not tracked for alerts"
+            empty="Drop someone here"
+          />
+          <C.DueTag tone="none">Not tracked</C.DueTag>
         </main>,
       ),
     ).toEqual([])

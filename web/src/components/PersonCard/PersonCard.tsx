@@ -1,6 +1,6 @@
-import type { ElementType, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react'
 import { Avatar, AvatarStack, type AvatarTint } from '../Avatar/Avatar'
-import { ClockIcon, PlusIcon, WarningIcon } from '../icons'
+import { ClockIcon, GripIcon, PlusIcon, WarningIcon } from '../icons'
 import { InsetNote, PrayerCount } from '../InsetNote/InsetNote'
 import { Meter, Milestones, type MeterTone } from '../Progress/Progress'
 import shared from '../shared.module.css'
@@ -148,7 +148,11 @@ export function CareCard({
   )
 }
 
-/** The compact card inside a board column. */
+/**
+ * The compact card inside a board column. To make it draggable, pass `grip` with `draggable`
+ * and the drag handlers (they go on the <article>); dragging also needs a "Move to" control in
+ * `actions` for keyboard, screen-reader and single-pointer users (WCAG 2.5.7).
+ */
 export function MiniPersonCard({
   name,
   renderName,
@@ -156,25 +160,37 @@ export function MiniPersonCard({
   overdue = false,
   prayerCount,
   milestones,
+  tag,
+  actions,
+  grip = false,
   avatarTint = 'green',
   headingLevel,
   className,
-}: NameProps & {
-  /** e.g. "3 days ago". Absent when no contact has been logged. */
-  lastContact?: ReactNode
-  /**
-   * Shows the contact time in danger with a warning icon, and tells screen readers
-   * "Overdue", so colour isn't the only signal (WCAG 1.4.1).
-   */
-  overdue?: boolean
-  prayerCount: number
-  milestones: readonly string[]
-  avatarTint?: AvatarTint
-  className?: string
-}) {
+  ...rest
+}: NameProps &
+  Omit<ComponentPropsWithoutRef<'article'>, 'children'> & {
+    /** e.g. "3 days ago". Absent when no contact has been logged. */
+    lastContact?: ReactNode
+    /**
+     * Shows the contact time in danger with a warning icon, and tells screen readers
+     * "Overdue", so colour isn't the only signal (WCAG 1.4.1).
+     */
+    overdue?: boolean
+    prayerCount: number
+    milestones: readonly string[]
+    /** The contact tag under the milestones, typically a DueTag. */
+    tag?: ReactNode
+    /** Beside the tag, e.g. a "Move to" select. */
+    actions?: ReactNode
+    /** Shows grip dots, for a card that can be dragged. */
+    grip?: boolean
+    avatarTint?: AvatarTint
+    className?: string
+  }) {
   return (
-    <article className={cx(styles.card, styles.mini, className)}>
+    <article {...rest} className={cx(styles.card, styles.mini, className)}>
       <div className={styles.head}>
+        {grip && <GripIcon className={styles.grip} />}
         <Avatar name={name} size="sm" tint={avatarTint} />
         <div className={styles.who}>
           <Name name={name} renderName={renderName} headingLevel={headingLevel} />
@@ -191,6 +207,12 @@ export function MiniPersonCard({
         <PrayerCount count={prayerCount} hiddenSuffix=" praying" className={styles.miniPray} />
       </div>
       <Milestones recorded={milestones} compact />
+      {(tag || actions) && (
+        <div className={styles.miniFoot}>
+          {tag ?? <span />}
+          {actions}
+        </div>
+      )}
     </article>
   )
 }
