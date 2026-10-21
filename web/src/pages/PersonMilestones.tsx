@@ -9,7 +9,7 @@ import {
   useRemoveMilestoneMutation,
   type PersonQuery,
 } from '../generated/graphql'
-import { ActionButton } from './ActionButton'
+import { ConfirmButton } from './ConfirmButton'
 import { milestoneLabel } from './peopleBoard'
 import styles from './PersonMilestones.module.css'
 import section from './PersonSection.module.css'
@@ -179,14 +179,15 @@ function RemoveMilestoneButton({
   const [removeMilestone, { loading, error }] = useRemoveMilestoneMutation(refetchPerson(personId))
 
   return (
-    <ActionButton
+    <ConfirmButton
       label="Remove"
       ariaLabel={`Remove ${label}`}
-      question="Remove this milestone?"
+      title={`Remove ${label}?`}
+      body="This removes the milestone, its date and its note for every shepherd."
       confirmLabel="Yes, remove"
       loading={loading}
       error={error}
-      onClick={() => removeMilestone({ variables: { personId, milestoneId } })}
+      onConfirm={() => removeMilestone({ variables: { personId, milestoneId } })}
     />
   )
 }

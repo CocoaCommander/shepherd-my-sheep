@@ -1,20 +1,27 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApolloClient } from '@apollo/client'
-import { formatDateTime } from '../format'
+import { Avatar, avatarTint, STATUS_LABELS } from '../components'
+import { cx } from '../components/utils'
 import {
-  ContactAlertsDocument,
-  MyPeopleDocument,
+  dateAgo,
+  firstName,
+  formatDateTime,
+  humanSpan,
+  parseDateTime,
+  todayIsoDate,
+} from '../format'
+import {
   useDeletePersonMutation,
   useUnassignPersonMutation,
-  useUpdatePersonMutation,
   type PersonQuery,
-  type UpdatePersonInput,
 } from '../generated/graphql'
-import { ActionButton } from './ActionButton'
 import { AddShepherd } from './AddShepherd'
-import { ErrorMessage } from './ErrorMessage'
+import { ConfirmButton } from './ConfirmButton'
+import { RELOAD_CONTACT_LISTS } from './contactToast'
+import section from './PersonSection.module.css'
 import styles from './PersonSidebar.module.css'
+import { STATUS_BY_NAME } from './personStatus'
 
 type Person = NonNullable<PersonQuery['person']>
 
@@ -22,58 +29,105 @@ type Person = NonNullable<PersonQuery['person']>
 function contactRule(status: string): string {
   switch (status) {
     case 'new contact':
-      return 'A new contact needs a follow-up within 72 hours of being added.'
+      return 'A new contact needs a follow-up within 72 hours of being added. When you log it, they become Active.'
     case 'active':
-      return 'Active people need a contact at least every 7 days.'
+      return 'Active people are contacted at least once every 7 days after the last contact. An alert shows on Home when this passes.'
     default:
       return 'Contact reminders are off while they are inactive or lost contact.'
   }
 }
 
 /**
- * The Person page's sidebar (web) or lower sections (phones): facts, the contact rule,
- * shepherds and Delete. Phones show them in a different order, set by the stylesheet.
+ * The Person page's sidebar (web) or lower sections (phones): Details, Shepherds, the contact
+ * rule and Delete. Phones show them in a different order, set by the stylesheet.
  */
 export function PersonSidebar({
   person,
   meId,
   statusSelect,
+  now = new Date(),
 }: {
   person: Person
   meId: string | undefined
   /** The status dropdown, on phones only (the web has it in the header card). */
   statusSelect?: ReactNode
+  now?: Date
 }) {
-  const isNewContact = person.status.name === 'new contact'
+  const ruleId = useId()
 
   return (
     <aside className={styles.sidebar} aria-label="About">
-      <section className={`card stack ${styles.details}`}>
-        <h2>Details</h2>
-        <dl className="facts">
-          <Fact label="Age" value={person.age} empty="Not recorded" />
-          <Fact label="Year met" value={person.yearMet} />
-          {isNewContact && <Fact label="Added" value={formatDateTime(person.createdAt)} />}
-          <Fact
-            label="Last contact"
-            value={person.lastContactedAt && formatDateTime(person.lastContactedAt)}
-            empty="None yet"
-          />
-          <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
-        </dl>
-        {statusSelect}
-      </section>
-      <section className={`card stack ${styles.shepherds}`}>
-        <Shepherds person={person} meId={meId} />
-      </section>
-      <section className={`card stack ${styles.rule}`}>
-        <h2>Contact rule</h2>
-        <p className="muted small">{contactRule(person.status.name)}</p>
+      <Details person={person} statusSelect={statusSelect} now={now} />
+      <Shepherds person={person} meId={meId} />
+      <section className={cx(section.card, styles.card, styles.rule)} aria-labelledby={ruleId}>
+        <h2 id={ruleId} className={styles.title}>
+          Contact rule
+        </h2>
+        <p className={styles.ruleText}>{contactRule(person.status.name)}</p>
       </section>
       <div className={styles.delete}>
         <DeletePersonButton person={person} />
       </div>
     </aside>
+  )
+}
+
+/** "Today", "1 day ago", "3 days ago": counted in calendar days, as the canvas does. */
+function lastContactLabel(value: string, now: Date): string {
+  const ago = dateAgo(todayIsoDate(parseDateTime(value)), now)
+  return ago.charAt(0).toUpperCase() + ago.slice(1)
+}
+
+function Details({
+  person,
+  statusSelect,
+  now,
+}: {
+  person: Person
+  statusSelect: ReactNode
+  now: Date
+}) {
+  const headingId = useId()
+  const isNewContact = person.status.name === 'new contact'
+  const status = STATUS_BY_NAME[person.status.name]
+  const added = Math.max(now.getTime() - parseDateTime(person.createdAt).getTime(), 0)
+
+  return (
+    <section className={cx(section.card, styles.card, styles.details)} aria-labelledby={headingId}>
+      <h2 id={headingId} className={styles.title}>
+        Details
+      </h2>
+      <dl className={styles.facts}>
+        <Fact label="Age" value={person.age} empty="Not recorded" />
+        <Fact label="Year met" value={person.yearMet} empty="Not recorded" />
+        {isNewContact && (
+          <Fact
+            label="Added"
+            value={
+              <time dateTime={person.createdAt} title={formatDateTime(person.createdAt)}>
+                {humanSpan(added)} ago
+              </time>
+            }
+          />
+        )}
+        <Fact
+          label="Last contact"
+          value={
+            person.lastContactedAt && (
+              <time
+                dateTime={person.lastContactedAt}
+                title={formatDateTime(person.lastContactedAt)}
+              >
+                {lastContactLabel(person.lastContactedAt, now)}
+              </time>
+            )
+          }
+          empty="None yet"
+        />
+        <Fact label="Status" value={status ? STATUS_LABELS[status] : person.status.name} />
+      </dl>
+      {statusSelect}
+    </section>
   )
 }
 
@@ -83,27 +137,22 @@ function Fact({
   empty = '—',
 }: {
   label: string
-  value: string | number | null | undefined
+  value: ReactNode
   /** Shown, muted, when there is no value. */
   empty?: string
 }) {
   return (
-    <div>
+    <div className={styles.fact}>
       <dt>{label}</dt>
       <dd>
         {value === null || value === undefined || value === '' ? (
-          <span className="muted">{empty}</span>
+          <span className={styles.empty}>{empty}</span>
         ) : (
           value
         )}
       </dd>
     </div>
   )
-}
-
-// The alert list depends on status and contacts, so it reloads with My people.
-const reloadMyPeople = {
-  refetchQueries: [{ query: MyPeopleDocument }, { query: ContactAlertsDocument }],
 }
 
 /**
@@ -122,72 +171,86 @@ function useLeavePerson(personId: string) {
 }
 
 /**
- * Any shepherd may remove another, or step back themselves, but the API
- * refuses to remove the last one, so with a single shepherd there is nothing
- * to offer here; deleting the person is the way out.
+ * Any shepherd may remove another, or step back themselves (Remove on their own row), but the
+ * API refuses to remove the last one, so with a single shepherd there is nothing to offer here;
+ * deleting the person is the way out.
  */
 function Shepherds({ person, meId }: { person: Person; meId: string | undefined }) {
+  const headingId = useId()
   const canRemove = person.shepherds.length > 1
 
   return (
-    <div className="shepherds">
-      <h2>Shepherds</h2>
-      <ul className="list">
-        {person.shepherds.map((s) => (
-          <li key={s.id} className="item-head">
-            <span>
-              {s.name}
-              {s.id === meId && <span className="muted"> (you)</span>}
-            </span>
-            {canRemove &&
-              (s.id === meId ? (
-                <StopShepherdingButton person={person} meId={meId} />
-              ) : (
-                <RemoveShepherdButton personId={person.id} shepherd={s} />
-              ))}
-          </li>
-        ))}
+    <section
+      className={cx(section.card, styles.card, styles.shepherds)}
+      aria-labelledby={headingId}
+    >
+      <h2 id={headingId} className={styles.title}>
+        Shepherds
+      </h2>
+      <ul className={styles.shepherdList}>
+        {person.shepherds.map((s, i) => {
+          const isMe = s.id === meId
+          return (
+            <li key={s.id} className={styles.shepherd}>
+              <Avatar name={s.name} size="sm" tint={avatarTint(i)} />
+              <div className={styles.who}>
+                <div className={styles.name}>{s.name}</div>
+                <div className={styles.role}>{isMe ? 'You' : 'Co-shepherd'}</div>
+              </div>
+              {canRemove &&
+                (isMe ? (
+                  <StopShepherdingButton person={person} meId={s.id} />
+                ) : (
+                  <RemoveShepherdButton person={person} shepherd={s} />
+                ))}
+            </li>
+          )
+        })}
       </ul>
       <AddShepherd personId={person.id} shepherdIds={person.shepherds.map((s) => s.id)} />
-    </div>
+    </section>
   )
 }
 
 function RemoveShepherdButton({
-  personId,
+  person,
   shepherd,
 }: {
-  personId: string
+  person: Person
   shepherd: Person['shepherds'][number]
 }) {
   // The result's shepherds list is merged into the cached person.
   const [unassignPerson, { loading, error }] = useUnassignPersonMutation()
 
   return (
-    <ActionButton
+    <ConfirmButton
       label="Remove"
       ariaLabel={`Remove ${shepherd.name} as shepherd`}
-      question={`Remove ${shepherd.name} as a shepherd?`}
+      title={`Remove ${shepherd.name} as a shepherd?`}
+      body={`${firstName(person.name)} will leave ${firstName(shepherd.name)}'s list, and ${firstName(shepherd.name)} will stop seeing their notes and prayer burdens.`}
       confirmLabel="Yes, remove"
       loading={loading}
       error={error}
-      onClick={() => unassignPerson({ variables: { personId, userId: shepherd.id } })}
+      onConfirm={() => unassignPerson({ variables: { personId: person.id, userId: shepherd.id } })}
     />
   )
 }
 
+/** Remove on your own row: you stop shepherding them, and the page is no longer yours to see. */
 function StopShepherdingButton({ person, meId }: { person: Person; meId: string }) {
   const leave = useLeavePerson(person.id)
-  const [unassignPerson, { loading, error }] = useUnassignPersonMutation(reloadMyPeople)
+  const [unassignPerson, { loading, error }] = useUnassignPersonMutation(RELOAD_CONTACT_LISTS)
 
   return (
-    <ActionButton
-      label="Stop shepherding"
-      question={`Stop shepherding ${person.name}? They'll be removed from your list.`}
+    <ConfirmButton
+      label="Remove"
+      ariaLabel={`Stop shepherding ${person.name}`}
+      title={`Stop shepherding ${person.name}?`}
+      body="They'll be removed from your list. Their other shepherds keep them."
       confirmLabel="Yes, stop"
       loading={loading}
       error={error}
-      onClick={async () => {
+      onConfirm={async () => {
         await unassignPerson({ variables: { personId: person.id, userId: meId } })
         leave()
       }}
@@ -197,110 +260,21 @@ function StopShepherdingButton({ person, meId }: { person: Person; meId: string 
 
 function DeletePersonButton({ person }: { person: Person }) {
   const leave = useLeavePerson(person.id)
-  const [deletePerson, { loading, error }] = useDeletePersonMutation(reloadMyPeople)
+  const [deletePerson, { loading, error }] = useDeletePersonMutation(RELOAD_CONTACT_LISTS)
 
   return (
-    <ActionButton
-      label="Delete person"
+    <ConfirmButton
+      label={`Delete ${person.name}`}
       danger
-      question={`Delete ${person.name}? This removes them, their milestones, prayer burdens and notes for every shepherd. It can't be undone.`}
+      title={`Delete ${person.name}?`}
+      body="This removes them, their milestones, prayer burdens and notes for every shepherd. It can't be undone."
       confirmLabel="Yes, delete"
       loading={loading}
       error={error}
-      onClick={async () => {
+      onConfirm={async () => {
         await deletePerson({ variables: { id: person.id } })
         leave()
       }}
     />
-  )
-}
-
-const toText = (value: number | string | null | undefined) =>
-  value === null || value === undefined ? '' : String(value)
-const toNumber = (value: string) => (value === '' ? null : Number(value))
-
-/** Name, age, year met and the active flag. Status has its own dropdown (useStatusMove). */
-export function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void }) {
-  // The result carries PersonSummary, which the cache merges into this person.
-  const [updatePerson, { loading, error }] = useUpdatePersonMutation(reloadMyPeople)
-
-  const [name, setName] = useState(person.name)
-  const [age, setAge] = useState(toText(person.age))
-  const [yearMet, setYearMet] = useState(toText(person.yearMet))
-  const [isActive, setIsActive] = useState(person.isActive)
-
-  /** Only what the user changed, so a concurrent edit by another shepherd isn't overwritten. */
-  function changes(): UpdatePersonInput {
-    const input: UpdatePersonInput = {}
-    if (name.trim() !== person.name) input.name = name.trim()
-    if (toNumber(age) !== person.age) input.age = toNumber(age)
-    if (toNumber(yearMet) !== person.yearMet) input.yearMet = toNumber(yearMet)
-    if (isActive !== person.isActive) input.isActive = isActive
-    return input
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    const input = changes()
-    if (Object.keys(input).length === 0) {
-      onDone()
-      return
-    }
-    try {
-      await updatePerson({ variables: { id: person.id, input } })
-      onDone()
-    } catch {
-      // Shown from the mutation's `error` below; the form keeps the input.
-    }
-  }
-
-  // The API treats null as "leave unchanged", so a value that is set can't be
-  // cleared from here; `required` keeps the form from pretending otherwise.
-  return (
-    <form className="stack" onSubmit={handleSubmit}>
-      <label>
-        Name
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
-      </label>
-      <div className="row">
-        <label>
-          <span>Age {person.age === null && <span className="muted">(optional)</span>}</span>
-          <input
-            type="number"
-            min={0}
-            max={150}
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            required={person.age !== null}
-          />
-        </label>
-        <label>
-          <span>
-            Year met {person.yearMet === null && <span className="muted">(optional)</span>}
-          </span>
-          <input
-            type="number"
-            min={1900}
-            max={2100}
-            value={yearMet}
-            onChange={(e) => setYearMet(e.target.value)}
-            required={person.yearMet !== null}
-          />
-        </label>
-      </div>
-      <label className="checkbox">
-        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-        Active
-      </label>
-      <ErrorMessage error={error} />
-      <div className="card-actions">
-        <button type="submit" disabled={loading || !name.trim()}>
-          {loading ? 'Saving…' : 'Save'}
-        </button>
-        <button type="button" className="link" disabled={loading} onClick={onDone}>
-          Cancel
-        </button>
-      </div>
-    </form>
   )
 }

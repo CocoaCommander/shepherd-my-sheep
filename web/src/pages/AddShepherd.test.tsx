@@ -82,7 +82,8 @@ function renderPage(shepherds: object[], extra: MockedResponse[] = []) {
 }
 
 function shepherdsSection() {
-  return within(screen.getByText('Shepherds').parentElement as HTMLElement)
+  const heading = screen.getByRole('heading', { level: 2, name: 'Shepherds' })
+  return within((heading.closest('section') ?? heading.parentElement) as HTMLElement)
 }
 
 function searchMock(query: string, users: object[]) {
@@ -130,6 +131,14 @@ async function openSearch(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('Opening the search', () => {
+  it('has the Add shepherd button in the Shepherds section, below the list', async () => {
+    renderPage([ME_SHEPHERD])
+    const button = await screen.findByRole('button', { name: 'Add shepherd' })
+    expect(shepherdsSection().getByRole('button', { name: 'Add shepherd' })).toBe(button)
+    const list = shepherdsSection().getByRole('list')
+    expect(list.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('shows the search input and Done after clicking Add shepherd, and Done closes it', async () => {
     const user = userEvent.setup()
     renderPage([ME_SHEPHERD])

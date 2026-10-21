@@ -1,0 +1,10 @@
+.trigger {
+  font-weight: 600;
+}
+.danger {
+  color: var(--sms-danger);
+}
+.body {
+  margin: 0;
+  color: var(--sms-ink);
+}

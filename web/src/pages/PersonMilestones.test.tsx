@@ -418,14 +418,15 @@ describe('PersonPage remove milestone', () => {
     })
     await user.click(await screen.findByRole('button', { name: 'Remove Baptised' }))
     expect(result).not.toHaveBeenCalled()
-    expect(screen.getByText('Remove this milestone?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Remove Baptised' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
+    const dialog = screen.getByRole('dialog', { name: 'Remove Baptised?' })
+    expect(dialog).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Yes, remove' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     await waitFor(() => expect(refetch).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('cancelling restores the button and sends no mutation', async () => {
+  it('cancelling closes the dialog and sends no mutation', async () => {
     const user = userEvent.setup()
     const { mutation, result } = mutationMock(
       G.RemoveMilestoneDocument,
@@ -436,8 +437,12 @@ describe('PersonPage remove milestone', () => {
       mutation,
     })
     await user.click(await screen.findByRole('button', { name: 'Remove Baptised' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByText('Remove this milestone?')).not.toBeInTheDocument()
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Remove Baptised?' })).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Remove Baptised' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(result).not.toHaveBeenCalled()
@@ -456,9 +461,11 @@ describe('PersonPage remove milestone', () => {
     renderPage(person({ milestones: [recorded('mp-row-1', BAPTISED)] }), { mutation })
     await user.click(await screen.findByRole('button', { name: 'Remove Baptised' }))
     await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    const alert = await screen.findByRole('alert')
+    const dialog = screen.getByRole('dialog', { name: 'Remove Baptised?' })
+    const alert = await within(dialog).findByRole('alert')
     expect(alert).toHaveTextContent('Something went wrong. Please try again.')
     expect(alert).not.toHaveTextContent('Cannot remove')
+    expect(screen.getByRole('dialog', { name: 'Remove Baptised?' })).toBeInTheDocument()
   })
 
   it('shows the NOT_FOUND sentence when removed elsewhere', async () => {
@@ -473,9 +480,9 @@ describe('PersonPage remove milestone', () => {
     renderPage(person({ milestones: [recorded('mp-row-1', BAPTISED)] }), { mutation })
     await user.click(await screen.findByRole('button', { name: 'Remove Baptised' }))
     await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This was changed or removed by someone else.',
-    )
+    expect(
+      await within(screen.getByRole('dialog', { name: 'Remove Baptised?' })).findByRole('alert'),
+    ).toHaveTextContent('This was changed or removed by someone else.')
   })
 })
 

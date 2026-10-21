@@ -1,0 +1,49 @@
+/* Edit details, inside the Person page's header card. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+  padding-top: var(--sms-space-16);
+  border-top: 1px solid var(--sms-border);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-16);
+}
+.row > .field {
+  flex: 1 1 140px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-6);
+  min-width: 0;
+  font-weight: 600;
+}
+.optional {
+  font-weight: 400;
+  color: var(--sms-muted);
+}
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--sms-size-input);
+  border: 1px solid var(--sms-border-input);
+  border-radius: var(--sms-radius-lg);
+  padding: 0 var(--sms-space-12);
+  background: var(--sms-surface);
+  color: var(--sms-ink);
+  font: inherit;
+  font-weight: 400;
+}
+.input:focus-visible {
+  outline: 3px solid var(--sms-brand-ring);
+  outline-offset: 2px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sms-space-12);
+}

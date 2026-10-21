@@ -136,7 +136,6 @@ describe('edit person form', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Sam Sheep')
     expect(screen.getByLabelText(/^Age/)).toHaveValue(30)
     expect(screen.getByLabelText(/^Year met/)).toHaveValue(2020)
-    expect(screen.getByLabelText('Active')).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
 
@@ -157,6 +156,14 @@ describe('edit person form', () => {
     expect(within(form).queryByRole('combobox')).not.toBeInTheDocument()
     expect(within(form).queryByLabelText('Status')).not.toBeInTheDocument()
     expect(within(form).queryByText('Status')).not.toBeInTheDocument()
+  })
+
+  it('has no Active checkbox: status has its own dropdown', async () => {
+    const user = userEvent.setup()
+    renderPage(person())
+    await openForm(user)
+    expect(screen.queryByLabelText('Active')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
   it('has no last contact field: contacts are logged, not edited', async () => {
@@ -192,15 +199,14 @@ describe('edit person form', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
-  it('trims the name and sends name and active changes', async () => {
+  it('trims the name and sends only the name, never isActive', async () => {
     const user = userEvent.setup()
-    const { mock, result } = updateMock({ name: 'Sam Lamb', isActive: false })
+    const { mock, result } = updateMock({ name: 'Sam Lamb' })
     renderPage(person(), [mock])
     await openForm(user)
     const name = screen.getByLabelText('Name')
     await user.clear(name)
     await user.type(name, '  Sam Lamb  ')
-    await user.click(screen.getByLabelText('Active'))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Sam Lamb' })).toBeInTheDocument()
@@ -251,7 +257,7 @@ describe('edit person form', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     // The overdue contact banner is an alert too.
-    expect(await screen.findByText('Age is not allowed')).toHaveAttribute('role', 'alert')
+    expect((await screen.findByText('Age is not allowed')).closest('[role="alert"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
     expect(screen.getByLabelText(/^Age/)).toHaveValue(31)
   })

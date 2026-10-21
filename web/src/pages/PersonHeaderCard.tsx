@@ -4,7 +4,7 @@ import { firstName, humanSpan, parseDateTime } from '../format'
 import type { PersonQuery } from '../generated/graphql'
 import { ContactPanel } from './ContactPanel'
 import styles from './PersonHeaderCard.module.css'
-import { EditPersonForm } from './PersonSidebar'
+import { EditPersonForm } from './EditPersonForm'
 import { STATUS_BY_NAME } from './personStatus'
 
 type Person = NonNullable<PersonQuery['person']>

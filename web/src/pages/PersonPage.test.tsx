@@ -721,14 +721,14 @@ describe('PersonPage deleting comments', () => {
     )
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
     expect(result).not.toHaveBeenCalled()
-    expect(screen.getByText('Delete this comment?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete this comment?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Yes, delete' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
     await waitFor(() => expect(refetch).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('cancelling delete restores the button and sends no mutation', async () => {
+  it('cancelling delete closes the dialog and sends no mutation', async () => {
     const user = userEvent.setup()
     const { mutation, result } = mutationMock(
       G.DeleteCommentDocument,
@@ -737,8 +737,12 @@ describe('PersonPage deleting comments', () => {
     )
     const { refetch } = renderPage(person({ comments: [comment('c3', 'My note')] }), { mutation })
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByText('Delete this comment?')).not.toBeInTheDocument()
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Delete this comment?' })).getByRole('button', {
+        name: 'Cancel',
+      }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(result).not.toHaveBeenCalled()
@@ -765,5 +769,44 @@ describe('PersonPage deleting comments', () => {
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
     await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
     await waitFor(() => expect(result).toHaveBeenCalled())
+  })
+})
+
+describe('PersonPage delete comment confirmation', () => {
+  it('the dialog Close button closes it without deleting', async () => {
+    const user = userEvent.setup()
+    const { mutation, result } = mutationMock(
+      G.DeleteCommentDocument,
+      { id: 'c3' },
+      { deleteComment: true },
+    )
+    renderPage(person({ comments: [comment('c3', 'My note')] }), { mutation })
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Delete this comment?' })).getByRole('button', {
+        name: 'Close',
+      }),
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(result).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open with the error, and the comment, when deleting fails', async () => {
+    const user = userEvent.setup()
+    const mutation = {
+      request: {
+        query: G.DeleteCommentDocument,
+        variables: { id: 'c3' },
+      } as MockedResponse['request'],
+      result: { errors: [new GraphQLError('boom')] },
+    }
+    renderPage(person({ comments: [comment('c3', 'My note')] }), { mutation })
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Yes, delete' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete this comment?' })
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Something went wrong. Please try again.',
+    )
+    expect(screen.getByText('My note')).toBeInTheDocument()
   })
 })

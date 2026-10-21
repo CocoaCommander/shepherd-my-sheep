@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatDateTime, formatShortDate } from '../format'
+import { formatShortDate } from '../format'
 import * as G from '../generated/graphql'
 import { PersonPage } from './PersonPage'
 
@@ -150,6 +150,13 @@ function deleteMock(id: string, after: ReturnType<typeof person>) {
 const logButton = () => screen.findByRole('button', { name: 'Log contact' })
 /** The status pill beside the name in the header card. */
 const statusPill = () => screen.getByRole('heading', { level: 1 }).nextElementSibling as HTMLElement
+const LOST = { __typename: 'Status', id: 'st-lost', name: 'lost contact' }
+/** The About sidebar, and one Details row's value in it. */
+const about = () => within(screen.getByRole('complementary', { name: 'About' }))
+const detail = (label: string) =>
+  about().getByText(label, { selector: 'dt' }).nextElementSibling as HTMLElement
+const section = (name: string) =>
+  screen.getByRole('heading', { level: 2, name }).closest('section') as HTMLElement
 const dialog = () => screen.getByRole('dialog', { name: 'Log contact with Maria' })
 
 beforeEach(() => {
@@ -196,7 +203,6 @@ describe('Person page contact banner', () => {
     renderPage(
       person({
         status: INACTIVE,
-        isActive: false,
         contactState: G.ContactState.NotTracked,
         contactDueAt: null,
         contactClockStart: null,
@@ -216,11 +222,12 @@ describe('Person page details', () => {
     expect(
       await screen.findByText('Added 1 hour ago. 71 hours left to log a contact.'),
     ).toBeInTheDocument()
-    expect(screen.getByText('None yet')).toBeInTheDocument()
-    expect(screen.getByText('Not recorded')).toBeInTheDocument()
-    expect(screen.getByText('Added')).toBeInTheDocument()
-    expect(screen.getByText(formatDateTime(at(-HOUR)))).toBeInTheDocument()
-    expect(screen.getByText(/follow-up within 72 hours/)).toBeInTheDocument()
+    expect(detail('Last contact')).toHaveTextContent('None yet')
+    expect(detail('Age')).toHaveTextContent('Not recorded')
+    expect(detail('Added')).toHaveTextContent('1 hour ago')
+    expect(section('Contact rule')).toHaveTextContent(
+      'A new contact needs a follow-up within 72 hours of being added. When you log it, they become Active.',
+    )
     expect(screen.getByText('0 of 4')).toBeInTheDocument()
     expect(
       screen.getByText('No prayer burdens yet. Add one here, or when you log a contact.'),
@@ -233,8 +240,10 @@ describe('Person page details', () => {
   it('has no Added row for an active person, and states the 7-day rule', async () => {
     renderPage(person())
     await logButton()
-    expect(screen.queryByText('Added')).not.toBeInTheDocument()
-    expect(screen.getByText(/at least every 7 days/)).toBeInTheDocument()
+    expect(about().queryByText('Added', { selector: 'dt' })).not.toBeInTheDocument()
+    expect(section('Contact rule')).toHaveTextContent(
+      'Active people are contacted at least once every 7 days after the last contact. An alert shows on Home when this passes.',
+    )
   })
 
   it('labels a note written when logging a contact with that contact’s date', async () => {
@@ -383,21 +392,20 @@ describe('Person page header', () => {
   it('shows the status word as a pill', async () => {
     renderPage(newContact())
     await logButton()
-    expect(screen.getByText('New contact')).toBeInTheDocument()
+    expect(statusPill()).toHaveTextContent(/^New contact$/)
   })
 
   it('shows Inactive for an inactive person', async () => {
     renderPage(
       person({
         status: INACTIVE,
-        isActive: false,
         contactState: G.ContactState.NotTracked,
         contactDueAt: null,
         contactClockStart: null,
       }),
     )
     await logButton()
-    expect(screen.getByText('Inactive')).toBeInTheDocument()
+    expect(statusPill()).toHaveTextContent(/^Inactive$/)
   })
 
   it('has a subtitle with age, year met and shepherds', async () => {
@@ -618,7 +626,6 @@ describe('Person page contact panel sub line and bar', () => {
     renderPage(
       person({
         status: INACTIVE,
-        isActive: false,
         contactState: G.ContactState.NotTracked,
         contactDueAt: null,
         contactClockStart: null,
@@ -647,12 +654,106 @@ describe('Person page layout', () => {
   it('keeps the shepherds and Delete person in the aside, and the sections in the main column', async () => {
     renderPage(person())
     await logButton()
-    const aside = screen.getByRole('complementary')
-    expect(within(aside).getByText('Shepherds')).toBeInTheDocument()
-    expect(within(aside).getByRole('button', { name: 'Delete person' })).toBeInTheDocument()
+    const aside = screen.getByRole('complementary', { name: 'About' })
+    expect(within(aside).getByRole('heading', { level: 2, name: 'Shepherds' })).toBeInTheDocument()
+    expect(within(aside).getByRole('heading', { level: 2, name: 'Details' })).toBeInTheDocument()
+    expect(
+      within(aside).getByRole('heading', { level: 2, name: 'Contact rule' }),
+    ).toBeInTheDocument()
+    expect(within(aside).getByRole('button', { name: 'Delete Maria Santos' })).toHaveTextContent(
+      'Delete Maria Santos',
+    )
     for (const name of ['Milestones', 'Prayer burdens', 'Notes']) {
       const heading = screen.getByRole('heading', { level: 2, name })
       expect(aside).not.toContainElement(heading)
     }
+  })
+})
+
+describe('Person page sidebar Details', () => {
+  it('shows the rows for an active person: no Added and no Active yes/no row', async () => {
+    renderPage(person())
+    await logButton()
+    expect(detail('Age')).toHaveTextContent('34')
+    expect(detail('Year met')).toHaveTextContent('2024')
+    expect(detail('Last contact')).toHaveTextContent('2 days ago')
+    expect(detail('Status')).toHaveTextContent(/^Active$/)
+    expect(about().queryByText('Added', { selector: 'dt' })).not.toBeInTheDocument()
+    expect(about().queryByText('Active', { selector: 'dt' })).not.toBeInTheDocument()
+  })
+
+  it('shows Added as a span for a new contact, still with no Active row', async () => {
+    renderPage(newContact({ createdAt: at(-20 * HOUR), contactClockStart: at(-20 * HOUR) }))
+    await logButton()
+    expect(detail('Added')).toHaveTextContent('20 hours ago')
+    expect(detail('Status')).toHaveTextContent(/^New contact$/)
+    expect(about().queryByText('Active', { selector: 'dt' })).not.toBeInTheDocument()
+  })
+
+  it('says under an hour ago for a contact added minutes ago', async () => {
+    renderPage(newContact({ createdAt: at(-10 * 60_000), contactClockStart: at(-10 * 60_000) }))
+    await logButton()
+    expect(detail('Added')).toHaveTextContent('under an hour ago')
+  })
+
+  it('says None yet for the last contact of a person with no contacts', async () => {
+    renderPage(person({ lastContactedAt: null, contacts: [] }))
+    await logButton()
+    expect(detail('Last contact')).toHaveTextContent('None yet')
+  })
+
+  it('says Today for a contact made today', async () => {
+    renderPage(person({ lastContactedAt: at(0), contacts: [contact('c-now', at(0))] }))
+    await logButton()
+    expect(detail('Last contact')).toHaveTextContent('Today')
+  })
+
+  it.each([
+    [3 * DAY, '3 days ago'],
+    [7 * DAY, '1 week ago'],
+  ])('says how long ago the last contact was (%i ms back: %s)', async (back, text) => {
+    renderPage(person({ lastContactedAt: at(-back), contacts: [contact('c-old', at(-back))] }))
+    await logButton()
+    expect(detail('Last contact')).toHaveTextContent(text)
+  })
+
+  it.each([
+    [ACTIVE, 'Active'],
+    [NEW, 'New contact'],
+    [INACTIVE, 'Inactive'],
+    [LOST, 'Lost contact'],
+  ])('shows the status label in the Status row (%o)', async (status, label) => {
+    renderPage(person({ status, contactState: G.ContactState.NotTracked }))
+    await logButton()
+    expect(detail('Status')).toHaveTextContent(new RegExp(`^${label}$`))
+  })
+
+  it('shows a person with nothing recorded without crashing', async () => {
+    renderPage(newContact({ shepherds: [], milestones: [], prayerBurdens: [], comments: [] }))
+    await logButton()
+    expect(detail('Age')).toHaveTextContent('Not recorded')
+    expect(detail('Last contact')).toHaveTextContent('None yet')
+  })
+})
+
+describe('Person page sidebar Contact rule', () => {
+  const OFF = 'Contact reminders are off while they are inactive or lost contact.'
+  it.each([
+    [
+      'new contact',
+      NEW,
+      'A new contact needs a follow-up within 72 hours of being added. When you log it, they become Active.',
+    ],
+    [
+      'active',
+      ACTIVE,
+      'Active people are contacted at least once every 7 days after the last contact. An alert shows on Home when this passes.',
+    ],
+    ['inactive', INACTIVE, OFF],
+    ['lost contact', LOST, OFF],
+  ])('states the rule for %s', async (_name, status, text) => {
+    renderPage(person({ status, contactState: G.ContactState.NotTracked }))
+    await logButton()
+    expect(section('Contact rule')).toHaveTextContent(text)
   })
 })

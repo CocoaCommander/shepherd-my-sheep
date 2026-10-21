@@ -235,7 +235,11 @@ describe('Person page status dropdown (narrow)', () => {
     expect(screen.getAllByRole('combobox', { name: 'Change status' })).toHaveLength(1)
     expect(headerCard()).not.toContainElement(select())
     expect(about()).toContainElement(select())
-    expect(within(about()).getByText('Status')).toBeVisible()
+    // Details also has a "Status" row (as on the canvas), so check the select's own label.
+    const label = select().closest('label') as HTMLElement
+    expect(about()).toContainElement(label)
+    expect(label).toHaveTextContent(/^Status/)
+    expect(label).toBeVisible()
     expect(select()).toHaveDisplayValue('Status: Active')
   })
 

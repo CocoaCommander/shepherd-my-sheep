@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Alert, Button, SearchInput } from '../components'
+import { friendlyMessage } from '../errors'
 import { useAssignPersonMutation, useSearchUsersQuery } from '../generated/graphql'
-import { ErrorMessage } from './ErrorMessage'
+import styles from './AddShepherd.module.css'
 
 const MIN_QUERY_LENGTH = 2
 const DEBOUNCE_MS = 250
@@ -27,9 +29,9 @@ export function AddShepherd({
 
   if (!open) {
     return (
-      <button type="button" className="link" onClick={() => setOpen(true)}>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
         Add shepherd
-      </button>
+      </Button>
     )
   }
   return (
@@ -67,46 +69,42 @@ function ShepherdSearch({
   }
 
   return (
-    <div className="stack subform compact">
-      <label>
-        Search users
-        <input
-          type="search"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Name or username"
-          maxLength={100}
-          autoFocus
-        />
-      </label>
+    <div className={styles.search}>
+      <SearchInput
+        label="Search users"
+        placeholder="Name or username"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        maxLength={100}
+        autoFocus
+      />
 
-      {searching && data && results.length === 0 && <p className="empty">No users found.</p>}
+      {searching && data && results.length === 0 && <p className={styles.empty}>No users found.</p>}
       {searching && results.length > 0 && (
-        <ul className="list">
+        <ul className={styles.results}>
           {results.map((u) => (
-            <li key={u.id} className="item-head">
-              <span>
-                {u.name} <span className="muted small">@{u.username}</span>
+            <li key={u.id} className={styles.result}>
+              <span className={styles.who}>
+                {u.name} <span className={styles.username}>@{u.username}</span>
               </span>
-              <button
-                type="button"
-                className="link"
+              <Button
+                variant="text"
                 aria-label={`Add ${u.name} as shepherd`}
                 disabled={assignState.loading}
                 onClick={() => add(u.id)}
               >
                 Add
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       )}
 
-      <ErrorMessage error={error} />
-      <ErrorMessage error={assignState.error} />
-      <button type="button" className="link" onClick={onDone}>
+      {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
+      {assignState.error && <Alert variant="inline">{friendlyMessage(assignState.error)}</Alert>}
+      <Button variant="secondary" onClick={onDone}>
         Done
-      </button>
+      </Button>
     </div>
   )
 }

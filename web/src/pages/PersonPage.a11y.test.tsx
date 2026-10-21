@@ -92,6 +92,24 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
     expect(await violations(person())).toEqual([])
   })
 
+  it('with two shepherds, a new contact and no contacts (sidebar sections)', async () => {
+    expect(
+      await violations(
+        person({
+          status: { __typename: 'Status', id: 'st-new', name: 'new contact' },
+          lastContactedAt: null,
+          contactDueAt: at(71 * HOUR),
+          contactClockStart: at(-HOUR),
+          createdAt: at(-HOUR),
+          shepherds: [
+            { __typename: 'User', id: ME.id, name: ME.name },
+            { __typename: 'User', id: 'u-grace', name: 'Grace Lin' },
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
+
   it('overdue', async () => {
     expect(
       await violations(

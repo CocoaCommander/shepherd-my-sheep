@@ -7,7 +7,7 @@ import {
   useDeleteCommentMutation,
   type PersonQuery,
 } from '../generated/graphql'
-import { ActionButton } from './ActionButton'
+import { ConfirmButton } from './ConfirmButton'
 import styles from './PersonNotes.module.css'
 import section from './PersonSection.module.css'
 import { CommentItem } from './PrayerThread'
@@ -124,13 +124,14 @@ export function DeleteCommentButton({ id, personId }: { id: string; personId: st
   )
 
   return (
-    <ActionButton
+    <ConfirmButton
       label="Delete"
-      question="Delete this comment?"
+      title="Delete this comment?"
+      body="Every shepherd will stop seeing it. It can't be undone."
       confirmLabel="Yes, delete"
       loading={loading}
       error={error}
-      onClick={() => deleteComment({ variables: { id } })}
+      onConfirm={() => deleteComment({ variables: { id } })}
     />
   )
 }
