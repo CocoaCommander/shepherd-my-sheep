@@ -4,6 +4,7 @@ import { useApolloClient } from '@apollo/client'
 import { Avatar, avatarTint, STATUS_LABELS } from '../components'
 import { cx } from '../components/utils'
 import {
+  calendarAgo,
   dateAgo,
   firstName,
   formatDateTime,
@@ -78,6 +79,8 @@ function lastContactLabel(value: string, now: Date): string {
   return ago.charAt(0).toUpperCase() + ago.slice(1)
 }
 
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
+
 function Details({
   person,
   statusSelect,
@@ -123,6 +126,20 @@ function Details({
             )
           }
           empty="None yet"
+        />
+        <Fact
+          label="Last prayed"
+          value={
+            person.lastPrayer && (
+              <time
+                dateTime={person.lastPrayer.prayedAt}
+                title={formatDateTime(person.lastPrayer.prayedAt)}
+              >
+                {capitalize(calendarAgo(person.lastPrayer.prayedAt, now))}
+              </time>
+            )
+          }
+          empty="Never"
         />
         <Fact label="Status" value={status ? STATUS_LABELS[status] : person.status.name} />
       </dl>

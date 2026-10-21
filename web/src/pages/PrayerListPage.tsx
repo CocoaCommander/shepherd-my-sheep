@@ -6,6 +6,7 @@ import {
   avatarTint,
   Button,
   ClockIcon,
+  HeartIcon,
   PlusIcon,
   SegmentedControl,
   Select,
@@ -24,11 +25,13 @@ import {
   useMeQuery,
   useMyPeopleQuery,
   useRecentlyReleasedPrayerBurdensQuery,
+  type PersonSummaryFragment,
   type PrayerListBurdenFragment,
 } from '../generated/graphql'
 import { Header } from './Header'
 import { STATUS_BY_NAME } from './personStatus'
 import styles from './PrayerListPage.module.css'
+import { PrayedLine, usePrayed } from './PrayerListPrayed'
 import {
   AddBurdenDialog,
   BurdenCommentForm,
@@ -41,6 +44,8 @@ import { sharedWithShepherds } from './sharing'
 type Burden = PrayerListBurdenFragment
 type Person = Burden['person']
 type Sort = 'standing' | 'newest' | 'person'
+type Prayed = ReturnType<typeof usePrayed>
+type LastPrayer = PersonSummaryFragment['lastPrayer']
 
 // Adding, releasing, undoing or commenting changes the lists, and each person's active burden count and
 // latest comment (Home, My people). The Person page refetches on mount, so it needs nothing here.
@@ -120,6 +125,7 @@ export function PrayerListPage() {
   const { data: me } = useMeQuery()
   const { show, toastElement } = useUndoToast({ floating: true, className: styles.toast })
   const release = useReleaseBurden(show, RELOAD_PRAYER_LISTS)
+  const prayed = usePrayed()
 
   const [sort, setSort] = useState<Sort>('standing')
   // Kept as the person, not just the id, so the option stays when their last burden goes.
@@ -138,6 +144,8 @@ export function PrayerListPage() {
   const shown = filter ? all.filter((b) => b.person.id === filter.id) : all
   const groups = sortBurdens(shown, sort)
   const recentlyReleased = recent?.recentlyReleasedPrayerBurdens ?? []
+  // A burden's person is only id, name and status (#52); their last prayer comes from myPeople.
+  const lastPrayers = new Map(people?.myPeople.map((p) => [p.id, p.lastPrayer]))
 
   const noPeople = people?.myPeople.length === 0
   const summary = filter
@@ -200,6 +208,7 @@ export function PrayerListPage() {
         {loading && !data && <p className={styles.muted}>Loading…</p>}
         {error && <Alert variant="inline">{friendlyMessage(error)}</Alert>}
         {releaseError && <Alert variant="inline">{releaseError}</Alert>}
+        {prayed.error && <Alert variant="inline">{friendlyMessage(prayed.error)}</Alert>}
 
         {data && noPeople && (
           // A new user has no one assigned yet (business rule 1).
@@ -265,6 +274,8 @@ export function PrayerListPage() {
                         tint={tints.get(b.person.id)}
                         now={now}
                         hideDetails={hideDetails}
+                        lastPrayer={lastPrayers.get(b.person.id)}
+                        prayed={prayed}
                         onRelease={onRelease}
                       />
                     ))
@@ -314,6 +325,7 @@ export function PrayerListPage() {
         />
       )}
       {toastElement}
+      {prayed.statusElement}
     </div>
   )
 }
@@ -324,6 +336,8 @@ function BurdenRow({
   tint,
   now,
   hideDetails,
+  lastPrayer,
+  prayed,
   onRelease,
 }: {
   burden: Burden
@@ -331,6 +345,9 @@ function BurdenRow({
   tint?: AvatarTint
   now: Date
   hideDetails: boolean
+  /** Undefined until myPeople loads; null when no one has prayed for them yet. */
+  lastPrayer: LastPrayer | undefined
+  prayed: Prayed
   onRelease: (burden: Burden) => void
 }) {
   const { person, comments } = burden
@@ -369,6 +386,18 @@ function BurdenRow({
             {latest.content}
           </p>
         )}
+        {/* It's who prayed, not burden content, so Hide details keeps it. */}
+        {lastPrayer !== undefined && (
+          <PrayedLine
+            person={person}
+            lastPrayer={lastPrayer}
+            meId={meId}
+            now={now}
+            justPrayed={prayed.justPrayed(person.id)}
+            undoing={prayed.undoing}
+            onUndo={prayed.undo}
+          />
+        )}
         {stale && (
           <p className={styles.nudge}>
             <ClockIcon className={styles.nudgeIcon} />
@@ -377,6 +406,15 @@ function BurdenRow({
         )}
       </div>
       <div className={styles.actions}>
+        {/* Records for the person, so every row of theirs shows it. */}
+        <Button
+          icon={<HeartIcon size={16} />}
+          data-prayed=""
+          disabled={prayed.recording}
+          onClick={() => prayed.pray(person)}
+        >
+          Prayed <span className={styles.srOnly}>for {person.name}</span>
+        </Button>
         <Button
           variant="secondary"
           aria-expanded={open}

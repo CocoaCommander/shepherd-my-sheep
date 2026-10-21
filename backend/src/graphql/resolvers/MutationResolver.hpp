@@ -55,6 +55,8 @@ public:
         if (field == "deleteComment") return resolveDeleteComment(args, userId);
         if (field == "logContact") return resolveLogContact(args, userId);
         if (field == "deleteContact") return resolveDeleteContact(args, userId);
+        if (field == "recordPrayer") return resolveRecordPrayer(args, userId);
+        if (field == "deletePrayer") return resolveDeletePrayer(args, userId);
 
         throw BadInput("Unknown mutation: " + field);
     }
@@ -516,6 +518,54 @@ private:
         std::string personId = owner[0]["person_id"].c_str();
 
         txn.exec_params("SELECT * FROM delete_contact($1)", id);
+
+        auto person = fetchPersonDetail(txn, personId);
+        txn.commit();
+        return person;
+    }
+
+    // ── Prayers ─────────────────────────────────────────────
+
+    /**
+     * Records that the caller prayed for the person, now or at an earlier
+     * `prayedAt` (back-dated). Not a contact: the contact state is
+     * unchanged. Returns the person with the new last prayer and history.
+     */
+    oatpp::Any resolveRecordPrayer(const Args& args, const std::string& userId) {
+        auto personId = args.req("personId");
+        auto prayedAt = args.opt("prayedAt");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+        requireShepherd(txn, userId, personId);
+
+        // A null time lets record_prayer use now().
+        txn.exec_params("SELECT * FROM record_prayer($1::uuid, $2::uuid, $3::timestamptz)", personId, userId,
+                        nullable(prayedAt));
+
+        auto person = fetchPersonDetail(txn, personId);
+        txn.commit();
+        return person;
+    }
+
+    /**
+     * Only the shepherd who recorded a prayer may delete it (Undo), and only
+     * while they still shepherd the person. Anyone else gets the same
+     * NOT_FOUND as for a missing record.
+     */
+    oatpp::Any resolveDeletePrayer(const Args& args, const std::string& userId) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto owner = txn.exec_params("SELECT person_id FROM prayer_log WHERE id = $1 AND user_id = $2", id, userId);
+        if (owner.empty() || !isShepherd(txn, userId, owner[0]["person_id"].c_str())) {
+            throw NotFound("Prayer not found");
+        }
+        std::string personId = owner[0]["person_id"].c_str();
+
+        txn.exec_params("SELECT * FROM delete_prayer($1)", id);
 
         auto person = fetchPersonDetail(txn, personId);
         txn.commit();

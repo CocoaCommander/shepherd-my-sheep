@@ -1,5 +1,5 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import axe from 'axe-core'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,11 +34,13 @@ function person(overrides: Record<string, unknown> = {}) {
     recordedMilestoneIds: [],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds: [{ __typename: 'User', id: ME.id, name: ME.name }],
     milestones: [],
     prayerBurdens: [],
     comments: [],
     contacts: [],
+    prayers: [],
     ...overrides,
   }
 }
@@ -50,7 +52,7 @@ const TYPES = [
   ['ms-leading', 'leading'],
 ].map(([id, name]) => ({ __typename: 'Milestone', id, name, description: name }))
 
-async function violations(p: object) {
+async function violations(p: object, before?: () => Promise<void>) {
   const mocks: MockedResponse[] = [
     {
       request: { query: G.PersonDocument, variables: { id: 'person-1' } },
@@ -71,6 +73,7 @@ async function violations(p: object) {
     </MockedProvider>,
   )
   await screen.findByRole('button', { name: 'Log contact' })
+  await before?.()
   const results = await axe.run(container, {
     runOnly: {
       type: 'tag',
@@ -174,6 +177,38 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
           ],
         }),
       ),
+    ).toEqual([])
+  })
+  it('with prayers, one back-dated, and the Another day form open', async () => {
+    const by = { __typename: 'User', id: ME.id, name: ME.name }
+    const prayer = (id: string, prayedAt: string, createdAt: string, who: object | null = by) => ({
+      __typename: 'PrayerLog',
+      id,
+      prayedAt,
+      createdAt,
+      prayedBy: who,
+    })
+    const prayers = [
+      prayer('pr1', at(0), at(0)),
+      prayer('pr2', at(-2 * DAY), at(-DAY)),
+      prayer('pr3', at(-3 * DAY), at(-3 * DAY), {
+        __typename: 'User',
+        id: 'u-grace',
+        name: 'Grace Lin',
+      }),
+      prayer('pr4', at(-4 * DAY), at(-4 * DAY), null),
+    ]
+    const latest = {
+      __typename: 'PrayerLog',
+      id: 'pr1',
+      prayedAt: prayers[0].prayedAt,
+      prayedBy: by,
+    }
+    expect(
+      await violations(person({ prayers, lastPrayer: latest }), async () => {
+        fireEvent.click(await screen.findByRole('button', { name: 'Another day' }))
+        await screen.findByLabelText('Day you prayed (required)')
+      }),
     ).toEqual([])
   })
 })

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  calendarAgo,
   contactDateToTimestamp,
+  differentDays,
   dateAgo,
   contactDueLabel,
   contactStateLabel,
@@ -198,5 +200,34 @@ describe('timeAgo', () => {
 
   it('parses the API DateTime format', () => {
     expect(timeAgo('2026-10-13 11:00:00.5+00', now)).toBe('1 day ago')
+  })
+})
+
+describe('calendarAgo', () => {
+  const now = new Date(2026, 9, 14, 9, 30)
+  const local = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).toISOString()
+
+  it('says today for any time on the same local day', () => {
+    expect(calendarAgo(local(14, 0, 5), now)).toBe('today')
+    expect(calendarAgo(local(14, 9, 0), now)).toBe('today')
+  })
+
+  it('says yesterday for the previous local day, even under 24 hours ago', () => {
+    expect(calendarAgo(local(13, 23, 30), now)).toBe('yesterday')
+    expect(calendarAgo(local(13, 8), now)).toBe('yesterday')
+  })
+
+  it('counts calendar days and weeks', () => {
+    expect(calendarAgo(local(11, 20), now)).toBe('3 days ago')
+    expect(calendarAgo(local(0, 12), new Date(2026, 9, 14, 9, 30))).toBe('2 weeks ago')
+  })
+})
+
+describe('differentDays', () => {
+  it('is false within one local day and true across local midnight', () => {
+    const at = (d: number, h: number, m: number) => new Date(2026, 9, d, h, m).toISOString()
+    expect(differentDays(at(14, 0, 1), at(14, 23, 59))).toBe(false)
+    expect(differentDays(at(13, 23, 59), at(14, 0, 1))).toBe(true)
+    expect(differentDays(at(14, 12, 0), at(14, 12, 0))).toBe(false)
   })
 })

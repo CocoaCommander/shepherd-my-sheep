@@ -1,0 +1,167 @@
+/* The prayer box at the top of the Person page's Prayer burdens section. */
+.srOnly {
+  composes: srOnly from '../components/shared.module.css';
+}
+
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+  padding: var(--sms-space-14) var(--sms-space-16);
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-xl);
+}
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sms-space-12);
+}
+.summary {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sms-space-10);
+}
+.heart {
+  flex: none;
+  margin-top: 3px;
+  color: var(--sms-brand);
+}
+.line {
+  margin: 0;
+  font-weight: 600;
+}
+.sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sms-space-8);
+}
+
+/* "Prayer logged for Maria." with Undo. */
+.logged {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sms-space-12);
+  padding: 2px 6px 2px var(--sms-space-12);
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+  border-radius: var(--sms-radius-lg);
+  font-weight: 600;
+}
+.logged > button {
+  flex: none;
+}
+
+/* Another day. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-6);
+  padding: var(--sms-space-14);
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-xl);
+}
+.date input {
+  max-width: 240px;
+}
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sms-space-12);
+  margin-top: var(--sms-space-6);
+}
+
+/* History. */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-6);
+  padding-top: var(--sms-space-4);
+  border-top: 1px solid var(--sms-border);
+}
+.toggle {
+  composes: control from '../components/shared.module.css';
+  align-self: flex-start;
+  min-height: var(--sms-size-touch);
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--sms-brand-strong);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-12);
+}
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sms-space-10);
+}
+.initials {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-circle);
+  font-size: 11px;
+  font-weight: 600;
+}
+.itemText {
+  min-width: 0;
+}
+.when {
+  margin: 0;
+  font-weight: 600;
+}
+.ago {
+  font-weight: 400;
+  color: var(--sms-muted);
+}
+.pill {
+  display: inline-block;
+  margin-left: var(--sms-space-8);
+  padding: 0 9px;
+  background: var(--sms-lost-tint);
+  color: var(--sms-ink-2);
+  border-radius: var(--sms-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+}
+.meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--sms-muted);
+}
+
+/* Phones: Prayed and Another day share the row, 48px tall. */
+@media (max-width: 719px) {
+  .buttons {
+    flex: 1 1 100%;
+  }
+  .buttons > button {
+    flex: 1;
+    min-height: var(--sms-size-cta);
+  }
+}

@@ -4,6 +4,7 @@ import { cx } from '../components/utils'
 import { dateAgo, firstName, timeAgo } from '../format'
 import type { PersonQuery } from '../generated/graphql'
 import { DeleteCommentButton } from './PersonNotes'
+import { PersonPrayed } from './PersonPrayed'
 import styles from './PersonPrayerBurdens.module.css'
 import section from './PersonSection.module.css'
 import { AddBurdenDialog, BurdenCommentForm, Thread, useReleaseBurden } from './PrayerThread'
@@ -15,8 +16,8 @@ type Burden = Person['prayerBurdens'][number]
 type Comment = Person['comments'][number]
 
 /**
- * The Prayer burdens section: active burdens with their threads, then the released ones folded
- * away. A person may have none (business rule 3), and a burden no comments (rule 4).
+ * The Prayer burdens section: the prayer box, active burdens with their threads, then the
+ * released ones folded away. A person may have none (business rule 3), and a burden no comments (rule 4).
  */
 export function PersonPrayerBurdens({
   person,
@@ -65,6 +66,9 @@ export function PersonPrayerBurdens({
           {narrow ? 'Add' : 'Add burden'}
         </Button>
       </div>
+
+      {/* Above the burdens: a person with none can still be prayed for (business rule 3). */}
+      <PersonPrayed person={person} meId={meId} />
 
       {releaseError && <Alert variant="inline">{releaseError}</Alert>}
 

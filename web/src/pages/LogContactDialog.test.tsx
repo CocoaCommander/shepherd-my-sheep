@@ -43,6 +43,7 @@ function logged(overrides: Record<string, unknown> = {}) {
     recordedMilestoneIds: [],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds: [],
     prayerBurdens: [],
     comments: [],

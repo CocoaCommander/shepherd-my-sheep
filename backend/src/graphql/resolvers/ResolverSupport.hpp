@@ -182,7 +182,8 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
 
 // Contact columns come from the person_contact_state view (business rule 6).
 // The recorded milestones, the active burden count and the latest comment
-// ("lc_" prefix, null when there are no comments) are summaries, so list
+// ("lc_" prefix, null when there are no comments) and the last prayer
+// ("lp_" prefix, null when no one has prayed yet) are summaries, so list
 // queries can show them without loading the nested lists.
 inline const char* PERSON_SELECT =
     "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
@@ -193,7 +194,7 @@ inline const char* PERSON_SELECT =
     "          FROM milestone_person mp WHERE mp.person_id = p.id) AS milestone_ids, "
     "       (SELECT count(*) FROM prayer_burden pb "
     "         WHERE pb.person_id = p.id AND pb.released_date IS NULL) AS active_burden_count, "
-    "       lc.* "
+    "       lc.*, lp.* "
     "FROM person p JOIN status s ON s.id = p.status_id "
     "JOIN person_contact_state cs ON cs.person_id = p.id "
     "LEFT JOIN LATERAL ("
@@ -208,9 +209,19 @@ inline const char* PERSON_SELECT =
     "    LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id "
     "    WHERE c.person_id = p.id "
     "    ORDER BY c.created_at DESC, c.id DESC LIMIT 1"
-    ") lc ON true ";
+    ") lc ON true "
+    "LEFT JOIN LATERAL ("
+    "    SELECT pl.id AS lp_id, pl.prayed_at AS lp_prayed_at, pl.created_at AS lp_created_at, "
+    "           u.id AS lp_prayer_id, u.name AS lp_prayer_name, u.username AS lp_prayer_username, "
+    "           u.created_at AS lp_prayer_created_at, u.updated_at AS lp_prayer_updated_at "
+    "    FROM prayer_log pl "
+    "    LEFT JOIN \"user\" u ON u.id = pl.user_id "
+    "    WHERE pl.person_id = p.id "
+    "    ORDER BY pl.prayed_at DESC, pl.created_at DESC, pl.id DESC LIMIT 1"
+    ") lp ON true ";
 
-inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix = "");
+inline CommentDto::Wrapper   rowToComment(const pqxx::row& row, const std::string& prefix = "");
+inline PrayerLogDto::Wrapper rowToPrayerLog(const pqxx::row& row, const std::string& prefix = "");
 
 inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     auto dto               = PersonDto::createShared();
@@ -240,6 +251,7 @@ inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
         }
     }
     if (!row["lc_id"].is_null()) dto->latestComment = rowToComment(row, "lc_");
+    if (!row["lp_id"].is_null()) dto->lastPrayer = rowToPrayerLog(row, "lp_");
 
     auto status  = StatusDto::createShared();
     status->id   = row["status_id"].c_str();
@@ -411,6 +423,28 @@ inline ContactLogDto::Wrapper rowToContactLog(const pqxx::row& row) {
     return dto;
 }
 
+// Prefix: "prayer_" for the user who prayed (null if they were deleted).
+inline const char* PRAYER_LOG_SELECT =
+    "SELECT pl.id, pl.person_id, pl.prayed_at, pl.created_at, "
+    "       u.id AS prayer_id, u.name AS prayer_name, u.username AS prayer_username, "
+    "       u.created_at AS prayer_created_at, u.updated_at AS prayer_updated_at "
+    "FROM prayer_log pl "
+    "LEFT JOIN \"user\" u ON u.id = pl.user_id ";
+
+// Newest first by when they prayed; a back-dated record sorts by its day.
+inline const char* PRAYER_LOG_ORDER = "ORDER BY pl.prayed_at DESC, pl.created_at DESC, pl.id DESC";
+
+inline PrayerLogDto::Wrapper rowToPrayerLog(const pqxx::row& row, const std::string& prefix) {
+    auto dto       = PrayerLogDto::createShared();
+    dto->id        = row[prefix + "id"].c_str();
+    dto->prayedAt  = row[prefix + "prayed_at"].c_str();
+    dto->createdAt = row[prefix + "created_at"].c_str();
+    if (!row[prefix + "prayer_id"].is_null()) {
+        dto->prayedBy = rowToUser(row, prefix + "prayer_");
+    }
+    return dto;
+}
+
 // ── Lookups ─────────────────────────────────────────────────
 
 /**
@@ -470,6 +504,13 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     for (const auto& row : txn.exec_params(
              std::string(CONTACT_LOG_SELECT) + "WHERE cl.person_id = $1 ORDER BY cl.contacted_at DESC", personId)) {
         person->contacts->push_back(rowToContactLog(row));
+    }
+
+    // Every record: the client shows the newest few and expands the rest.
+    person->prayers = oatpp::Vector<oatpp::Object<PrayerLogDto>>::createShared();
+    for (const auto& row :
+         txn.exec_params(std::string(PRAYER_LOG_SELECT) + "WHERE pl.person_id = $1 " + PRAYER_LOG_ORDER, personId)) {
+        person->prayers->push_back(rowToPrayerLog(row));
     }
 
     return person;

@@ -17,6 +17,8 @@ erDiagram
     user |o--o{ contact_log : "made contact"
     contact_log |o--o| comment : "noted in"
     contact_log |o--o| prayer_burden : "raised in"
+    person ||--o{ prayer_log : "prayed for"
+    user |o--o{ prayer_log : "prayed"
 
     status {
         uuid id PK
@@ -79,4 +81,10 @@ erDiagram
         timestamptz contacted_at
         boolean is_follow_up
         boolean promoted
+    }
+    prayer_log {
+        uuid id PK
+        uuid person_id FK
+        uuid user_id FK
+        timestamptz prayed_at
     }

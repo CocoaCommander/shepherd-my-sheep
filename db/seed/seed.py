@@ -127,11 +127,23 @@ def seed(conn, password_hash, username_prefix=DEMO_PREFIX):
             )
             _backdate(cur, "comment", cur.fetchone()[0], "created_at", c.days_ago)
 
+        for pr in dataset.PRAYERS:
+            cur.execute(
+                "SELECT id FROM record_prayer(%s, %s, now() - %s * interval '1 day')",
+                (ids.people[pr.person], ids.users[pr.user], pr.days_ago),
+            )
+            logged = pr.logged_days_ago if pr.logged_days_ago is not None else pr.days_ago
+            cur.execute(
+                "UPDATE prayer_log SET created_at = now() - %s * interval '1 day' WHERE id = %s",
+                (logged, cur.fetchone()[0]),
+            )
+
         for p in dataset.PEOPLE:
             history = [
                 *(c.days_ago for c in dataset.CONTACTS if c.person == p.key),
                 *(b.days_ago for b in dataset.BURDENS if b.person == p.key),
                 *(c.days_ago for c in dataset.COMMENTS if c.person == p.key),
+                *(pr.days_ago for pr in dataset.PRAYERS if pr.person == p.key),
             ]
             if history:
                 cur.execute(

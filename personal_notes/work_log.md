@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping
+## 2026-10-21 — Housekeeping; prayer log
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -27,6 +27,22 @@
   has no comments. Also renames the sort label "Longest standing" /
   "Longest" to "Oldest". Supersedes the 2026-10-20 "no buttons in the
   panel" decision; names stay plain text.
+- **Prayer log** (stacked drafts #84 → #85 → #86): shepherds record
+  each time they pray for a person, and every shepherd of that person sees
+  it.
+  - **#84 DB + API** (base `main`) — `V010__prayer_log.sql`
+    (`prayer_log`, `record_prayer`, `delete_prayer`), `Person.lastPrayer`
+    (everywhere) and `Person.prayers` (detail), `recordPrayer(personId,
+    prayedAt?)` and `deletePrayer(id)`. Only the recorder may undo; a
+    deleted user's prayers stay as "Someone". Praying is not a contact
+    (rule 6). Seed prayers for Maria, David (back-dated) and others.
+  - **#85 Person page** (base #84) — a prayer box in Prayer burdens:
+    Prayed, Another day (back-dated to local noon), the last-prayed line,
+    inline Undo for 20 s, and the prayer history (newest 3, then "Show N
+    earlier"). "Last prayed" row in the sidebar.
+  - **#86 Prayer list** (base #85) — a Prayed button on each burden row
+    (it records for the person), the "Last prayed for … by …" line under
+    the comment (kept under Hide details), inline Undo for 20 s.
 
 ### Moved from the todo list
 
@@ -85,6 +101,10 @@ Completed items as they stood in `todo.md` on 2026-10-21, by section.
   - Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes. (#58)
   - **Expand / collapse comments on recently released prayers.** In the "Recently released" panel (`web/src/pages/PrayerListPage.tsx`), let each burden's comments expand and collapse; collapsed by default. (#81)
   - Change the sort label "Longest standing" (mWeb "Longest") to "Oldest" in `web/src/pages/PrayerListPage.tsx`, and update `PrayerListPage.test.tsx` to match. (#81)
+  - **Record when shepherds pray for a person.** Save a timestamp
+    (and which shepherd) each time someone prays for a person, e.g. a
+    `prayer_log` table alongside `contact_log`. Recorded and shown on the
+    Prayer list and the Person page. (#84, #85, #86)
 - **Sign in / register**:
   - Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
 - **"Log contact" modal** (#39, #42):

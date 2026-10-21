@@ -606,6 +606,14 @@ class TestLogContact:
             with pytest.raises(psycopg2.errors.CheckViolation):
                 cur.execute("SELECT * FROM log_contact(%s, NULL, now() + interval '1 hour')", (person_id,))
 
+    @pytest.mark.parametrize("value", ["infinity", "-infinity"])
+    def test_infinite_time_rejected(self, db, value):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            with pytest.raises(psycopg2.errors.CheckViolation) as e:
+                cur.execute("SELECT * FROM record_prayer(%s, NULL, %s::timestamptz)", (person_id, value))
+            assert e.value.pgcode == "23514"
+
     def test_small_clock_skew_allowed(self, db):
         with db.cursor() as cur:
             person_id = sp_create_person(cur)[0]
@@ -709,3 +717,80 @@ class TestDeleteContact:
             row = sp_log_contact(cur, person_id)
             cur.execute("SELECT delete_contact(%s)", (row[0],))
             assert status_of(cur, person_id) == "active"
+
+
+# ── record_prayer / delete_prayer ────────────────────────────
+
+
+def sp_record_prayer(cur, person_id, user_id=None, prayed_at=None):
+    cur.execute("SELECT * FROM record_prayer(%s, %s, %s)", (person_id, user_id, prayed_at))
+    return cur.fetchone()
+
+
+class TestRecordPrayer:
+    def test_defaults_to_now(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Prayed For")[0]
+            user_id = sp_create_user(cur, username="prayer")[0]
+            row = sp_record_prayer(cur, person_id, user_id)
+            cur.execute("SELECT person_id, user_id, prayed_at = now() FROM prayer_log WHERE id = %s", (row[0],))
+            assert cur.fetchone() == (person_id, user_id, True)
+
+    def test_omitted_time_means_now(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            cur.execute("SELECT id, prayed_at = now() FROM record_prayer(%s, NULL)", (person_id,))
+            assert cur.fetchone()[1] is True
+
+    def test_past_time_saved_as_given(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            cur.execute("SELECT now() - interval '3 days'")
+            when = cur.fetchone()[0]
+            row = sp_record_prayer(cur, person_id, None, when)
+            cur.execute("SELECT prayed_at = %s, created_at > prayed_at FROM prayer_log WHERE id = %s", (when, row[0]))
+            assert cur.fetchone() == (True, True)
+
+    def test_unknown_person_rejected(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException, match="Person not found"):
+                sp_record_prayer(cur, "00000000-0000-0000-0000-000000000000")
+
+    def test_future_time_rejected(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            with pytest.raises(psycopg2.errors.CheckViolation) as e:
+                cur.execute("SELECT * FROM record_prayer(%s, NULL, now() + interval '10 minutes')", (person_id,))
+            assert e.value.pgcode == "23514"
+
+    def test_small_clock_skew_allowed(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            cur.execute("SELECT * FROM record_prayer(%s, NULL, now() + interval '2 minutes')", (person_id,))
+            assert cur.fetchone() is not None
+
+    def test_each_call_is_its_own_record(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            first = sp_record_prayer(cur, person_id)
+            second = sp_record_prayer(cur, person_id)
+            assert first[0] != second[0]
+            cur.execute("SELECT count(*) FROM prayer_log WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 2
+
+
+class TestDeletePrayer:
+    def test_deletes_and_returns_true(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur)[0]
+            prayer_id = sp_record_prayer(cur, person_id)[0]
+            cur.execute("SELECT delete_prayer(%s)", (prayer_id,))
+            assert cur.fetchone()[0] is True
+            cur.execute("SELECT count(*) FROM prayer_log WHERE id = %s", (prayer_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_unknown_prayer_rejected(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException, match="Prayer not found") as e:
+                cur.execute("SELECT delete_prayer('00000000-0000-0000-0000-000000000000')")
+            assert e.value.pgcode == "P0001"

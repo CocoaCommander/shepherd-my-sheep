@@ -45,6 +45,7 @@ function person(id: string, name: string, overrides: Record<string, unknown> = {
     recordedMilestoneIds: [],
     activeBurdenCount: 0,
     latestComment: null,
+    lastPrayer: null,
     shepherds: [],
     createdAt: at(-90 * DAY),
     ...overrides,
@@ -81,7 +82,15 @@ const TOM = person('p-tom', 'Tom Becker', {
 })
 
 function detail(p: Person, overrides: Record<string, unknown> = {}) {
-  return { ...p, milestones: [], prayerBurdens: [], comments: [], contacts: [], ...overrides }
+  return {
+    ...p,
+    milestones: [],
+    prayerBurdens: [],
+    comments: [],
+    contacts: [],
+    prayers: [],
+    ...overrides,
+  }
 }
 
 function burden(
