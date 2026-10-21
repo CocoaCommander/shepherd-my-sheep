@@ -2,18 +2,14 @@ import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { ApolloError } from '@apollo/client'
 import { errorCode, friendlyMessage } from '../errors'
-import { formatDate, formatDateTime, formatShortDate, isToday } from '../format'
+import { formatDateTime, formatShortDate, isToday } from '../format'
 import {
-  PersonDocument,
   useCreateCommentMutation,
   useCreatePrayerBurdenMutation,
   useDeleteCommentMutation,
   useMeQuery,
-  useMilestonesQuery,
   usePersonQuery,
-  useRecordMilestoneMutation,
   useReleasePrayerBurdenMutation,
-  useRemoveMilestoneMutation,
   type PersonQuery,
 } from '../generated/graphql'
 import { NARROW, useMediaQuery } from '../useMediaQuery'
@@ -23,9 +19,11 @@ import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
 import { LogContactDialog } from './LogContactDialog'
 import { PersonHeaderCard } from './PersonHeaderCard'
+import { PersonMilestones } from './PersonMilestones'
 import styles from './PersonPage.module.css'
 import { PersonSidebar } from './PersonSidebar'
 import { PersonStatusSelect } from './PersonStatusSelect'
+import { refetchPerson } from './refetchPerson'
 import { sharedWithShepherds } from './sharing'
 import { useStatusMove } from './useStatusMove'
 
@@ -70,14 +68,6 @@ export function PersonPage() {
 
 type Person = NonNullable<PersonQuery['person']>
 type Comment = Person['comments'][number]
-
-/** Every change on this page reloads the person, so all sections stay in step. */
-function refetchPerson(personId: string) {
-  return {
-    refetchQueries: [{ query: PersonDocument, variables: { id: personId } }],
-    awaitRefetchQueries: true,
-  }
-}
 
 /** Set by Add person's "Log contact now", to open the dialog on arrival. */
 type PersonLocationState = { logContact?: boolean } | null
@@ -142,39 +132,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
 
       <div className={styles.columns}>
         <div className={styles.main}>
-          <section className="card stack">
-            <h2>Milestones</h2>
-            {person.milestones.length === 0 ? (
-              // Someone we've just met has none (business rule 2).
-              <p className="empty">No milestones yet.</p>
-            ) : (
-              <ul className="list">
-                {person.milestones.map((m) => (
-                  <li key={m.id} className="list-item">
-                    <div className="item-head">
-                      <span>
-                        <strong>{m.milestone.name}</strong>
-                        {m.dateAchieved && (
-                          <span className="muted"> · {formatDate(m.dateAchieved)}</span>
-                        )}
-                      </span>
-                      <RemoveMilestoneButton
-                        personId={person.id}
-                        milestoneId={m.milestone.id}
-                        name={m.milestone.name}
-                      />
-                    </div>
-                    {m.notes && <p>{m.notes}</p>}
-                    {m.recordedBy && <p className="muted small">Recorded by {m.recordedBy.name}</p>}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <RecordMilestoneForm
-              personId={person.id}
-              recordedIds={person.milestones.map((m) => m.milestone.id)}
-            />
-          </section>
+          <PersonMilestones person={person} narrow={narrow} />
 
           <section className="card stack">
             <h2>Prayer burdens</h2>
@@ -323,86 +281,6 @@ function Burden({
 
 // ── Forms ────────────────────────────────────────────────────
 
-function RecordMilestoneForm({
-  personId,
-  recordedIds,
-}: {
-  personId: string
-  recordedIds: string[]
-}) {
-  const { data } = useMilestonesQuery()
-  const [recordMilestone, { loading, error }] = useRecordMilestoneMutation(refetchPerson(personId))
-
-  const [milestoneId, setMilestoneId] = useState('')
-  const [dateAchieved, setDateAchieved] = useState('')
-  const [notes, setNotes] = useState('')
-
-  // Each milestone can be recorded once per person.
-  const options = (data?.milestones ?? []).filter((m) => !recordedIds.includes(m.id))
-  const selected = options.some((m) => m.id === milestoneId) ? milestoneId : (options[0]?.id ?? '')
-
-  if (options.length === 0) return null
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    try {
-      await recordMilestone({
-        variables: {
-          input: {
-            personId,
-            milestoneId: selected,
-            dateAchieved: dateAchieved || null,
-            notes: notes.trim() || null,
-          },
-        },
-      })
-      setMilestoneId('')
-      setDateAchieved('')
-      setNotes('')
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  return (
-    <form className="stack subform" onSubmit={handleSubmit}>
-      <h3>Record a milestone</h3>
-      <div className="row">
-        <label>
-          Milestone
-          <select value={selected} onChange={(e) => setMilestoneId(e.target.value)} required>
-            {options.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>
-            Date achieved <span className="muted">(optional)</span>
-          </span>
-          <input
-            type="date"
-            value={dateAchieved}
-            onChange={(e) => setDateAchieved(e.target.value)}
-          />
-        </label>
-      </div>
-      <label>
-        <span>
-          Notes <span className="muted">(optional)</span>
-        </span>
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </label>
-      <ErrorMessage error={error} />
-      <button type="submit" disabled={loading || !selected}>
-        {loading ? 'Recording…' : 'Record milestone'}
-      </button>
-    </form>
-  )
-}
-
 function AddPrayerBurdenForm({ personId }: { personId: string }) {
   const [createPrayerBurden, { loading, error }] = useCreatePrayerBurdenMutation(
     refetchPerson(personId),
@@ -509,30 +387,6 @@ function TextEntryForm({
 }
 
 // ── Item actions ─────────────────────────────────────────────
-
-function RemoveMilestoneButton({
-  personId,
-  milestoneId,
-  name,
-}: {
-  personId: string
-  milestoneId: string
-  name: string
-}) {
-  const [removeMilestone, { loading, error }] = useRemoveMilestoneMutation(refetchPerson(personId))
-
-  return (
-    <ActionButton
-      label="Remove"
-      ariaLabel={`Remove ${name}`}
-      question="Remove this milestone?"
-      confirmLabel="Yes, remove"
-      loading={loading}
-      error={error}
-      onClick={() => removeMilestone({ variables: { personId, milestoneId } })}
-    />
-  )
-}
 
 function ReleaseBurdenButton({ id, personId }: { id: string; personId: string }) {
   const [releasePrayerBurden, { loading, error }] = useReleasePrayerBurdenMutation(

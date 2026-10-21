@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   contactDateToTimestamp,
+  dateAgo,
   contactDueLabel,
   contactStateLabel,
   firstName,
@@ -130,6 +131,33 @@ describe('formatShortDate', () => {
       day: 'numeric',
     })
     expect(formatShortDate(new Date(2026, 9, 14, 23, 30).toISOString())).toBe(expected)
+  })
+})
+
+describe('dateAgo', () => {
+  // Late evening local time: a UTC-based count would already be on the next day in some zones.
+  const now = new Date(2026, 9, 14, 23, 30)
+
+  it('counts whole local calendar days', () => {
+    expect(dateAgo('2026-10-14', now)).toBe('today')
+    expect(dateAgo('2026-10-13', now)).toBe('1 day ago')
+    expect(dateAgo('2026-10-11', now)).toBe('3 days ago')
+  })
+
+  it('is "today" for a future date', () => {
+    expect(dateAgo('2026-10-20', now)).toBe('today')
+  })
+
+  it('uses the same wording as timeAgo for longer spans', () => {
+    expect(dateAgo('2026-10-07', now)).toBe('1 week ago')
+    expect(dateAgo('2025-10-14', now)).toBe('1 year ago')
+    expect(dateAgo('2021-10-14', now)).toBe('5 years ago')
+  })
+
+  it('counts a full week across a daylight-saving change (US 8 Mar, EU 29 Mar)', () => {
+    expect(dateAgo('2026-03-02', new Date(2026, 2, 9, 0, 10))).toBe('1 week ago')
+    expect(dateAgo('2026-03-23', new Date(2026, 2, 30, 0, 10))).toBe('1 week ago')
+    expect(dateAgo('2026-03-07', new Date(2026, 2, 8, 0, 10))).toBe('1 day ago')
   })
 })
 

@@ -1,5 +1,5 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -221,7 +221,7 @@ describe('Person page details', () => {
     expect(screen.getByText('Added')).toBeInTheDocument()
     expect(screen.getByText(formatDateTime(at(-HOUR)))).toBeInTheDocument()
     expect(screen.getByText(/follow-up within 72 hours/)).toBeInTheDocument()
-    expect(screen.getByText('No milestones yet.')).toBeInTheDocument()
+    expect(screen.getByText('0 of 4')).toBeInTheDocument()
     expect(screen.getByText('No prayer burdens yet.')).toBeInTheDocument()
     expect(screen.getByText('No notes yet.')).toBeInTheDocument()
   })
@@ -332,7 +332,8 @@ describe('Logging a contact from the Person page', () => {
     expect(
       await screen.findByRole('dialog', { name: 'Log contact with Maria' }),
     ).toBeInTheDocument()
-    expect(screen.getByTestId('location-state')).toHaveTextContent('null')
+    // The effect's navigate lands in a later render than the one that opens the dialog.
+    await waitFor(() => expect(screen.getByTestId('location-state')).toHaveTextContent('null'))
   })
 
   it('does not open the dialog on a plain visit', async () => {

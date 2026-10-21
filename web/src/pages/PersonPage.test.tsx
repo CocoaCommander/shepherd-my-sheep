@@ -1,5 +1,5 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -17,21 +17,10 @@ const ME = { __typename: 'User', id: 'user-me', name: 'Me Shepherd', username: '
 const OTHER = { __typename: 'User', id: 'user-other', name: 'Other Shepherd' }
 
 const MILESTONE_TYPES = [
-  { __typename: 'Milestone', id: 'ms-baptized', name: 'Baptized', description: 'Was baptized' },
-  { __typename: 'Milestone', id: 'ms-member', name: 'Joined membership', description: 'Joined' },
-  { __typename: 'Milestone', id: 'ms-serving', name: 'Started serving', description: 'Serves' },
+  { __typename: 'Milestone', id: 'ms-baptised', name: 'baptised', description: 'Was baptised' },
+  { __typename: 'Milestone', id: 'ms-member', name: 'joined small group', description: 'Joined' },
+  { __typename: 'Milestone', id: 'ms-serving', name: 'serving', description: 'Serves' },
 ]
-
-function recorded(rowId: string, type: (typeof MILESTONE_TYPES)[number]) {
-  return {
-    __typename: 'MilestonePerson',
-    id: rowId,
-    dateAchieved: '2026-01-02',
-    notes: null,
-    milestone: { __typename: 'Milestone', id: type.id, name: type.name },
-    recordedBy: { __typename: 'User', id: ME.id, name: ME.name },
-  }
-}
 
 function burden(id: string, content: string, releasedDate: string | null = null) {
   return {
@@ -154,12 +143,11 @@ function mutationMock(
 describe('PersonPage empty states', () => {
   it('shows empty messages and all add forms for a brand new person', async () => {
     renderPage(person())
-    expect(await screen.findByText('No milestones yet.')).toBeInTheDocument()
+    expect(await screen.findByText('0 of 4')).toBeInTheDocument()
     expect(screen.getByText('No prayer burdens yet.')).toBeInTheDocument()
     expect(screen.getByText('No notes yet.')).toBeInTheDocument()
 
-    expect(await screen.findByLabelText('Milestone')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Record milestone' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Record Baptised' })).toBeInTheDocument()
     expect(screen.getByLabelText('New prayer burden')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add prayer burden' })).toBeInTheDocument()
     expect(screen.getByLabelText('New note')).toBeInTheDocument()
@@ -172,151 +160,6 @@ describe('PersonPage empty states', () => {
     expect(screen.getByLabelText('Comment')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add comment' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Release' })).toBeInTheDocument()
-  })
-
-  it('hides the milestone form when the milestone type list is empty', async () => {
-    renderPage(person(), { milestoneTypes: [] })
-    await screen.findByText('No milestones yet.')
-    expect(screen.queryByLabelText('Milestone')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Record milestone' })).not.toBeInTheDocument()
-  })
-
-  it('hides the milestone form when every type is already recorded', async () => {
-    renderPage(person({ milestones: MILESTONE_TYPES.map((t, i) => recorded(`mp${i}`, t)) }))
-    await screen.findByRole('button', { name: 'Remove Baptized' })
-    expect(screen.queryByLabelText('Milestone')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Record milestone' })).not.toBeInTheDocument()
-  })
-})
-
-describe('PersonPage milestones', () => {
-  it('lists only milestone types the person has not recorded', async () => {
-    renderPage(person({ milestones: [recorded('mp1', MILESTONE_TYPES[0])] }))
-    const select = await screen.findByLabelText('Milestone')
-    const names = within(select)
-      .getAllByRole('option')
-      .map((o) => o.textContent)
-    expect(names).toContain('Joined membership')
-    expect(names).toContain('Started serving')
-    expect(names).not.toContain('Baptized')
-  })
-
-  it('records a milestone with date and trimmed notes, then refetches', async () => {
-    const user = userEvent.setup()
-    const { mutation, result } = mutationMock(
-      G.RecordMilestoneDocument,
-      {
-        input: {
-          personId: PERSON_ID,
-          milestoneId: 'ms-member',
-          dateAchieved: '2026-10-14',
-          notes: 'At the Sunday service',
-        },
-      },
-      { recordMilestone: { __typename: 'MilestonePerson', id: 'mp-new' } },
-    )
-    const { refetch } = renderPage(person(), { mutation })
-    const select = await screen.findByLabelText('Milestone')
-    await user.selectOptions(select, 'Joined membership')
-    fireEvent.change(screen.getByLabelText(/^Date achieved/), { target: { value: '2026-10-14' } })
-    expect(screen.getByLabelText(/^Date achieved/)).toHaveAttribute('type', 'date')
-    await user.type(screen.getByLabelText(/^Notes/), '  At the Sunday service  ')
-    await user.click(screen.getByRole('button', { name: 'Record milestone' }))
-
-    await waitFor(() => expect(result).toHaveBeenCalled())
-    await waitFor(() => expect(refetch).toHaveBeenCalled())
-  })
-
-  it('sends null, not empty strings, for a blank date and blank notes', async () => {
-    const user = userEvent.setup()
-    const { mutation, result } = mutationMock(
-      G.RecordMilestoneDocument,
-      {
-        input: { personId: PERSON_ID, milestoneId: 'ms-serving', dateAchieved: null, notes: null },
-      },
-      { recordMilestone: { __typename: 'MilestonePerson', id: 'mp-new' } },
-    )
-    renderPage(person(), { mutation })
-    const select = await screen.findByLabelText('Milestone')
-    await user.selectOptions(select, 'Started serving')
-    await user.type(screen.getByLabelText(/^Notes/), '   ')
-    await user.click(screen.getByRole('button', { name: 'Record milestone' }))
-    await waitFor(() => expect(result).toHaveBeenCalled())
-  })
-
-  it('removes a milestone using the milestone type id, not the row id', async () => {
-    const user = userEvent.setup()
-    const { mutation, result } = mutationMock(
-      G.RemoveMilestoneDocument,
-      { personId: PERSON_ID, milestoneId: 'ms-baptized' },
-      { removeMilestone: true },
-    )
-    const { refetch } = renderPage(
-      person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }),
-      { mutation },
-    )
-    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
-    expect(result).not.toHaveBeenCalled()
-    expect(screen.getByText('Remove this milestone?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Remove Baptized' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    await waitFor(() => expect(result).toHaveBeenCalled())
-    await waitFor(() => expect(refetch).toHaveBeenCalled())
-  })
-
-  it('cancelling milestone removal restores the button and sends no mutation', async () => {
-    const user = userEvent.setup()
-    const { mutation, result } = mutationMock(
-      G.RemoveMilestoneDocument,
-      { personId: PERSON_ID, milestoneId: 'ms-baptized' },
-      { removeMilestone: true },
-    )
-    const { refetch } = renderPage(
-      person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }),
-      { mutation },
-    )
-    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByText('Remove this milestone?')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Remove Baptized' })).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(result).not.toHaveBeenCalled()
-    expect(refetch).not.toHaveBeenCalled()
-  })
-
-  it('shows an alert when removing a milestone fails after confirming', async () => {
-    const user = userEvent.setup()
-    const mutation = {
-      request: {
-        query: G.RemoveMilestoneDocument,
-        variables: { personId: PERSON_ID, milestoneId: 'ms-baptized' },
-      } as MockedResponse['request'],
-      result: { errors: [new GraphQLError('Cannot remove')] },
-    }
-    renderPage(person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }), { mutation })
-    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
-    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    // No error code, so the friendly generic text is shown, not the raw message.
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Something went wrong. Please try again.')
-    expect(alert).not.toHaveTextContent('Cannot remove')
-  })
-
-  it('shows the NOT_FOUND sentence when the milestone was already removed elsewhere', async () => {
-    const user = userEvent.setup()
-    const mutation = {
-      request: {
-        query: G.RemoveMilestoneDocument,
-        variables: { personId: PERSON_ID, milestoneId: 'ms-baptized' },
-      } as MockedResponse['request'],
-      result: { errors: [new GraphQLError('Not found', { extensions: { code: 'NOT_FOUND' } })] },
-    }
-    renderPage(person({ milestones: [recorded('mp-row-1', MILESTONE_TYPES[0])] }), { mutation })
-    await user.click(await screen.findByRole('button', { name: 'Remove Baptized' }))
-    await user.click(screen.getByRole('button', { name: 'Yes, remove' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This was changed or removed by someone else.',
-    )
   })
 })
 

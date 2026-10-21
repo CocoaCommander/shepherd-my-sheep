@@ -204,7 +204,7 @@ describe('Person page status dropdown', () => {
   it('works for a person with no milestones, burdens, comments, contacts, and one shepherd', async () => {
     renderPage(person())
     await ready()
-    expect(screen.getByText('No milestones yet.')).toBeInTheDocument()
+    expect(screen.getByText('0 of 4')).toBeInTheDocument()
     expect(screen.getByText('No prayer burdens yet.')).toBeInTheDocument()
     expect(screen.getByText('No notes yet.')).toBeInTheDocument()
     expect(select()).toHaveDisplayValue('Status: Active')

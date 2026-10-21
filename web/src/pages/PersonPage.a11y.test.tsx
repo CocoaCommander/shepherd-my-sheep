@@ -43,6 +43,13 @@ function person(overrides: Record<string, unknown> = {}) {
   }
 }
 
+const TYPES = [
+  ['ms-baptised', 'baptised'],
+  ['ms-group', 'joined small group'],
+  ['ms-serving', 'serving'],
+  ['ms-leading', 'leading'],
+].map(([id, name]) => ({ __typename: 'Milestone', id, name, description: name }))
+
 async function violations(p: object) {
   const mocks: MockedResponse[] = [
     {
@@ -51,7 +58,7 @@ async function violations(p: object) {
     },
     ...[
       { request: { query: G.MeDocument }, result: { data: { me: ME } } },
-      { request: { query: G.MilestonesDocument }, result: { data: { milestones: [] } } },
+      { request: { query: G.MilestonesDocument }, result: { data: { milestones: TYPES } } },
     ].map((m) => ({ ...m, maxUsageCount: Number.POSITIVE_INFINITY })),
   ]
   const { container } = render(
@@ -91,5 +98,20 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
         person({ contactState: G.ContactState.Overdue, contactDueAt: at(-3 * DAY) }),
       ),
     ).toEqual([])
+  })
+
+  it('with some milestones recorded and some not', async () => {
+    const milestones = [
+      { id: 'mp1', type: TYPES[0], dateAchieved: '2021-10-14', notes: 'At the lake' },
+      { id: 'mp2', type: TYPES[3], dateAchieved: null, notes: null },
+    ].map((m) => ({
+      __typename: 'MilestonePerson',
+      id: m.id,
+      dateAchieved: m.dateAchieved,
+      notes: m.notes,
+      milestone: { __typename: 'Milestone', id: m.type.id, name: m.type.name },
+      recordedBy: { __typename: 'User', id: ME.id, name: ME.name },
+    }))
+    expect(await violations(person({ milestones }))).toEqual([])
   })
 })

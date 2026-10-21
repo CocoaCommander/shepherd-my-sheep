@@ -42,9 +42,14 @@ const MILESTONE_LABELS: Record<string, (typeof MILESTONES)[number]> = {
  */
 export function milestoneLabels(ids: readonly string[], names: ReadonlyMap<string, string>) {
   return ids.flatMap((id) => {
-    const label = MILESTONE_LABELS[names.get(id) ?? '']
+    const label = milestoneLabel(names.get(id) ?? '')
     return label ? [label] : []
   })
+}
+
+/** An API milestone name → its step in MILESTONES, or undefined for any other milestone. */
+export function milestoneLabel(name: string): (typeof MILESTONES)[number] | undefined {
+  return Object.hasOwn(MILESTONE_LABELS, name) ? MILESTONE_LABELS[name] : undefined
 }
 
 /**
