@@ -2,8 +2,9 @@
 
 ## 2026-10-21 — Housekeeping
 
-- **Housekeeping** (base `main`) — the five Housekeeping todo items in
-  one PR.
+- **#77 Housekeeping** (base `main`) — four of the five Housekeeping
+  todo items in one PR. Removing the old worktrees is still open (the
+  session wasn't allowed to delete them).
   - `web/vite.config.ts` reads `API_PORT` from the repo-root `.env` (or
     the shell) for the `/graphql` proxy, with no fallback. Only the dev
     server needs it: `vitest` and `vite build` still run without a `.env`.
@@ -23,6 +24,21 @@
 ### Moved from the todo list
 
 Completed items as they stood in `todo.md` on 2026-10-21, by section.
+
+#### Housekeeping
+
+- **Vite dev proxy ignores `API_PORT`.** `web/vite.config.ts` proxies
+  `/graphql` to a hardcoded `http://localhost:8080`, so changing `API_PORT`
+  in `.env` breaks the web app in dev. Read `API_PORT` from `.env` (no
+  fallback) the way the Makefile does. (#77)
+- Regenerate `docs/diagrams/schema.svg` from `schema.mmd`. The PNG
+  shows `comment.contact_log_id` (V004); the SVG doesn't yet. (#77)
+- **Clean up the todo list.** Move completed items from
+  `personal_notes/todo.md` into `personal_notes/work_log.md`, so the todo
+  list only holds open work. (#77)
+- **Skill for running a plan.** Make a skill that takes a plan file
+  path, reads the plan, then starts its next unfinished step (one stacked
+  PR per step). (#77)
 
 #### New business rule: contact cadence
 

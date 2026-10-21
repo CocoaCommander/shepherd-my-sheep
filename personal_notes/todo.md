@@ -128,15 +128,3 @@ gap check).
   (auth-middleware, claude-rules-setup, docker-config, implement-security,
   multi-agent-setup). Leave `design-notes` alone: it is locked, probably by
   an active session.
-- [ ] **Vite dev proxy ignores `API_PORT`.** `web/vite.config.ts` proxies
-  `/graphql` to a hardcoded `http://localhost:8080`, so changing `API_PORT`
-  in `.env` breaks the web app in dev. Read `API_PORT` from `.env` (no
-  fallback) the way the Makefile does.
-- [ ] Regenerate `docs/diagrams/schema.svg` from `schema.mmd`. The PNG
-  shows `comment.contact_log_id` (V004); the SVG doesn't yet.
-- [ ] **Clean up the todo list.** Move completed items from
-  `personal_notes/todo.md` into `personal_notes/work_log.md`, so the todo
-  list only holds open work.
-- [ ] **Skill for running a plan.** Make a skill that takes a plan file
-  path, reads the plan, then starts its next unfinished step (one stacked
-  PR per step).
