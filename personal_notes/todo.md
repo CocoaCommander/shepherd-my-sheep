@@ -45,8 +45,8 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [x] Header card with a contact-status banner (on track / due / overdue) and a prominent "Log contact" button that opens the Log contact dialog. Replaces today's "Contacted today" link in the details card. (#40)
     - [x] Progress bar against the 7-day or 72-hour goal. `Person.contactClockStart` (#47) now gives the start; the window is `contactDueAt - contactClockStart`, as Home's meter uses it (#48). (#71)
   - [x] Milestones as a four-step journey (baptised, small group, serving, leading) showing when and any note; unrecorded steps get a "Record" button. (#73)
-  - [ ] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list.
-  - [ ] Notes: standalone notes with an add-note box (comments with no prayer burden).
+  - [x] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list. (#74)
+  - [x] Notes: standalone notes with an add-note box (comments with no prayer burden). (#74)
   - [ ] Sidebar (web) or stacked sections (mWeb): details, shepherds (add / remove, "You" and co-shepherd labels), contact rule reminder, delete person.
   - [x] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19). (#72)
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
