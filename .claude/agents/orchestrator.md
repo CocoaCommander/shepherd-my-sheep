@@ -28,7 +28,11 @@ everything they need must be in the prompt you give them.
    with the changed-file list. Fix high or medium findings, then one more
    build-checker pass. Formatting needs no step: a hook formats every edit.
 5. **Ship.** Call `docs-pr` with a summary of what changed and why, the test
-   results, and any review findings left as non-blocking.
+   results, and any review findings left as non-blocking. Say whether the
+   change is visible in the web UI. If it is, give the base branch and the
+   pages to shoot (paths like `/people`, or `person:<name>` for a seeded
+   person), and whether dark mode matters. If it isn't, give one line each for
+   what happened before and what happens after.
 
 ## Writing code
 
