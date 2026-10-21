@@ -1,5 +1,5 @@
 import { MockedProvider, type MockedResponse } from '@apollo/client/testing'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -134,7 +134,6 @@ describe('edit person form', () => {
     renderPage(person({ status: ST_AWAY, isActive: false }))
     await openForm(user)
     expect(screen.getByLabelText('Name')).toHaveValue('Sam Sheep')
-    expect(await screen.findByLabelText('Status')).toHaveValue('st-2')
     expect(screen.getByLabelText(/^Age/)).toHaveValue(30)
     expect(screen.getByLabelText(/^Year met/)).toHaveValue(2020)
     expect(screen.getByLabelText('Active')).not.toBeChecked()
@@ -148,6 +147,16 @@ describe('edit person form', () => {
     expect(screen.getByLabelText('Name')).toBeRequired()
     expect(screen.getByLabelText(/^Age/)).toBeRequired()
     expect(screen.getByLabelText(/^Year met/)).toBeRequired()
+  })
+
+  it('has no status field: the Person page dropdown changes status', async () => {
+    const user = userEvent.setup()
+    renderPage(person())
+    await openForm(user)
+    const form = screen.getByRole('button', { name: 'Save' }).closest('form') as HTMLElement
+    expect(within(form).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(form).queryByLabelText('Status')).not.toBeInTheDocument()
+    expect(within(form).queryByText('Status')).not.toBeInTheDocument()
   })
 
   it('has no last contact field: contacts are logged, not edited', async () => {
@@ -183,18 +192,14 @@ describe('edit person form', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
   })
 
-  it('trims the name and sends status and active changes', async () => {
+  it('trims the name and sends name and active changes', async () => {
     const user = userEvent.setup()
-    const { mock, result } = updateMock(
-      { name: 'Sam Lamb', statusId: 'st-2', isActive: false },
-      { status: ST_AWAY },
-    )
+    const { mock, result } = updateMock({ name: 'Sam Lamb', isActive: false })
     renderPage(person(), [mock])
     await openForm(user)
     const name = screen.getByLabelText('Name')
     await user.clear(name)
     await user.type(name, '  Sam Lamb  ')
-    await user.selectOptions(await screen.findByLabelText('Status'), 'Away')
     await user.click(screen.getByLabelText('Active'))
     await user.click(screen.getByRole('button', { name: 'Save' }))
 

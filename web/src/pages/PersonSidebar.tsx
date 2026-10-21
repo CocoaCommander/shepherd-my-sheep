@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApolloClient } from '@apollo/client'
 import { formatDateTime } from '../format'
@@ -6,7 +6,6 @@ import {
   ContactAlertsDocument,
   MyPeopleDocument,
   useDeletePersonMutation,
-  useStatusesQuery,
   useUnassignPersonMutation,
   useUpdatePersonMutation,
   type PersonQuery,
@@ -35,7 +34,16 @@ function contactRule(status: string): string {
  * The Person page's sidebar (web) or lower sections (phones): facts, the contact rule,
  * shepherds and Delete. Phones show them in a different order, set by the stylesheet.
  */
-export function PersonSidebar({ person, meId }: { person: Person; meId: string | undefined }) {
+export function PersonSidebar({
+  person,
+  meId,
+  statusSelect,
+}: {
+  person: Person
+  meId: string | undefined
+  /** The status dropdown, on phones only (the web has it in the header card). */
+  statusSelect?: ReactNode
+}) {
   const isNewContact = person.status.name === 'new contact'
 
   return (
@@ -53,6 +61,7 @@ export function PersonSidebar({ person, meId }: { person: Person; meId: string |
           />
           <Fact label="Active" value={person.isActive ? 'Yes' : 'No'} />
         </dl>
+        {statusSelect}
       </section>
       <section className={`card stack ${styles.shepherds}`}>
         <Shepherds person={person} meId={meId} />
@@ -210,13 +219,12 @@ const toText = (value: number | string | null | undefined) =>
   value === null || value === undefined ? '' : String(value)
 const toNumber = (value: string) => (value === '' ? null : Number(value))
 
+/** Name, age, year met and the active flag. Status has its own dropdown (useStatusMove). */
 export function EditPersonForm({ person, onDone }: { person: Person; onDone: () => void }) {
-  const { data: statusData } = useStatusesQuery()
   // The result carries PersonSummary, which the cache merges into this person.
   const [updatePerson, { loading, error }] = useUpdatePersonMutation(reloadMyPeople)
 
   const [name, setName] = useState(person.name)
-  const [statusId, setStatusId] = useState(person.status.id)
   const [age, setAge] = useState(toText(person.age))
   const [yearMet, setYearMet] = useState(toText(person.yearMet))
   const [isActive, setIsActive] = useState(person.isActive)
@@ -225,7 +233,6 @@ export function EditPersonForm({ person, onDone }: { person: Person; onDone: () 
   function changes(): UpdatePersonInput {
     const input: UpdatePersonInput = {}
     if (name.trim() !== person.name) input.name = name.trim()
-    if (statusId !== person.status.id) input.statusId = statusId
     if (toNumber(age) !== person.age) input.age = toNumber(age)
     if (toNumber(yearMet) !== person.yearMet) input.yearMet = toNumber(yearMet)
     if (isActive !== person.isActive) input.isActive = isActive
@@ -254,16 +261,6 @@ export function EditPersonForm({ person, onDone }: { person: Person; onDone: () 
       <label>
         Name
         <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
-      </label>
-      <label>
-        Status
-        <select value={statusId} onChange={(e) => setStatusId(e.target.value)} required>
-          {(statusData?.statuses ?? [person.status]).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
       </label>
       <div className="row">
         <label>

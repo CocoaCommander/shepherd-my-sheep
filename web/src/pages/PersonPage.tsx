@@ -16,6 +16,7 @@ import {
   useRemoveMilestoneMutation,
   type PersonQuery,
 } from '../generated/graphql'
+import { NARROW, useMediaQuery } from '../useMediaQuery'
 import { ActionButton } from './ActionButton'
 import { useLogContactToast } from './contactToast'
 import { ErrorMessage } from './ErrorMessage'
@@ -24,7 +25,9 @@ import { LogContactDialog } from './LogContactDialog'
 import { PersonHeaderCard } from './PersonHeaderCard'
 import styles from './PersonPage.module.css'
 import { PersonSidebar } from './PersonSidebar'
+import { PersonStatusSelect } from './PersonStatusSelect'
 import { sharedWithShepherds } from './sharing'
+import { useStatusMove } from './useStatusMove'
 
 export function PersonPage() {
   const { id = '' } = useParams()
@@ -84,7 +87,23 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
   const navigate = useNavigate()
   const askedToLog = Boolean((location.state as PersonLocationState)?.logContact)
   const [logging, setLogging] = useState(askedToLog)
-  const { showLogged, toastElement } = useLogContactToast({ floating: true })
+  const narrow = useMediaQuery(NARROW)
+  const { show, showLogged, toastElement } = useLogContactToast({ floating: true })
+  // New contact → Active opens Log contact; saving it does the move, Cancel leaves the status.
+  const { move, canMove } = useStatusMove<Person>({
+    show,
+    narrow,
+    onLogContact: () => setLogging(true),
+  })
+  // In the header card on the web, in Details on phones; only one is in the DOM.
+  const statusSelect = (label?: string) => (
+    <PersonStatusSelect
+      person={person}
+      disabled={!canMove}
+      onMove={(to) => move(person, to)}
+      label={label}
+    />
+  )
   const notesFieldId = useId()
 
   // Clear the request, so Back or a reload doesn't open the dialog again.
@@ -106,6 +125,7 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
         person={person}
         meId={meId}
         notesFieldId={notesFieldId}
+        statusSelect={narrow ? undefined : statusSelect()}
         onLogContact={() => setLogging(true)}
       />
       {/* LogContact returns the person's activity, so the cache updates this page. */}
@@ -232,7 +252,11 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
             />
           </section>
         </div>
-        <PersonSidebar person={person} meId={meId} />
+        <PersonSidebar
+          person={person}
+          meId={meId}
+          statusSelect={narrow ? statusSelect('Status') : undefined}
+        />
       </div>
     </>
   )

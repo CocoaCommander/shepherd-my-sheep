@@ -52,13 +52,15 @@ function Subtitle({ person, meId, now }: { person: Person; meId: string | undefi
 }
 
 /**
- * The top of the Person page: who they are, where they stand against the contact rule, and
- * Edit details. On phones the actions move under the contact panel and gain "Add note".
+ * The top of the Person page: who they are, where they stand against the contact rule, Edit
+ * details and the status dropdown. On phones the actions move under the contact panel and
+ * gain "Add note"; the dropdown moves to Details.
  */
 export function PersonHeaderCard({
   person,
   meId,
   notesFieldId,
+  statusSelect,
   onLogContact,
   now = new Date(),
 }: {
@@ -66,6 +68,8 @@ export function PersonHeaderCard({
   meId: string | undefined
   /** The Notes box, which phones' "Add note" moves focus to. */
   notesFieldId: string
+  /** The status dropdown, on the web only (phones have it in Details). */
+  statusSelect?: ReactNode
   onLogContact: () => void
   now?: Date
 }) {
@@ -98,6 +102,7 @@ export function PersonHeaderCard({
         <Button variant="secondary" onClick={() => setEditing(true)} disabled={editing}>
           Edit details
         </Button>
+        {statusSelect}
       </div>
 
       <div className={styles.contact}>
