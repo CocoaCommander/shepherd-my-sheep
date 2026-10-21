@@ -20,6 +20,13 @@
     open work (ticked parents stay where they still have open children).
     The Person page block was left alone because the open stack #71–#75
     ticks it; move it here once that merges.
+- **#81 Prayer list: Recently released comments toggle** (draft, base
+  `main`) — each released burden gets a "Show comments (N)" / "Hide
+  comments" text button, collapsed by default, opening the same
+  read-only thread as the list rows (`Thread`). No button when a burden
+  has no comments. Also renames the sort label "Longest standing" /
+  "Longest" to "Oldest". Supersedes the 2026-10-20 "no buttons in the
+  panel" decision; names stay plain text.
 
 ### Moved from the todo list
 
@@ -76,6 +83,8 @@ Completed items as they stood in `todo.md` on 2026-10-21, by section.
   - Add prayer burden: pick the person, then write it (the existing form lives on the person page). (#58)
   - Decided 2026-10-16: no visibility setting between co-shepherds, even though burden text can be sensitive (one seed comment says "keep this quiet"). Every shepherd of a person sees all of their prayer burdens.
   - Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes. (#58)
+  - **Expand / collapse comments on recently released prayers.** In the "Recently released" panel (`web/src/pages/PrayerListPage.tsx`), let each burden's comments expand and collapse; collapsed by default. (#81)
+  - Change the sort label "Longest standing" (mWeb "Longest") to "Oldest" in `web/src/pages/PrayerListPage.tsx`, and update `PrayerListPage.test.tsx` to match. (#81)
 - **Sign in / register**:
   - Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
 - **"Log contact" modal** (#39, #42):

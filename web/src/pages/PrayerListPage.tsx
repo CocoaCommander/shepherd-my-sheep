@@ -223,15 +223,7 @@ export function PrayerListPage() {
                 value={sort}
                 onChange={setSort}
                 options={[
-                  {
-                    value: 'standing',
-                    // mWeb shortens it to "Longest".
-                    label: (
-                      <>
-                        Longest <span className={styles.long}>standing</span>
-                      </>
-                    ),
-                  },
+                  { value: 'standing', label: 'Oldest' },
                   { value: 'newest', label: 'Newest' },
                   { value: 'person', label: 'By person' },
                 ]}
@@ -299,6 +291,7 @@ export function PrayerListPage() {
                 <aside className={styles.aside}>
                   <RecentlyReleased
                     burdens={recentlyReleased}
+                    meId={me?.me.id}
                     now={now}
                     hideDetails={hideDetails}
                   />
@@ -424,13 +417,15 @@ function BurdenRow({
   )
 }
 
-/** Released burdens, as encouragement. Read-only: no links or actions. */
+/** Released burdens, as encouragement. No links or actions; only each burden's comments open. */
 function RecentlyReleased({
   burdens,
+  meId,
   now,
   hideDetails,
 }: {
   burdens: readonly Burden[]
+  meId?: string
   now: Date
   hideDetails: boolean
 }) {
@@ -440,27 +435,65 @@ function RecentlyReleased({
         Recently released
       </h2>
       <ul className={styles.releasedList}>
-        {burdens.map((b) => {
-          // Newest first, and a released burden may have none (business rule 4).
-          const latest = b.comments[0]
-          return (
-            <li key={b.id} className={styles.releasedItem}>
-              <p className={styles.releasedMeta}>
-                {b.person.name}
-                {b.releasedDate && ` · released ${timeAgo(b.releasedDate, now)}`}
-              </p>
-              {hideDetails ? (
-                <p className={`${styles.releasedText} ${styles.muted}`}>Details hidden</p>
-              ) : (
-                <>
-                  <p className={styles.releasedText}>{b.content}</p>
-                  {latest && <p className={styles.releasedComment}>{latest.content}</p>}
-                </>
-              )}
-            </li>
-          )
-        })}
+        {burdens.map((b) => (
+          <ReleasedItem key={b.id} burden={b} meId={meId} now={now} hideDetails={hideDetails} />
+        ))}
       </ul>
     </section>
+  )
+}
+
+/** One released burden; its comments are collapsed until asked for. */
+function ReleasedItem({
+  burden,
+  meId,
+  now,
+  hideDetails,
+}: {
+  burden: Burden
+  meId?: string
+  now: Date
+  hideDetails: boolean
+}) {
+  const { person, comments } = burden
+  const threadId = `released-${burden.id}-thread`
+  const [open, setOpen] = useState(false)
+
+  return (
+    <li className={styles.releasedItem}>
+      <p className={styles.releasedMeta}>
+        {person.name}
+        {burden.releasedDate && ` · released ${timeAgo(burden.releasedDate, now)}`}
+      </p>
+      {hideDetails ? (
+        <p className={`${styles.releasedText} ${styles.muted}`}>Details hidden</p>
+      ) : (
+        <p className={styles.releasedText}>{burden.content}</p>
+      )}
+      {/* A released burden may have no comments (business rule 4): nothing to open. */}
+      {comments.length > 0 && (
+        <Button
+          variant="text"
+          className={styles.releasedToggle}
+          aria-expanded={open}
+          aria-controls={open ? threadId : undefined}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {/* The name starts with the visible text, so voice control users can say it. */}
+          {open ? 'Hide comments' : `Show comments (${comments.length})`}{' '}
+          <span className={styles.srOnly}>on released prayer burden for {person.name}</span>
+        </Button>
+      )}
+      {open && (
+        <Thread
+          id={threadId}
+          className={styles.releasedThread}
+          comments={comments}
+          meId={meId}
+          now={now}
+          hideDetails={hideDetails}
+        />
+      )}
+    </li>
   )
 }
