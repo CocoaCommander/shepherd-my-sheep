@@ -1,6 +1,6 @@
 ---
 name: run-plan
-description: Takes a plan file path, reads the plan, and starts its next unfinished step as one stacked PR. Use when the user says "run the plan", "next step", "carry on with the plan", or gives a plan file and asks to continue it.
+description: Takes a plan file path, reads the plan, and starts its next unfinished step as one stacked PR. Use when the user says "run the plan", "carry on with the plan", "do the next step of the plan", or gives a plan file and asks to continue it.
 argument-hint: <plan file path>
 ---
 Run the next step of a stacked-PR plan. The plan file is the source of truth:
