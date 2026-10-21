@@ -24,7 +24,7 @@ type Prayer = Person['prayers'][number]
 const SHOWN = 3
 
 /** "You" for the caller, "Someone" for a deleted user; lowercase for mid-sentence. */
-function prayerAuthor(
+export function prayerAuthor(
   prayer: { prayedBy?: { id: string; name: string } | null },
   meId: string | undefined,
   { lower = false } = {},

@@ -185,6 +185,28 @@
   flex: none;
   margin-top: 3px;
 }
+/* "Last prayed for Maria 3 days ago by Grace Lin", with Undo just after recording. */
+.prayed {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--sms-ink-2);
+}
+.prayedIcon {
+  flex: none;
+  color: var(--sms-brand);
+}
+/* A 44px target that doesn't push the line apart. */
+.prayedUndo {
+  min-height: var(--sms-size-touch);
+  margin: -10px 0;
+  padding: 0 var(--sms-space-8);
+  text-decoration: underline;
+}
+
 .actions {
   grid-area: actions;
   display: flex;

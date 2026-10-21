@@ -177,6 +177,8 @@ const lineText = (text: string) => (_: string, el: Element | null) =>
 const commentName = (name: string, count = '') =>
   new RegExp(`^Comment\\s*on prayer burden for ${name}${count ? ` \\(${count}\\)` : ''}$`)
 const row = (content: string) => screen.getByText(content).closest('article') as HTMLElement
+// The floating toast; the prayed announcement is a second status region, rendered after it.
+const findToast = async () => (await screen.findAllByRole('status'))[0]
 
 function releaseMutation(id: string, b: object, opts: { error?: string; delay?: number } = {}) {
   return {
@@ -421,7 +423,7 @@ describe('Prayer list page release', () => {
     // Gone before the mutation resolves.
     expect(screen.queryByText('Ada burden')).not.toBeInTheDocument()
 
-    const toast = await screen.findByRole('status')
+    const toast = await findToast()
     await waitFor(() => expect(toast).toHaveTextContent('Released prayer burden for Ada'))
     await waitFor(() => expect(listCalls).toHaveBeenCalledTimes(2))
     expect(screen.queryByText('Ada burden')).not.toBeInTheDocument()
@@ -465,7 +467,7 @@ describe('Prayer list page release', () => {
     })
     await screen.findByText('Ada burden')
     await user.click(screen.getByRole('button', { name: 'Release prayer burden for Ada Adams' }))
-    const toast = await screen.findByRole('status')
+    const toast = await findToast()
     await waitFor(() => expect(listCalls).toHaveBeenCalledTimes(2))
     const before = listCalls.mock.calls.length
     await user.click(within(toast).getByRole('button', { name: 'Undo' }))
@@ -1114,7 +1116,7 @@ describe('Prayer list page add prayer burden', () => {
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Add prayer burden' })).toBeNull(),
     )
-    const toast = await screen.findByRole('status')
+    const toast = await findToast()
     expect(toast).toHaveTextContent('Added prayer burden for Ada')
     expect(within(toast).queryByRole('button', { name: 'Undo' })).toBeNull()
   })
@@ -1156,6 +1158,262 @@ describe('Prayer list page comment form help', () => {
     const box = within(row('Ada burden')).getByRole('textbox', COMMENT_BOX)
     expect(box).toHaveAttribute('aria-describedby')
     expect(box).toHaveAccessibleDescription(HELP_ADA)
+  })
+})
+
+describe('Prayer list page prayed', () => {
+  const prayerLog = (id: string, prayedAt: string, by: object | null) => ({
+    __typename: 'PrayerLog',
+    id,
+    prayedAt,
+    createdAt: prayedAt,
+    prayedBy: by,
+  })
+  const ME_REF = { __typename: 'User', id: ME.id, name: ME.name }
+  const ADA_BY_ME = prayerLog('pr-ada', ago(1), ME_REF)
+  const ZED_BY_OTHER = prayerLog('pr-zed', ago(3), { ...OTHER })
+  // What myPeople carries: PersonSummary's lastPrayer has no createdAt.
+  const summaryOf = (p: ReturnType<typeof prayerLog>) => ({
+    __typename: p.__typename,
+    id: p.id,
+    prayedAt: p.prayedAt,
+    prayedBy: p.prayedBy,
+  })
+
+  /** A RecordPrayer / DeletePrayer result: the person with PersonSummary and PersonActivity. */
+  const personResult = (person: object, prayers: ReturnType<typeof prayerLog>[]) => ({
+    ...person,
+    lastPrayer: prayers[0] ? summaryOf(prayers[0]) : null,
+    prayerBurdens: [],
+    comments: [],
+    contacts: [],
+    prayers,
+  })
+
+  function recordMock(person: object, prayers: ReturnType<typeof prayerLog>[], delay?: number) {
+    const result = vi.fn(() => ({ data: { recordPrayer: personResult(person, prayers) } }))
+    const { id } = person as { id: string }
+    const mock = {
+      request: { query: G.RecordPrayerDocument, variables: { personId: id } },
+      result,
+      delay,
+    } as MockedResponse
+    return { mock, result }
+  }
+
+  function deleteMock(id: string, person: object, prayers: ReturnType<typeof prayerLog>[]) {
+    const result = vi.fn(() => ({ data: { deletePrayer: personResult(person, prayers) } }))
+    return {
+      mock: { request: { query: G.DeletePrayerDocument, variables: { id } }, result },
+      result,
+    }
+  }
+
+  // jsdom drops the space before the screen-reader-only span, so tolerate its absence.
+  const prayedButton = (scope: HTMLElement, name: string) =>
+    within(scope).getByRole('button', { name: new RegExp(`^Prayed ?for ${name}$`) })
+  const undoButton = (scope: HTMLElement, name: string) =>
+    within(scope).getByRole('button', { name: new RegExp(`^Undo ?prayer for ${name}$`) })
+  const announced = () => screen.getAllByRole('status')[1]
+
+  const PEOPLE = [
+    { ...P_ADA, lastPrayer: summaryOf(ADA_BY_ME) },
+    { ...P_ZED, lastPrayer: summaryOf(ZED_BY_OTHER) },
+  ]
+  const LISTS = [[B_ZED_NEW, B_ZED_OLD, B_ADA]]
+
+  afterEach(() => {
+    vi.useRealTimers()
+    localStorage.clear()
+  })
+
+  it('puts Prayed first in each row, named for the person', async () => {
+    renderPage({ lists: LISTS, people: PEOPLE })
+    await screen.findByText('Ada burden')
+    const buttons = within(row('Ada burden')).getAllByRole('button')
+    expect(buttons[0]).toBe(prayedButton(row('Ada burden'), 'Ada Adams'))
+    expect(buttons[0]).toHaveTextContent(/^Prayed/)
+    expect(prayedButton(row('Zed old burden'), 'Zed Zimmer')).toBeEnabled()
+  })
+
+  it('shows each person’s last prayer on every one of their rows, "you" for the caller', async () => {
+    renderPage({ lists: LISTS, people: PEOPLE })
+    await screen.findByText('Ada burden')
+    for (const content of ['Zed new burden', 'Zed old burden']) {
+      expect(
+        within(row(content)).getByText(lineText('Last prayed for Zed 3 days ago by Olivia Other')),
+      ).toBeInTheDocument()
+    }
+    expect(
+      within(row('Ada burden')).getByText(lineText('Last prayed for Ada yesterday by you')),
+    ).toBeInTheDocument()
+  })
+
+  it('says "Not prayed for yet." for a person with no prayers, and "someone" for a deleted user', async () => {
+    renderPage({
+      lists: LISTS,
+      people: [
+        { ...P_ADA, lastPrayer: null },
+        { ...P_ZED, lastPrayer: summaryOf(prayerLog('pr-gone', ago(10), null)) },
+      ],
+    })
+    await screen.findByText('Ada burden')
+    expect(within(row('Ada burden')).getByText('Not prayed for yet.')).toBeInTheDocument()
+    expect(
+      within(row('Zed old burden')).getByText(
+        lineText('Last prayed for Zed 1 week ago by someone'),
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the line under Hide details', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: LISTS, people: PEOPLE })
+    await screen.findByText('Ada burden')
+    await user.click(screen.getByRole('switch', { name: 'Hide details' }))
+    expect(screen.queryByText('Ada burden')).not.toBeInTheDocument()
+    expect(screen.getByText(lineText('Last prayed for Ada yesterday by you'))).toBeInTheDocument()
+  })
+
+  it('shows no Prayed buttons with zero people (business rule 1)', async () => {
+    renderPage({ people: [] })
+    await screen.findByText('No one is assigned to you yet')
+    expect(screen.queryByRole('button', { name: /^Prayed/ })).toBeNull()
+  })
+
+  it('records now, shows "Prayed for … today." with Undo on every row of that person, and announces it once', async () => {
+    const user = userEvent.setup()
+    const created = prayerLog('pr-new', new Date().toISOString(), ME_REF)
+    const record = recordMock(P_ZED, [created, ZED_BY_OTHER])
+    renderPage({ lists: LISTS, people: PEOPLE, extra: [record.mock] })
+    await screen.findByText('Ada burden')
+    await user.click(prayedButton(row('Zed old burden'), 'Zed Zimmer'))
+
+    await waitFor(() => expect(announced()).toHaveTextContent('Prayed for Zed today.'))
+    expect(record.result).toHaveBeenCalledTimes(1)
+    for (const content of ['Zed new burden', 'Zed old burden']) {
+      expect(within(row(content)).getByText('Prayed for Zed today.')).toBeInTheDocument()
+      expect(undoButton(row(content), 'Zed Zimmer')).toBeEnabled()
+    }
+    // Ada's row is untouched, and the floating toast stays empty.
+    expect(
+      within(row('Ada burden')).getByText(lineText('Last prayed for Ada yesterday by you')),
+    ).toBeInTheDocument()
+    expect(within(row('Ada burden')).queryByRole('button', { name: /^Undo/ })).toBeNull()
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('')
+  })
+
+  it('sends nothing more while the request is in flight', async () => {
+    const user = userEvent.setup()
+    const created = prayerLog('pr-new', new Date().toISOString(), ME_REF)
+    const record = recordMock(P_ADA, [created, ADA_BY_ME], 150)
+    renderPage({ lists: LISTS, people: PEOPLE, extra: [record.mock] })
+    await screen.findByText('Ada burden')
+    const button = prayedButton(row('Ada burden'), 'Ada Adams')
+    await user.click(button)
+    expect(button).toBeDisabled()
+    // Every row's Prayed waits, so a second tap anywhere can't make another record.
+    expect(prayedButton(row('Zed old burden'), 'Zed Zimmer')).toBeDisabled()
+    await user.click(button)
+    await waitFor(() => expect(button).toBeEnabled())
+    expect(record.result).toHaveBeenCalledTimes(1)
+  })
+
+  it('Undo deletes the prayer, restores the last line and returns focus to Prayed', async () => {
+    const user = userEvent.setup()
+    const created = prayerLog('pr-new', new Date().toISOString(), ME_REF)
+    const record = recordMock(P_ZED, [created, ZED_BY_OTHER])
+    const undo = deleteMock('pr-new', P_ZED, [ZED_BY_OTHER])
+    renderPage({ lists: LISTS, people: PEOPLE, extra: [record.mock, undo.mock] })
+    await screen.findByText('Ada burden')
+    await user.click(prayedButton(row('Zed old burden'), 'Zed Zimmer'))
+    await within(row('Zed new burden')).findByText('Prayed for Zed today.')
+
+    await user.click(undoButton(row('Zed new burden'), 'Zed Zimmer'))
+    await waitFor(() => expect(undo.result).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Undo ?prayer/ })).toBeNull())
+    expect(prayedButton(row('Zed new burden'), 'Zed Zimmer')).toHaveFocus()
+    for (const content of ['Zed new burden', 'Zed old burden']) {
+      expect(
+        within(row(content)).getByText(lineText('Last prayed for Zed 3 days ago by Olivia Other')),
+      ).toBeInTheDocument()
+    }
+  })
+
+  it('shows the friendly message when Undo fails, and keeps Undo', async () => {
+    const user = userEvent.setup()
+    const created = prayerLog('pr-new', new Date().toISOString(), ME_REF)
+    const record = recordMock(P_ADA, [created, ADA_BY_ME])
+    const undo = {
+      request: { query: G.DeletePrayerDocument, variables: { id: 'pr-new' } },
+      result: {
+        errors: [new GraphQLError('Prayer not found', { extensions: { code: 'NOT_FOUND' } })],
+      },
+    } as MockedResponse
+    renderPage({ lists: LISTS, people: PEOPLE, extra: [record.mock, undo] })
+    await screen.findByText('Ada burden')
+    await user.click(prayedButton(row('Ada burden'), 'Ada Adams'))
+    await user.click(await within(row('Ada burden')).findByRole('button', { name: /^Undo/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This was changed or removed by someone else.',
+    )
+    expect(undoButton(row('Ada burden'), 'Ada Adams')).toBeInTheDocument()
+  })
+
+  it('shows the friendly message when recording fails', async () => {
+    const user = userEvent.setup()
+    const failed = {
+      request: { query: G.RecordPrayerDocument, variables: { personId: 'p-ada' } },
+      result: { errors: [new GraphQLError('denied', { extensions: { code: 'INTERNAL' } })] },
+    } as MockedResponse
+    renderPage({ lists: LISTS, people: PEOPLE, extra: [failed] })
+    await screen.findByText('Ada burden')
+    await user.click(prayedButton(row('Ada burden'), 'Ada Adams'))
+    expect(await screen.findByRole('alert')).toHaveTextContent(FRIENDLY)
+    expect(
+      within(row('Ada burden')).getByText(lineText('Last prayed for Ada yesterday by you')),
+    ).toBeInTheDocument()
+  })
+
+  it('takes Undo away after 20 seconds, moving focus from it to Prayed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const created = prayerLog('pr-new', new Date().toISOString(), ME_REF)
+    const record = recordMock(P_ADA, [created, ADA_BY_ME])
+    renderPage({ lists: LISTS, people: PEOPLE, extra: [record.mock] })
+    await screen.findByText('Ada burden')
+    await user.click(prayedButton(row('Ada burden'), 'Ada Adams'))
+    const undo = await within(row('Ada burden')).findByRole('button', { name: /^Undo/ })
+    undo.focus()
+
+    await vi.advanceTimersByTimeAsync(19_000)
+    expect(undoButton(row('Ada burden'), 'Ada Adams')).toBeInTheDocument()
+    await vi.advanceTimersByTimeAsync(1_500)
+    await waitFor(() => expect(screen.queryByRole('button', { name: /^Undo/ })).toBeNull())
+    expect(prayedButton(row('Ada burden'), 'Ada Adams')).toHaveFocus()
+    expect(announced()).toHaveTextContent('')
+    // The record stays; the line now reads as the latest prayer.
+    expect(
+      within(row('Ada burden')).getByText(lineText('Last prayed for Ada today by you')),
+    ).toBeInTheDocument()
+  })
+
+  it('has no axe violations with lines and an Undo showing', async () => {
+    const user = userEvent.setup()
+    const created = prayerLog('pr-new', new Date().toISOString(), ME_REF)
+    const record = recordMock(P_ZED, [created, ZED_BY_OTHER])
+    const { container } = renderPage({ lists: LISTS, people: PEOPLE, extra: [record.mock] })
+    await screen.findByText('Ada burden')
+    await user.click(prayedButton(row('Zed old burden'), 'Zed Zimmer'))
+    await within(row('Zed old burden')).findByText('Prayed for Zed today.')
+    const results = await axe.run(container, {
+      runOnly: {
+        type: 'tag',
+        values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'],
+      },
+      rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+    })
+    expect(results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length})`)).toEqual([])
   })
 })
 
