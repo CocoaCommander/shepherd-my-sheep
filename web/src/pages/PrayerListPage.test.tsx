@@ -312,11 +312,11 @@ describe('Prayer list page rows', () => {
 })
 
 describe('Prayer list page sort and filter', () => {
-  it('defaults to longest standing', async () => {
+  it('defaults to oldest', async () => {
     renderPage({ lists: [[B_ZED_NEW, B_ADA, B_ZED_OLD]] })
     await screen.findByText('Ada burden')
     const sort = screen.getByRole('group', { name: 'Sort' })
-    expect(within(sort).getByRole('button', { name: /^Longest\s*standing$/ })).toHaveAttribute(
+    expect(within(sort).getByRole('button', { name: /^Oldest$/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -506,6 +506,23 @@ const B_RELEASED_BARE = {
   ...burden('r2', 'Bare released burden', ago(60), 'p-bare', 'Bo Bare'),
   releasedDate: ago(5),
 }
+
+const B_RELEASED_THREE = {
+  ...burden('r3', 'Three released burden', ago(60), 'p-r3', 'Rory Three', {
+    comments: [
+      comment('q3', 'Third release note', ago(1), { __typename: 'User', id: ME.id, name: ME.name }),
+      comment('q2', 'Second release note', ago(2), { ...OTHER }),
+      comment('q1', 'First release note', ago(3), { ...OTHER }),
+    ],
+  }),
+  releasedDate: ago(6),
+}
+
+/** The comments toggle of the released item for `person`. */
+const releasedToggle = (panel: HTMLElement, person: string, label: RegExp = /^(Show|Hide)/) =>
+  within(panel).getByRole('button', {
+    name: new RegExp(`${label.source}.*on released prayer burden for\\s*${person}$`),
+  })
 
 /** The Comment button of the only row for `person`. */
 const commentButton = (person: string) =>
@@ -789,6 +806,15 @@ describe('Prayer list page hide details', () => {
     expect(within(panel).queryByText('Released burden')).toBeNull()
     expect(within(panel).queryByText('Newest release note')).toBeNull()
     expect(panel).toHaveTextContent(/Rhea Released\s*·\s*released 3 days ago/)
+    const user = userEvent.setup()
+    const toggle = releasedToggle(panel, 'Rhea Released', /^Show comments \(2\)/)
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(panel).queryByText('Newest release note')).toBeNull()
+    expect(within(panel).queryByText('Older release note')).toBeNull()
+    expect(panel.textContent?.match(/Details hidden/g)).toHaveLength(3)
+    expect(panel).toHaveTextContent(/Olivia Other\s*·\s*4 days ago/)
+    expect(panel).toHaveTextContent(/Olivia Other\s*·\s*1 week ago/)
   })
 })
 
@@ -813,7 +839,7 @@ describe('Prayer list page recently released', () => {
     expect(screen.queryByRole('region', { name: 'Recently released' })).toBeNull()
   })
 
-  it('lists each release with person, time, burden and newest comment', async () => {
+  it('lists each release with person, time and burden, comments collapsed', async () => {
     renderPage({ lists: [[B_ADA]], released: [B_RELEASED, B_RELEASED_BARE] })
     const panel = await screen.findByRole('region', { name: 'Recently released' })
     expect(
@@ -821,17 +847,107 @@ describe('Prayer list page recently released', () => {
     ).toBeInTheDocument()
     expect(panel).toHaveTextContent(/Rhea Released\s*·\s*released 3 days ago/)
     expect(within(panel).getByText('Released burden')).toBeInTheDocument()
-    expect(within(panel).getByText('Newest release note')).toBeInTheDocument()
+    expect(within(panel).queryByText('Newest release note')).toBeNull()
     expect(within(panel).queryByText('Older release note')).toBeNull()
     expect(panel).toHaveTextContent(/Bo Bare\s*·\s*released 5 days ago/)
     expect(within(panel).getByText('Bare released burden')).toBeInTheDocument()
   })
 
-  it('has plain-text names and no buttons or links in the panel', async () => {
+  it('has plain-text names, no links and only comment toggles as buttons', async () => {
     renderPage({ lists: [[B_ADA]], released: [B_RELEASED, B_RELEASED_BARE] })
     const panel = await screen.findByRole('region', { name: 'Recently released' })
-    expect(within(panel).queryByRole('button')).toBeNull()
     expect(within(panel).queryByRole('link')).toBeNull()
+    const buttons = within(panel).getAllByRole('button')
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]).toHaveAccessibleName(
+      /^Show comments \(2\)\s*on released prayer burden for\s*Rhea Released$/,
+    )
+  })
+
+  it('toggles comments with aria-expanded and aria-controls', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA]], released: [B_RELEASED] })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    const toggle = releasedToggle(panel, 'Rhea Released')
+    expect(toggle).toHaveTextContent('Show comments (2)')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    const id = toggle.getAttribute('aria-controls')
+    if (id) expect(document.getElementById(id)).toBeNull()
+
+    await user.click(toggle)
+    expect(toggle).toHaveTextContent('Hide comments')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const thread = document.getElementById(toggle.getAttribute('aria-controls') as string)
+    expect(thread).not.toBeNull()
+    expect(within(thread as HTMLElement).getByText('Newest release note')).toBeInTheDocument()
+    expect(within(thread as HTMLElement).getByText('Older release note')).toBeInTheDocument()
+
+    await user.click(toggle)
+    expect(toggle).toHaveTextContent('Show comments (2)')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(panel).queryByText('Newest release note')).toBeNull()
+    expect(within(panel).queryByText('Older release note')).toBeNull()
+  })
+
+  it('shows author and time, oldest first, "You" for the signed-in user, read-only', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA]], released: [B_RELEASED, B_RELEASED_THREE] })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    await user.click(releasedToggle(panel, 'Rhea Released'))
+    expect(panel).toHaveTextContent(/Olivia Other\s*·\s*4 days ago/)
+    expect(panel).toHaveTextContent(/Olivia Other\s*·\s*1 week ago/)
+    const text = panel.textContent as string
+    expect(text.indexOf('Older release note')).toBeGreaterThan(-1)
+    expect(text.indexOf('Older release note')).toBeLessThan(text.indexOf('Newest release note'))
+
+    await user.click(releasedToggle(panel, 'Rory Three'))
+    expect(panel).toHaveTextContent(/You\s*·\s*1 day ago/)
+    expect(within(panel).queryByRole('textbox')).toBeNull()
+    expect(within(panel).queryByRole('link')).toBeNull()
+  })
+
+  it('shows only the latest two comments and reveals earlier ones on request', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA]], released: [B_RELEASED_THREE] })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    await user.click(releasedToggle(panel, 'Rory Three', /^Show comments \(3\)/))
+    const p = within(panel)
+    expect(p.getByText('Second release note')).toBeInTheDocument()
+    expect(p.getByText('Third release note')).toBeInTheDocument()
+    expect(p.queryByText('First release note')).toBeNull()
+    await user.click(p.getByRole('button', { name: 'Show 1 earlier comment' }))
+    expect(p.getByText('First release note')).toBeInTheDocument()
+    const text = panel.textContent as string
+    expect(text.indexOf('First release note')).toBeLessThan(text.indexOf('Second release note'))
+  })
+
+  it('has no earlier-comments button with two or fewer comments', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA]], released: [B_RELEASED] })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    await user.click(releasedToggle(panel, 'Rhea Released'))
+    expect(within(panel).queryByRole('button', { name: /earlier comment/ })).toBeNull()
+  })
+
+  it('toggles each released item independently', async () => {
+    const user = userEvent.setup()
+    renderPage({ lists: [[B_ADA]], released: [B_RELEASED, B_RELEASED_THREE] })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    const first = releasedToggle(panel, 'Rhea Released')
+    const second = releasedToggle(panel, 'Rory Three')
+    await user.click(first)
+    expect(first).toHaveAttribute('aria-expanded', 'true')
+    expect(second).toHaveAttribute('aria-expanded', 'false')
+    expect(within(panel).getByText('Newest release note')).toBeInTheDocument()
+    expect(within(panel).queryByText('Third release note')).toBeNull()
+  })
+
+  it('has no comments toggle or area for a released burden with zero comments', async () => {
+    renderPage({ lists: [[B_ADA]], released: [B_RELEASED_BARE] })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    expect(within(panel).getByText('Bare released burden')).toBeInTheDocument()
+    expect(within(panel).queryByRole('button')).toBeNull()
+    expect(panel).not.toHaveTextContent(/comments/i)
   })
 
   it('does not show released entries as active rows', async () => {
@@ -1072,6 +1188,22 @@ describe('Prayer list page accessibility', () => {
     await screen.findByRole('region', { name: 'Recently released' })
     await user.click(commentButton('Mia Many'))
     await user.click(screen.getByRole('button', { name: 'Show 3 earlier comments' }))
+    expect(summary(await audit(container))).toEqual([])
+
+    await user.click(screen.getByRole('switch', { name: 'Hide details' }))
+    expect(summary(await audit(container))).toEqual([])
+  })
+
+  it('has no axe violations with a released item expanded', async () => {
+    const user = userEvent.setup()
+    const { container } = renderPage({
+      lists: [[B_ADA]],
+      released: [B_RELEASED, B_RELEASED_THREE, B_RELEASED_BARE],
+    })
+    const panel = await screen.findByRole('region', { name: 'Recently released' })
+    await user.click(releasedToggle(panel, 'Rhea Released'))
+    await user.click(releasedToggle(panel, 'Rory Three'))
+    await user.click(within(panel).getByRole('button', { name: 'Show 1 earlier comment' }))
     expect(summary(await audit(container))).toEqual([])
 
     await user.click(screen.getByRole('switch', { name: 'Hide details' }))
