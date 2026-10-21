@@ -28,7 +28,7 @@ export function PersonPage() {
   return (
     <div className={styles.page}>
       <Header />
-      <main className={styles.main}>
+      <main className={styles.content}>
         <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
           <Link to="/people">My people</Link>
           {data?.person && (

@@ -7,7 +7,7 @@
   font-size: 14px;
   line-height: 1.5;
 }
-.main {
+.content {
   max-width: var(--sms-size-content);
   margin: 0 auto;
   padding: var(--sms-space-32) var(--sms-space-32) var(--sms-space-56);
@@ -41,7 +41,7 @@
 
 /* Phones: one column, the sidebar's sections after Notes. */
 @media (max-width: 719px) {
-  .main {
+  .content {
     padding: var(--sms-space-20) var(--sms-space-16) 40px;
   }
   .columns {
