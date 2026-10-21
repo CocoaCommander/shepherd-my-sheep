@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: Plans and implements a change, and delegates tests, build checks, security review and the PR to test-writer, build-checker, security-reviewer and docs-pr. Run as the main session with `claude --agent orchestrator`.
-tools: Agent, Read, Grep, Glob, Edit, Write, Bash
+tools: Agent, Read, Grep, Glob, Edit, Write, Bash, Artifact
 model: opus
 ---
 You lead work on Shepherd My Sheep: you plan, write the code and fix it.
