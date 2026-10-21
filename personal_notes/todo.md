@@ -48,7 +48,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [ ] Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list.
   - [ ] Notes: standalone notes with an add-note box (comments with no prayer burden).
   - [ ] Sidebar (web) or stacked sections (mWeb): details, shepherds (add / remove, "You" and co-shepherd labels), contact rule reminder, delete person.
-  - [ ] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19).
+  - [x] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19). (#72)
   - [ ] Confirm each destructive action (release, remove shepherd, delete person) before it happens. The mockup does not show the confirmations.
 - [x] **Prayer list**: all active burdens across the people you shepherd. (#56, #57, #58)
   - [x] Sort: longest standing (default), newest, or grouped by person. Filter by person. (#56)
