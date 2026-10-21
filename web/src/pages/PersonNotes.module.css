@@ -1,0 +1,37 @@
+/* The Person page's Notes section: the add box, then standalone comments newest first. */
+.srOnly {
+  composes: srOnly from '../components/shared.module.css';
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-8);
+}
+/* The label is for screen readers only, so drop the gap above the box. */
+.field {
+  gap: 0;
+}
+.submit {
+  align-self: flex-end;
+}
+.empty {
+  margin: 0;
+  color: var(--sms-muted);
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+}
+.badge {
+  display: inline-block;
+  margin-left: var(--sms-space-8);
+  padding: 0 var(--sms-space-8);
+  border-radius: var(--sms-radius-pill);
+  background: var(--sms-bg);
+  border: 1px solid var(--sms-border);
+  color: var(--sms-ink);
+}

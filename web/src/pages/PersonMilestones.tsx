@@ -12,6 +12,7 @@ import {
 import { ActionButton } from './ActionButton'
 import { milestoneLabel } from './peopleBoard'
 import styles from './PersonMilestones.module.css'
+import section from './PersonSection.module.css'
 import { refetchPerson } from './refetchPerson'
 
 type Person = NonNullable<PersonQuery['person']>
@@ -82,12 +83,12 @@ export function PersonMilestones({ person, narrow }: { person: Person; narrow: b
   )
 
   return (
-    <section className={styles.card} aria-labelledby={headingId}>
-      <div className={styles.head}>
-        <h2 id={headingId} className={styles.title}>
+    <section className={section.card} aria-labelledby={headingId}>
+      <div className={section.head}>
+        <h2 id={headingId} className={section.title}>
           Milestones
         </h2>
-        <span className={styles.count}>
+        <span className={section.count}>
           {done} of {MILESTONES.length}
         </span>
       </div>

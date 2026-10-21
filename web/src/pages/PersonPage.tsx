@@ -1,30 +1,18 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import type { ApolloError } from '@apollo/client'
 import { errorCode, friendlyMessage } from '../errors'
-import { formatDateTime, formatShortDate, isToday } from '../format'
-import {
-  useCreateCommentMutation,
-  useCreatePrayerBurdenMutation,
-  useDeleteCommentMutation,
-  useMeQuery,
-  usePersonQuery,
-  useReleasePrayerBurdenMutation,
-  type PersonQuery,
-} from '../generated/graphql'
+import { useMeQuery, usePersonQuery, type PersonQuery } from '../generated/graphql'
 import { NARROW, useMediaQuery } from '../useMediaQuery'
-import { ActionButton } from './ActionButton'
 import { useLogContactToast } from './contactToast'
-import { ErrorMessage } from './ErrorMessage'
 import { Header } from './Header'
 import { LogContactDialog } from './LogContactDialog'
 import { PersonHeaderCard } from './PersonHeaderCard'
 import { PersonMilestones } from './PersonMilestones'
+import { PersonNotes } from './PersonNotes'
 import styles from './PersonPage.module.css'
+import { PersonPrayerBurdens } from './PersonPrayerBurdens'
 import { PersonSidebar } from './PersonSidebar'
 import { PersonStatusSelect } from './PersonStatusSelect'
-import { refetchPerson } from './refetchPerson'
-import { sharedWithShepherds } from './sharing'
 import { useStatusMove } from './useStatusMove'
 
 export function PersonPage() {
@@ -67,7 +55,6 @@ export function PersonPage() {
 }
 
 type Person = NonNullable<PersonQuery['person']>
-type Comment = Person['comments'][number]
 
 /** Set by Add person's "Log contact now", to open the dialog on arrival. */
 type PersonLocationState = { logContact?: boolean } | null
@@ -101,14 +88,6 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
     if (askedToLog) navigate(location.pathname, { replace: true, state: null })
   }, [askedToLog, location.pathname, navigate])
 
-  const activeBurdens = person.prayerBurdens.filter((b) => !b.releasedDate)
-  const releasedBurdens = person.prayerBurdens.filter((b) => b.releasedDate)
-  const commentsFor = (burdenId: string) =>
-    person.comments.filter((c) => c.prayerBurden?.id === burdenId)
-  const notes = person.comments.filter((c) => !c.prayerBurden)
-  const contactedAt = (contactLogId: string) =>
-    person.contacts.find((c) => c.id === contactLogId)?.contactedAt
-
   return (
     <>
       <PersonHeaderCard
@@ -133,82 +112,8 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
       <div className={styles.columns}>
         <div className={styles.main}>
           <PersonMilestones person={person} narrow={narrow} />
-
-          <section className="card stack">
-            <h2>Prayer burdens</h2>
-            {person.prayerBurdens.length === 0 ? (
-              // Burdens are added over time (business rule 3).
-              <p className="empty">No prayer burdens yet.</p>
-            ) : (
-              <>
-                {activeBurdens.length > 0 && (
-                  <ul className="list">
-                    {activeBurdens.map((b) => (
-                      <Burden
-                        key={b.id}
-                        personId={person.id}
-                        burden={b}
-                        comments={commentsFor(b.id)}
-                        meId={meId}
-                      />
-                    ))}
-                  </ul>
-                )}
-                {releasedBurdens.length > 0 && (
-                  <details>
-                    <summary className="muted">Released ({releasedBurdens.length})</summary>
-                    <ul className="list">
-                      {releasedBurdens.map((b) => (
-                        <Burden
-                          key={b.id}
-                          personId={person.id}
-                          burden={b}
-                          comments={commentsFor(b.id)}
-                          meId={meId}
-                        />
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </>
-            )}
-            <AddPrayerBurdenForm personId={person.id} />
-            <p className="muted small">{sharedWithShepherds(person.name)}</p>
-          </section>
-
-          <section className="card stack">
-            <h2>Notes</h2>
-            {notes.length === 0 ? (
-              <p className="empty">No notes yet.</p>
-            ) : (
-              <ul className="list">
-                {notes.map((c) => (
-                  <li key={c.id} className="list-item">
-                    {c.contactLogId && (
-                      <LoggedContactLabel contactedAt={contactedAt(c.contactLogId)} />
-                    )}
-                    <div className="item-head">
-                      <p>{c.content}</p>
-                      {c.author.id === meId && (
-                        <DeleteCommentButton id={c.id} personId={person.id} />
-                      )}
-                    </div>
-                    <p className="muted small">
-                      {c.author.name} · {formatDateTime(c.createdAt)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {/* A comment needn't link to a burden (business rule 5). */}
-            <CommentForm
-              personId={person.id}
-              prayerBurdenId={null}
-              label="New note"
-              submitLabel="Add note"
-              fieldId={notesFieldId}
-            />
-          </section>
+          <PersonPrayerBurdens person={person} meId={meId} narrow={narrow} show={show} />
+          <PersonNotes person={person} meId={meId} fieldId={notesFieldId} />
         </div>
         <PersonSidebar
           person={person}
@@ -217,206 +122,5 @@ function PersonDetail({ person, meId }: { person: Person; meId: string | undefin
         />
       </div>
     </>
-  )
-}
-
-/** Marks a note written when logging a contact, with the contact's date. */
-function LoggedContactLabel({ contactedAt }: { contactedAt: string | undefined }) {
-  return (
-    <p className="muted small">
-      Logged contact{contactedAt && ` · ${formatShortDate(contactedAt)}`}
-    </p>
-  )
-}
-
-function Burden({
-  personId,
-  burden,
-  comments,
-  meId,
-}: {
-  personId: string
-  burden: Person['prayerBurdens'][number]
-  comments: Comment[]
-  meId: string | undefined
-}) {
-  const released = Boolean(burden.releasedDate)
-
-  return (
-    <li className={`list-item${released ? ' released' : ''}`}>
-      <div className="item-head">
-        <p>{burden.content}</p>
-        {!released && <ReleaseBurdenButton id={burden.id} personId={personId} />}
-      </div>
-      <p className="muted small">
-        Added {isToday(burden.createdAt) ? 'today' : formatDateTime(burden.createdAt)}
-        {!released && comments.length === 0 && ' · Praying'}
-      </p>
-      {/* A burden may have no comments (business rule 4). */}
-      {comments.length > 0 && (
-        <ul className="replies">
-          {comments.map((c) => (
-            <li key={c.id}>
-              {c.content}{' '}
-              <span className="muted small">
-                — {c.author.name}, {formatDateTime(c.createdAt)}
-              </span>
-              {c.author.id === meId && <DeleteCommentButton id={c.id} personId={personId} />}
-            </li>
-          ))}
-        </ul>
-      )}
-      {!released && (
-        <CommentForm
-          personId={personId}
-          prayerBurdenId={burden.id}
-          label="Comment"
-          submitLabel="Add comment"
-          compact
-        />
-      )}
-    </li>
-  )
-}
-
-// ── Forms ────────────────────────────────────────────────────
-
-function AddPrayerBurdenForm({ personId }: { personId: string }) {
-  const [createPrayerBurden, { loading, error }] = useCreatePrayerBurdenMutation(
-    refetchPerson(personId),
-  )
-
-  return (
-    <TextEntryForm
-      label="New prayer burden"
-      submitLabel="Add prayer burden"
-      busyLabel="Adding…"
-      loading={loading}
-      error={error}
-      onSubmit={(content) => createPrayerBurden({ variables: { input: { personId, content } } })}
-    />
-  )
-}
-
-/** Links to `prayerBurdenId`, or is a standalone note when it is null. */
-function CommentForm({
-  personId,
-  prayerBurdenId,
-  label,
-  submitLabel,
-  compact = false,
-  fieldId,
-}: {
-  personId: string
-  prayerBurdenId: string | null
-  label: string
-  submitLabel: string
-  compact?: boolean
-  /** The textarea's id, for something else on the page to focus it. */
-  fieldId?: string
-}) {
-  const [createComment, { loading, error }] = useCreateCommentMutation(refetchPerson(personId))
-
-  return (
-    <TextEntryForm
-      label={label}
-      submitLabel={submitLabel}
-      busyLabel="Adding…"
-      loading={loading}
-      error={error}
-      compact={compact}
-      fieldId={fieldId}
-      onSubmit={(content) =>
-        createComment({ variables: { input: { personId, prayerBurdenId, content } } })
-      }
-    />
-  )
-}
-
-/** A textarea and a submit button; clears itself once `onSubmit` succeeds. */
-function TextEntryForm({
-  label,
-  submitLabel,
-  busyLabel,
-  loading,
-  error,
-  compact = false,
-  fieldId,
-  onSubmit,
-}: {
-  label: string
-  submitLabel: string
-  busyLabel: string
-  loading: boolean
-  error: ApolloError | undefined
-  compact?: boolean
-  fieldId?: string
-  onSubmit: (content: string) => Promise<unknown>
-}) {
-  const [content, setContent] = useState('')
-  const trimmed = content.trim()
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    try {
-      await onSubmit(trimmed)
-      setContent('')
-    } catch {
-      // Shown from the mutation's `error` below.
-    }
-  }
-
-  return (
-    <form className={`stack subform${compact ? ' compact' : ''}`} onSubmit={handleSubmit}>
-      <label>
-        {label}
-        <textarea
-          id={fieldId}
-          rows={compact ? 1 : 2}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-        />
-      </label>
-      <ErrorMessage error={error} />
-      <button type="submit" disabled={loading || !trimmed}>
-        {loading ? busyLabel : submitLabel}
-      </button>
-    </form>
-  )
-}
-
-// ── Item actions ─────────────────────────────────────────────
-
-function ReleaseBurdenButton({ id, personId }: { id: string; personId: string }) {
-  const [releasePrayerBurden, { loading, error }] = useReleasePrayerBurdenMutation(
-    refetchPerson(personId),
-  )
-
-  return (
-    <ActionButton
-      label="Release"
-      question="Release this prayer burden?"
-      confirmLabel="Yes, release"
-      loading={loading}
-      error={error}
-      onClick={() => releasePrayerBurden({ variables: { id } })}
-    />
-  )
-}
-
-/** Only rendered on the signed-in user's own comments; the API enforces it too. */
-function DeleteCommentButton({ id, personId }: { id: string; personId: string }) {
-  const [deleteComment, { loading, error }] = useDeleteCommentMutation(refetchPerson(personId))
-
-  return (
-    <ActionButton
-      label="Delete"
-      question="Delete this comment?"
-      confirmLabel="Yes, delete"
-      loading={loading}
-      error={error}
-      onClick={() => deleteComment({ variables: { id } })}
-    />
   )
 }

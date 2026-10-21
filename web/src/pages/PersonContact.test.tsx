@@ -222,8 +222,12 @@ describe('Person page details', () => {
     expect(screen.getByText(formatDateTime(at(-HOUR)))).toBeInTheDocument()
     expect(screen.getByText(/follow-up within 72 hours/)).toBeInTheDocument()
     expect(screen.getByText('0 of 4')).toBeInTheDocument()
-    expect(screen.getByText('No prayer burdens yet.')).toBeInTheDocument()
-    expect(screen.getByText('No notes yet.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No prayer burdens yet. Add one here, or when you log a contact.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No notes yet. A comment written when you log a contact shows here.'),
+    ).toBeInTheDocument()
   })
 
   it('has no Added row for an active person, and states the 7-day rule', async () => {
@@ -324,7 +328,9 @@ describe('Logging a contact from the Person page', () => {
     expect(undone.fn).toHaveBeenCalledTimes(1)
     expect(statusPill()).toHaveTextContent(/^New contact$/)
     expect(screen.queryByText('Met for lunch')).not.toBeInTheDocument()
-    expect(screen.getByText('No notes yet.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No notes yet. A comment written when you log a contact shows here.'),
+    ).toBeInTheDocument()
   })
 
   it('opens the dialog on arrival when asked to, then clears the request', async () => {
@@ -468,7 +474,7 @@ describe('Person page header', () => {
     expect(shortcut).toHaveTextContent('Add note')
     expect(screen.getByRole('button', { name: 'Add note' })).not.toBe(shortcut)
     await user.click(shortcut)
-    expect(screen.getByLabelText('New note')).toHaveFocus()
+    expect(screen.getByLabelText('Write a note about Maria')).toHaveFocus()
   })
 })
 

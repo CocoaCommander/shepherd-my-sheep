@@ -205,8 +205,12 @@ describe('Person page status dropdown', () => {
     renderPage(person())
     await ready()
     expect(screen.getByText('0 of 4')).toBeInTheDocument()
-    expect(screen.getByText('No prayer burdens yet.')).toBeInTheDocument()
-    expect(screen.getByText('No notes yet.')).toBeInTheDocument()
+    expect(
+      screen.getByText('No prayer burdens yet. Add one here, or when you log a contact.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText('No notes yet. A comment written when you log a contact shows here.'),
+    ).toBeInTheDocument()
     expect(select()).toHaveDisplayValue('Status: Active')
   })
 })

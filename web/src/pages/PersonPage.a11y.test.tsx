@@ -114,4 +114,48 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
     }))
     expect(await violations(person({ milestones }))).toEqual([])
   })
+
+  it('with a burden thread, a released burden and notes', async () => {
+    const author = { __typename: 'User', id: ME.id, name: ME.name }
+    const other = { __typename: 'User', id: 'user-other', name: 'Other Shepherd' }
+    const burden = (id: string, content: string, releasedDate: string | null) => ({
+      __typename: 'PrayerBurden',
+      id,
+      content,
+      releasedDate,
+      createdAt: at(-5 * DAY),
+    })
+    const comment = (id: string, content: string, burdenId: string | null, who = author) => ({
+      __typename: 'Comment',
+      id,
+      content,
+      createdAt: at(-DAY),
+      author: who,
+      prayerBurden: burdenId ? { __typename: 'PrayerBurden', id: burdenId } : null,
+      contactLogId: null,
+    })
+    expect(
+      await violations(
+        person({
+          prayerBurdens: [burden('b1', 'Pray for work', null), burden('b2', 'Old', '2026-10-01')],
+          comments: [
+            { ...comment('n2', 'Coffee after church', null, other), contactLogId: 'c-old' },
+            comment('n1', 'Plain note', null),
+            comment('c3', 'Third', 'b1'),
+            comment('c2', 'Second', 'b1', other),
+            comment('c1', 'First', 'b1'),
+            comment('c0', 'It was answered', 'b2', other),
+          ],
+          contacts: [
+            {
+              __typename: 'ContactLog',
+              id: 'c-old',
+              contactedAt: at(-2 * DAY),
+              contactedBy: author,
+            },
+          ],
+        }),
+      ),
+    ).toEqual([])
+  })
 })
