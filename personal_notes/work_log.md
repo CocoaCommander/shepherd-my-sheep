@@ -1,5 +1,158 @@
 # Work Log
 
+## 2026-10-21 — Housekeeping
+
+- **Housekeeping** (base `main`) — the five Housekeeping todo items in
+  one PR.
+  - `web/vite.config.ts` reads `API_PORT` from the repo-root `.env` (or
+    the shell) for the `/graphql` proxy, with no fallback. Only the dev
+    server needs it: `vitest` and `vite build` still run without a `.env`.
+  - `docs/diagrams/schema.svg` and `schema.png` regenerated from
+    `schema.mmd` with mermaid-cli 11. Both were behind: the SVG since V003,
+    the PNG since V004 (no `status_changed_at`, `promoted`, burden
+    `contact_log_id`).
+  - New project skill `run-plan` (`.claude/skills/run-plan/SKILL.md`):
+    takes a plan file, picks the first Progress row not done, checks
+    `main` for changes, does that one step as a stacked draft PR, then
+    updates Progress and Handoff notes in the plan.
+  - Todo list cleanup: completed items moved below, so `todo.md` holds
+    open work (ticked parents stay where they still have open children).
+    The Person page block was left alone because the open stack #71–#75
+    ticks it; move it here once that merges.
+
+### Moved from the todo list
+
+Completed items as they stood in `todo.md` on 2026-10-21, by section.
+
+#### New business rule: contact cadence
+
+- Add the rule to the Business Rules list in `CLAUDE.md` (rule 6).
+- **Decide how "contact" and "follow-up" are recorded.** A `contact_log` table (who, when as `timestamptz`, follow-up flag, note) replaces `person.last_contact_date`. Migration `V003__contact_log.sql` backfills existing dates.
+- Backend: derive each person's contact state (overdue / due soon / on track / not tracked) and the date it is due. The `person_contact_state` view; GraphQL `contactState`, `contactDueAt`, `lastContactedAt`, `contacts`, `contactAlerts`, `logContact`, `deleteContact`. A follow-up promotes `new contact` to `active`.
+- Alerts: in-app first. Header bell with a count, and a "needs contacting" banner on My people until Home is built. Decide later whether to push or email.
+- Decided: a new contact with nothing logged has 72 hours from when they were added (`person.created_at`). Tom Becker is on track at first. **The Home design shows "Log first contact" as overdue; update it to match.**
+- Decided: a shared person alerts every shepherd, and any shepherd's contact clears it for all.
+- Decided 2026-10-16: undoing a follow-up also reverts the promotion. If that follow-up moved the person from `new contact` to `active` and their status hasn't changed since, Undo puts them back to `new contact`.
+- Build it. (server #37, web #42) Today Undo of a follow-up doesn't undo the promotion to `active`, and the web app only offers Undo on a plain contact. `delete_contact` needs to know the follow-up caused the promotion (e.g. a flag on the `contact_log` row); then offer Undo on follow-ups too.
+- **Expose the clock start (or the window) from `person_contact_state`.** The UI only gets `contactDueAt`, so Home's meter still hard-codes `WINDOW` (7 days / 72 hours) in `web/src/pages/HomePage.tsx` to find where the clock started. Return the start (e.g. `contactClockStart`) so Home can drop `WINDOW` and the Person page can draw its progress bar (Screens, Person page). (server #47, web #48)
+- **Log contact API, from the user story.** (#36) A shepherd adds a person (`createPerson` takes an optional `comment`), and adding them is the first contact. Logging a contact takes a required date and note and an optional prayer burden (`LogContactInput.prayerBurden`, linked by `prayer_burden.contact_log_id`, removed on Undo). Any contact for a `new contact` is their follow-up; `isFollowUp` is deprecated and ignored. Migration `V005__contact_burdens.sql`.
+
+#### Screens (web + mWeb/mobile)
+
+- **Review now** (#61, #62): opens from "Review now" on Home and steps through overdue people, most urgent first. Each step hosts `LogContactForm` inline (`web/src/pages/LogContactForm.tsx`, written for this) with "Log contact" and "Skip for now"; Skip logs nothing and leaves the person overdue. The Finished screen lists each contact logged in the session, each with Undo.
+- **My people** (#65, #66, #67):
+  - **Board** (default): columns for New contact, Active, Inactive, Lost contact. Each card shows name, last contact, milestone progress, prayer count and its contact-alert state.
+    - Drag a card between columns to change status (updates `status` via `updatePerson`). On mobile, tabs per status plus a "Move to" menu instead of dragging. (#66)
+    - Keyboard and screen-reader alternative to dragging: a "Move to" menu on every card. (#66)
+    - Toast with Undo after a move. (#65, #66)
+    - Decided 2026-10-16: what a status move means for the contact rule. Moving to Inactive or Lost contact stops alerts; moving back to Active or New contact restarts the clock from the move. (The New contact to Active part, "Did a follow-up happen?" with Yes / No, was replaced on 2026-10-19; see below.)
+    - Decided 2026-10-19: dragging New contact to Active opens the Log contact dialog instead of asking "Did they have a follow-up?" / "Move anyway". Since #36 any contact logged for a new contact is their follow-up and promotes them, so saving the dialog does the move; Cancel leaves the card where it was. There is no "move without a contact" path from New contact to Active. The design still just moves them; update it to open the dialog.
+    - Build the clock-from-the-move part: `person_contact_state` needs to count from when the status last changed (e.g. a `person.status_changed_at`) when that is later than the last contact. (#47)
+    - Persist the move optimistically and roll back if the mutation fails. (#66)
+  - **Gallery**:
+    - Remember the chosen view (board or gallery) per device, in `localStorage` (decided 2026-10-16). (#67)
+- **Prayer list** (#56, #57, #58):
+  - Sort: longest standing (default), newest, or grouped by person. Filter by person. (#56)
+  - Each row: person, status, how long ago it was added, the burden, the latest comment, a Comment button with the count, and Release (with Undo). API ready (#52, #53). (#56)
+  - Hide details switch that masks burden and comment text (for praying or scrolling in public). Remembered per device in `localStorage`, off by default (decided 2026-10-16). (#57)
+  - Nudge on burdens that have been on the list for over a year ("Still the right one to carry?"). (#57)
+  - "Recently released" panel (answered or closed prayers, with the last comment) as encouragement. The API is `recentlyReleasedPrayerBurdens` (#53): the latest 5 releases, of any age (decided 2026-10-20). (#57)
+  - Add prayer burden: pick the person, then write it (the existing form lives on the person page). (#58)
+  - Decided 2026-10-16: no visibility setting between co-shepherds, even though burden text can be sensitive (one seed comment says "keep this quiet"). Every shepherd of a person sees all of their prayer burdens.
+  - Make sure every user knows that all shepherds of a person see all of their prayer burdens (and comments), e.g. a line by the add-burden and comment boxes. (#58)
+- **Sign in / register**:
+  - Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
+- **"Log contact" modal** (#39, #42):
+  - (#42) Until it's built, the buttons log a placeholder note
+    (`QUICK_CONTACT_NOTE` in `web/src/contacts.ts`), since the API now
+    requires one. Remove `quickContact` once the modal replaces it.
+
+#### Design gaps (canvas vs API)
+
+Found 2026-10-16 by checking the "Card & Gallery Views" canvas against
+`schema.graphql`, the migrations and the resolvers. Undo of a follow-up
+(contact cadence, above) and the recently-released query (Prayer list)
+were already listed and aren't repeated here.
+
+- **Decide where contact notes show.** The Review "Log your contact"
+  note goes to `contact_log.note`, but "Last note" (Home, Review) and the
+  Person page Notes read `comment`. Either `logContact` also creates a
+  standalone comment, or the screens merge contact notes into the feed.
+  Decided 2026-10-16: it becomes a standalone comment linked to the
+  contact (`comment.contact_log_id`, one per contact); undoing the contact
+  deletes it. `contact_log.note` is gone; `ContactLog.note` reads the
+  linked comment. Migration `V004__contact_notes.sql`.
+- **Per-person summaries on list queries.** (#35) `myPeople` and
+  `contactAlerts` only run `rowToPerson`, so nested lists are empty
+  (`operations.graphql` says never select them there). Home, My people
+  and Review need, per person: milestone progress, active burden count,
+  shepherds ("Shared with Grace Lin") and the latest note with its time.
+  Done 2026-10-19 with summary fields: `recordedMilestoneIds` (not a
+  count: milestones can be reached out of order), `activeBurdenCount`,
+  `latestComment` (newest of any kind), and `shepherds` filled on list
+  queries. The seed was brought in line with rules 5 and 6 in the same PR.
+- **Undo a prayer-burden release.** The Prayer list toast offers Undo,
+  but `release_prayer_burden` is one-way. Add an
+  `unrelease_prayer_burden` function (new migration) and an
+  `unreleasePrayerBurden(id)` mutation. (#53)
+- **`PrayerBurden.comments` is never populated.** Nothing sets it, yet
+  it's declared non-null. The Prayer list needs the count ("Comment (4)")
+  and the latest comment with author and time; fill it in
+  `activePrayerBurdens` (and wherever burdens are returned). (#52)
+- **Person status on burdens.** `activePrayerBurdens` returns the
+  person as `{id, name}` only; each Prayer list card shows a status pill.
+  (#52)
+
+#### Next up
+
+- Click through the merged web app in a browser (`cd web && npm run
+  dev`, http://localhost:3000). Tests pass on main, but nobody has clicked
+  through the merged build yet.
+- Decide where contact notes show (Design gaps). Blocks the Home,
+  Review and Person builds, so settle it before they start.
+- Per-person summaries on `myPeople` / `contactAlerts` (Design
+  gaps). (#35) Every list screen in the canvas needs them.
+- Finish the contact-cadence backend: the clock counts from a status
+  move (`person.status_changed_at`), and expose the clock start. Needed
+  by the My people board. (Undo of a follow-up reverting the promotion
+  is done, #37.) (#47)
+- Prayer list API in one pass: unrelease, `PrayerBurden.comments`,
+  person status on burdens, recently released query (Design gaps and
+  Prayer list). (#52, #53)
+- KMP: add `contactState` / `contactDueAt` / `lastContactedAt`, `contactAlerts`, `logContact` and `deleteContact` to the shared module, and stop using `lastContactDate` there. (#43)
+- Assumption to confirm: "active" means status `active`, not the separate `is_active` flag (they can disagree; nothing keeps them in sync). Confirmed 2026-10-16.
+- Assumption to confirm: "due soon" is the last 48 hours before the weekly deadline and the last 24 hours before the 72-hour one. Confirmed 2026-10-16.
+- `backend/src/main.cpp` falls back to `0.0.0.0` / `8080` when
+  `API_HOST` / `API_PORT` are unset, against the no-defaults rule.
+  Validate them in `AppComponent::validateEnv()` with the rest. (#31)
+- **Home** (based on option B, care-first): people who need contacting, up top. Web and mWeb mocked up. (#32)
+
+#### Done
+
+- **Fix duplicate CORS header on preflight.** (#27) An OPTIONS request gets
+  `Access-Control-Allow-Origin` twice: `CorsRequestInterceptor` adds the
+  headers, then `CorsResponseInterceptor` adds them again
+  (`backend/src/middleware/CorsMiddleware.hpp`). Browsers reject that, so
+  a web app on a different origin from the API would fail every request.
+  Local dev is unaffected (Vite proxies `/graphql`, same origin). Fix: skip
+  OPTIONS in the response interceptor; add a test asserting one header.
+- **Bring the shared KMP module up to date with the API.** (#28)
+  - Map `errors[].extensions.code` (NOT_FOUND, CONFLICT, BAD_USER_INPUT,
+    UNAVAILABLE, INTERNAL) to `ShepherdException` subtypes, like
+    `web/src/errors.ts` does. Today everything is `Api(message)`.
+  - Add `searchUsers` to the operations and repository.
+  - Fetch `person { id name }` on `activePrayerBurdens` for the prayer list.
+  - Add tests (the module has none).
+- **Dev logs, watchable live on local.** (#30) Logs are split today: the API
+  (`backend/src/middleware/RequestLogger.hpp`) goes to `docker compose logs
+  api`, the web dev server to `$(WEB_LOG)` from `make start`, Postgres to
+  its container. Add support for dev logs and a way to watch them as
+  they're generated.
+  - Add a `make logs` target that follows API, web and Postgres
+    together, labelled by source.
+  - Decide on log levels (DEBUG in dev, INFO otherwise) set by an env
+    var, and whether to write to a file under the dev dir.
+
 ## 2026-10-20 — Contact clock restart; Prayer list; Review now screen
 
 - **#61–#62 Review now screen** (web + mWeb) — two stacked PRs from the
