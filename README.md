@@ -57,4 +57,14 @@ Run everything with `pre-commit run --all-files`. CI runs the same hooks, plus a
 
 Web component tests (vitest + Testing Library): `cd web && npm test`.
 
+## PR screenshots
+
+Every PR has a **Before / After** section: screenshots when the web UI changes, two short lines of text when it doesn't. For the screenshots, run this from the feature branch, with `make start` and `make seed` done:
+
+```sh
+web/scripts/pr-screenshots.sh --base main --user demo_shepherd --dark --publish /people "person:Marcus Reid"
+```
+
+It starts a dev server for the base branch and one for yours, each on a free port, and shoots each page at 1280 and 390 wide (light, plus dark with `--dark`). With `--publish` it commits the images to the `pr-assets` branch and prints a Before | After Markdown table for the PR body. `pr-assets` holds only images and shares no history with `main`. Only demo data appears. `web/scripts/screenshots.mjs` takes the screenshots and can be run on its own against any running dev server. The first run needs `npx playwright install --only-shell chromium` in `web/`.
+
 Applied migrations (`V001`, `V002`) are excluded from SQL formatting, because changing them breaks migration checksums. Add each new migration to `.sqlfluffignore` and the `exclude` pattern in `.pre-commit-config.yaml` once it has been applied anywhere shared.
