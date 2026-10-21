@@ -20,6 +20,9 @@ The data deliberately covers every business rule in CLAUDE.md:
     created as a new contact and log_contact promotes her, as in the app.
   - new contacts with a first contact but no follow-up yet → "aisha",
     "marcus", "ben"
+  - prayers by both shepherds of a shared person ("maria": last by the
+    co-shepherd), one back-dated ("david"), a prayed-for person with no
+    burdens ("marcus"), and people never prayed for ("just_met", "lucy")
   - every contact state (business rule 6). Each person's latest contact
     stays clear of the 72-hour, 7-day and "due soon" boundaries so states
     are stable:
@@ -70,6 +73,13 @@ class Burden(NamedTuple):
     content: str
     days_ago: int
     released_days_ago: int | None = None
+
+
+class Prayer(NamedTuple):
+    person: str
+    user: str
+    days_ago: float  # when they prayed
+    logged_days_ago: float | None = None  # when it was recorded, if later (back-dated); default the same
 
 
 class Comment(NamedTuple):
@@ -205,4 +215,19 @@ CONTACTS = [
     Contact("rachel", "coleader", 4),
     Contact("ben", "coleader", 9, note="New neighbour — invited him to the Christmas carols."),
     Contact("sofia", "coleader", 900),
+]
+
+# Praying is not a contact: none of these change anyone's contact state.
+PRAYERS = [
+    Prayer("maria", "shepherd", 6),
+    Prayer("maria", "coleader", 4.2),
+    Prayer("maria", "shepherd", 2.1),
+    Prayer("maria", "coleader", 1.1),
+    Prayer("david", "coleader", 9),
+    Prayer("david", "shepherd", 5, logged_days_ago=3),  # back-dated: forgot to log it
+    Prayer("elena", "coleader", 0.1),
+    Prayer("aisha", "shepherd", 1.5),
+    Prayer("marcus", "shepherd", 12),  # no burdens (business rule 3)
+    Prayer("priya", "shepherd", 20),
+    Prayer("rachel", "coleader", 2),
 ]

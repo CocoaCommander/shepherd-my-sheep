@@ -1983,3 +1983,223 @@ class TestUndoStatusChange:
     def test_requires_a_token(self, statuses):
         status, _ = post(UNDO_STATUS, self.undo_vars(str(uuid.uuid4()), statuses, "active", SOME_STAMP))
         assert status == 401
+
+
+# ── Prayer log ───────────────────────────────────────────────
+
+PRAYER_FIELDS = """
+  id contactState contactDueAt lastContactedAt status { name }
+  lastPrayer { id prayedAt createdAt prayedBy { id } }
+  prayers { id prayedAt createdAt prayedBy { id } }
+"""
+
+RECORD_PRAYER = (
+    """
+mutation RecordPrayer($personId: UUID!, $prayedAt: DateTime) {
+  recordPrayer(personId: $personId, prayedAt: $prayedAt) {"""
+    + PRAYER_FIELDS
+    + "} }"
+)
+
+DELETE_PRAYER = (
+    """
+mutation DeletePrayer($id: UUID!) {
+  deletePrayer(id: $id) {"""
+    + PRAYER_FIELDS
+    + "} }"
+)
+
+PERSON_PRAYERS = "query P($id: UUID!) { person(id: $id) { prayers { id prayedBy { id } } lastPrayer { id } } }"
+MY_PEOPLE_PRAYERS = "query { myPeople { id lastPrayer { id prayedBy { id } } } }"
+
+
+class TestPrayerLog:
+    @pytest.fixture()
+    def pair(self, make_user, status_id):
+        """Two shepherds (a, b) of one person."""
+        a_token, a_id, _ = make_user()
+        b_token, b_id, _ = make_user()
+        person_id = create_person(a_token, status_id)
+        gql(ASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        return a_token, a_id, b_token, b_id, person_id
+
+    def test_person_never_prayed_for(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        person = gql(PERSON_PRAYERS, {"id": person_id}, token)["person"]
+        assert (person["lastPrayer"], person["prayers"]) == (None, [])
+        [mine] = gql(MY_PEOPLE_PRAYERS, token=token)["myPeople"]
+        assert mine["lastPrayer"] is None
+
+    def test_user_with_no_people(self, make_user):
+        token, _, _ = make_user()
+        assert gql(MY_PEOPLE_PRAYERS, token=token)["myPeople"] == []
+
+    def test_record_prayer_returns_person_with_the_record(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, status_id)  # no burdens: can still be prayed for
+        person = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]
+        assert person["id"] == person_id
+        assert person["lastPrayer"]["prayedBy"]["id"] == user_id
+        assert person["prayers"] == [person["lastPrayer"]]
+        assert abs((datetime.now(timezone.utc) - parse_time(person["lastPrayer"]["prayedAt"])).total_seconds()) < 60
+
+    def test_my_people_carries_last_prayer(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, status_id)
+        prayer = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]["lastPrayer"]
+        [mine] = gql(MY_PEOPLE_PRAYERS, token=token)["myPeople"]
+        assert mine["lastPrayer"]["id"] == prayer["id"]
+        assert mine["lastPrayer"]["prayedBy"]["id"] == user_id
+
+    def test_each_call_is_its_own_record(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        gql(RECORD_PRAYER, {"personId": person_id}, token)
+        person = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]
+        assert len(person["prayers"]) == 2
+        assert person["prayers"][0]["id"] != person["prayers"][1]["id"]
+
+    def test_co_shepherds_see_each_others_prayers(self, pair):
+        a_token, a_id, b_token, b_id, person_id = pair
+        gql(RECORD_PRAYER, {"personId": person_id}, a_token)
+        gql(RECORD_PRAYER, {"personId": person_id}, b_token)
+        for token in (a_token, b_token):
+            person = gql(PERSON_PRAYERS, {"id": person_id}, token)["person"]
+            assert {p["prayedBy"]["id"] for p in person["prayers"]} == {a_id, b_id}
+            assert person["lastPrayer"]["id"] == person["prayers"][0]["id"]
+            assert person["lastPrayer"]["id"] == gql(MY_PEOPLE_PRAYERS, token=token)["myPeople"][0]["lastPrayer"]["id"]
+        # b prayed last, and a sees that
+        assert gql(PERSON_PRAYERS, {"id": person_id}, a_token)["person"]["prayers"][0]["prayedBy"]["id"] == b_id
+
+    def test_back_dated_prayer_saved_as_given(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        when = datetime.now(timezone.utc) - timedelta(days=3)
+        person = gql(RECORD_PRAYER, {"personId": person_id, "prayedAt": when.isoformat()}, token)["recordPrayer"]
+        saved = person["lastPrayer"]
+        assert abs((parse_time(saved["prayedAt"]) - when).total_seconds()) < 1
+        assert parse_time(saved["createdAt"]) - parse_time(saved["prayedAt"]) > timedelta(days=2)
+
+    def test_last_prayer_is_latest_by_prayed_at_and_list_newest_first(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        now = datetime.now(timezone.utc)
+        recent = gql(RECORD_PRAYER, {"personId": person_id, "prayedAt": (now - timedelta(hours=1)).isoformat()}, token)
+        recent_id = recent["recordPrayer"]["lastPrayer"]["id"]
+        gql(RECORD_PRAYER, {"personId": person_id, "prayedAt": (now - timedelta(days=5)).isoformat()}, token)
+        person = gql(RECORD_PRAYER, {"personId": person_id, "prayedAt": (now - timedelta(days=2)).isoformat()}, token)[
+            "recordPrayer"
+        ]
+        # The newest record made is not the latest prayer.
+        assert person["lastPrayer"]["id"] == recent_id
+        times = [parse_time(p["prayedAt"]) for p in person["prayers"]]
+        assert times == sorted(times, reverse=True) and len(times) == 3
+
+    def test_future_prayer_rejected(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        when = datetime.now(timezone.utc) + timedelta(minutes=30)
+        error = gql_error_full(RECORD_PRAYER, {"personId": person_id, "prayedAt": when.isoformat()}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert gql(PERSON_PRAYERS, {"id": person_id}, token)["person"]["prayers"] == []
+
+    @pytest.mark.parametrize("value", ["-infinity", "infinity"])
+    def test_infinite_prayer_time_rejected(self, make_user, status_id, value):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(RECORD_PRAYER, {"personId": person_id, "prayedAt": value}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert gql(PERSON_PRAYERS, {"id": person_id}, token)["person"]["prayers"] == []
+
+    def test_praying_is_not_a_contact(self, make_user, status_id, db_connection):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        with db_connection.cursor() as cur:  # overdue: no contact in 10 days
+            cur.execute("UPDATE person SET created_at = now() - interval '10 days' WHERE id = %s", (person_id,))
+        before = gql("query P($id: UUID!) { person(id: $id) { " + PRAYER_FIELDS + " } }", {"id": person_id}, token)[
+            "person"
+        ]
+        assert before["contactState"] == "OVERDUE"
+        after = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]
+        for field in ("contactState", "lastContactedAt", "contactDueAt", "status"):
+            assert after[field] == before[field]
+
+    def test_praying_does_not_follow_up_a_new_contact(self, make_user, db_connection):
+        token, _, _ = make_user()
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT id FROM status WHERE name = 'new contact'")
+            new_id = str(cur.fetchone()[0])
+        person_id = create_person(token, new_id)
+        person = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]
+        assert person["status"]["name"] == "new contact"
+        assert person["lastContactedAt"] is None
+
+    def test_non_shepherd_cannot_record(self, make_user, status_id):
+        token, _, _ = make_user()
+        outsider, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(RECORD_PRAYER, {"personId": person_id}, outsider)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert gql(PERSON_PRAYERS, {"id": person_id}, token)["person"]["prayers"] == []
+
+    def test_unknown_person_is_not_found(self, make_user):
+        token, _, _ = make_user()
+        error = gql_error_full(RECORD_PRAYER, {"personId": str(uuid.uuid4())}, token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+
+    def test_recorder_can_delete_their_own(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        now = datetime.now(timezone.utc)
+        earlier = gql(RECORD_PRAYER, {"personId": person_id, "prayedAt": (now - timedelta(days=1)).isoformat()}, token)
+        earlier_id = earlier["recordPrayer"]["lastPrayer"]["id"]
+        latest = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]["lastPrayer"]
+
+        person = gql(DELETE_PRAYER, {"id": latest["id"]}, token)["deletePrayer"]
+        assert [p["id"] for p in person["prayers"]] == [earlier_id]
+        assert person["lastPrayer"]["id"] == earlier_id  # falls back to the previous one
+
+        person = gql(DELETE_PRAYER, {"id": earlier_id}, token)["deletePrayer"]
+        assert (person["lastPrayer"], person["prayers"]) == (None, [])
+
+    def test_co_shepherd_cannot_delete_anothers_prayer(self, pair):
+        a_token, _, b_token, _, person_id = pair
+        prayer_id = gql(RECORD_PRAYER, {"personId": person_id}, a_token)["recordPrayer"]["lastPrayer"]["id"]
+        error = gql_error_full(DELETE_PRAYER, {"id": prayer_id}, b_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert [p["id"] for p in gql(PERSON_PRAYERS, {"id": person_id}, a_token)["person"]["prayers"]] == [prayer_id]
+
+    def test_non_shepherd_cannot_delete(self, make_user, status_id):
+        token, _, _ = make_user()
+        outsider, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        prayer_id = gql(RECORD_PRAYER, {"personId": person_id}, token)["recordPrayer"]["lastPrayer"]["id"]
+        error = gql_error_full(DELETE_PRAYER, {"id": prayer_id}, outsider)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert len(gql(PERSON_PRAYERS, {"id": person_id}, token)["person"]["prayers"]) == 1
+
+    def test_recorder_cannot_delete_after_being_unassigned(self, pair):
+        a_token, _, b_token, b_id, person_id = pair
+        prayer_id = gql(RECORD_PRAYER, {"personId": person_id}, b_token)["recordPrayer"]["lastPrayer"]["id"]
+        gql(UNASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        error = gql_error_full(DELETE_PRAYER, {"id": prayer_id}, b_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert [p["id"] for p in gql(PERSON_PRAYERS, {"id": person_id}, a_token)["person"]["prayers"]] == [prayer_id]
+
+    def test_delete_unknown_prayer_is_not_found(self, make_user):
+        token, _, _ = make_user()
+        error = gql_error_full(DELETE_PRAYER, {"id": str(uuid.uuid4())}, token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+
+    def test_deleted_users_prayers_stay_with_no_one_credited(self, pair, db_connection):
+        a_token, _, b_token, b_id, person_id = pair
+        gql(RECORD_PRAYER, {"personId": person_id}, b_token)
+        with db_connection.cursor() as cur:
+            cur.execute('DELETE FROM "user" WHERE id = %s', (b_id,))
+        person = gql(PERSON_PRAYERS, {"id": person_id}, a_token)["person"]
+        assert len(person["prayers"]) == 1
+        assert person["prayers"][0]["prayedBy"] is None
+        assert person["lastPrayer"]["id"] == person["prayers"][0]["id"]
+        [mine] = gql(MY_PEOPLE_PRAYERS, token=a_token)["myPeople"]
+        assert mine["lastPrayer"]["prayedBy"] is None

@@ -49,12 +49,14 @@ type Person {
   recordedMilestoneIds: [UUID!]!  # ids of the Milestones recorded, in no set order; may be empty. Steps can be reached out of order
   activeBurdenCount: Int!         # prayer burdens not yet released; may be 0
   latestComment: Comment          # nullable — newest comment of any kind (standalone, contact note, or on a burden)
+  lastPrayer: PrayerLog           # nullable — no one has prayed yet. Latest by prayedAt, so a back-dated record may not be the newest one made
   shepherds: [User!]!             # who is caring for this person; loaded everywhere a Person is returned
   # Loaded only by person / mutations returning Person; never select them on myPeople or contactAlerts.
   milestones: [MilestonePerson!]! # may be empty for a new contact
   prayerBurdens: [PrayerBurden!]! # may be empty
   comments: [Comment!]!           # may be empty
   contacts: [ContactLog!]!        # may be empty; newest first
+  prayers: [PrayerLog!]!          # may be empty; every record, newest prayedAt first. Shared by all the person's shepherds
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -78,6 +80,14 @@ type ContactLog {
   isFollowUp: Boolean!            # true for the contact that followed up a 'new contact'
   note: String                    # nullable — the standalone note (Comment) written with it; gone if the contact is deleted. Null only for imported history
   createdAt: DateTime!
+}
+
+# A shepherd praying for the person. Not a contact: it doesn't change the contact state.
+type PrayerLog {
+  id: UUID!
+  prayedBy: User                  # nullable — the user was deleted (their records stay)
+  prayedAt: DateTime!             # when they prayed; earlier than createdAt for a back-dated record
+  createdAt: DateTime!            # when it was recorded
 }
 
 type Status {
@@ -198,6 +208,13 @@ type Mutation {
   # and they are still 'active'.
   logContact(input: LogContactInput!): Person!
   deleteContact(id: UUID!): Person!
+
+  # Prayer — both return the person with their updated lastPrayer and prayers.
+  # Each call is its own record. prayedAt is optional (now); it may be earlier
+  # (back-dated) but not more than 5 minutes in the future (BAD_USER_INPUT).
+  # Only the shepherd who recorded a prayer may delete it; anyone else gets NOT_FOUND.
+  recordPrayer(personId: UUID!, prayedAt: DateTime): Person!
+  deletePrayer(id: UUID!): Person!
 }
 
 # ── Inputs ───────────────────────────────────────────────────

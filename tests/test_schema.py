@@ -197,6 +197,67 @@ class TestContactLog:
                 cur.execute(insert, (user_id, person_id, contact_id))
 
 
+# ── Prayer log ───────────────────────────────────────────────
+
+
+class TestPrayerLog:
+    def columns(self, cur):
+        cur.execute(
+            "SELECT column_name, is_nullable, column_default FROM information_schema.columns "
+            "WHERE table_name = 'prayer_log'"
+        )
+        return {name: (nullable, default) for name, nullable, default in cur.fetchall()}
+
+    def test_columns(self, db):
+        with db.cursor() as cur:
+            columns = self.columns(cur)
+        assert set(columns) == {"id", "person_id", "user_id", "prayed_at", "created_at"}
+        assert columns["person_id"][0] == "NO"
+        assert columns["user_id"][0] == "YES"
+        assert columns["prayed_at"][0] == "NO"
+        assert "now()" in columns["prayed_at"][1]
+        assert "now()" in columns["created_at"][1]
+
+    def test_prayed_at_and_created_at_default_to_now(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO person (name, status_id) VALUES ('Prayed', %s) RETURNING id", (get_status_id(cur),)
+            )
+            person_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO prayer_log (person_id) VALUES (%s) RETURNING prayed_at = now(), created_at = now(), user_id",
+                (person_id,),
+            )
+            assert cur.fetchone() == (True, True, None)
+
+    def test_person_required(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.NotNullViolation):
+                cur.execute("INSERT INTO prayer_log (person_id) VALUES (NULL)")
+
+    def test_deleting_person_deletes_prayers(self, db):
+        with db.cursor() as cur:
+            cur.execute("INSERT INTO person (name, status_id) VALUES ('Gone', %s) RETURNING id", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO prayer_log (person_id) VALUES (%s), (%s)", (person_id, person_id))
+            cur.execute("DELETE FROM person WHERE id = %s", (person_id,))
+            cur.execute("SELECT count(*) FROM prayer_log WHERE person_id = %s", (person_id,))
+            assert cur.fetchone()[0] == 0
+
+    def test_deleting_user_keeps_their_prayers(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO \"user\" (name, username, password_hash) VALUES ('U', 'pl_user', 'x') RETURNING id"
+            )
+            user_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO person (name, status_id) VALUES ('Kept', %s) RETURNING id", (get_status_id(cur),))
+            person_id = cur.fetchone()[0]
+            cur.execute("INSERT INTO prayer_log (person_id, user_id) VALUES (%s, %s)", (person_id, user_id))
+            cur.execute('DELETE FROM "user" WHERE id = %s', (user_id,))
+            cur.execute("SELECT user_id FROM prayer_log WHERE person_id = %s", (person_id,))
+            assert cur.fetchall() == [(None,)]
+
+
 # ── Person checks ────────────────────────────────────────────
 
 

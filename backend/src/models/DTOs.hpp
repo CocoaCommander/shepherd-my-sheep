@@ -144,6 +144,16 @@ class ContactLogDto : public oatpp::DTO {
     DTO_FIELD(String, createdAt);
 };
 
+class PrayerLogDto : public oatpp::DTO {
+    DTO_INIT(PrayerLogDto, DTO)
+
+    DTO_FIELD(String, typename_, "__typename") = "PrayerLog";
+    DTO_FIELD(String, id);
+    DTO_FIELD(oatpp::Object<UserDto>, prayedBy);  // nullable — the user was deleted
+    DTO_FIELD(String, prayedAt);
+    DTO_FIELD(String, createdAt);
+};
+
 class PersonDto : public oatpp::DTO {
     DTO_INIT(PersonDto, DTO)
 
@@ -168,6 +178,7 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(oatpp::Vector<String>, recordedMilestoneIds);  // Milestone ids, in any order; may be empty
     DTO_FIELD(Int32, activeBurdenCount);
     DTO_FIELD(oatpp::Object<CommentDto>, latestComment);  // nullable — no comments yet
+    DTO_FIELD(oatpp::Object<PrayerLogDto>, lastPrayer);   // nullable — no one has prayed yet
 
     // Shepherds are loaded everywhere a person is returned; the rest only
     // by the `person` query and mutations returning Person. Each may be
@@ -178,6 +189,7 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>, prayerBurdens);
     DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>, comments);
     DTO_FIELD(oatpp::Vector<oatpp::Object<ContactLogDto>>, contacts);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerLogDto>>, prayers);
 };
 
 // ── Auth ────────────────────────────────────────────────────

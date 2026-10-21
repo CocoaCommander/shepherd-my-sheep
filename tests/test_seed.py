@@ -28,7 +28,7 @@ class TestSeed:
         conn, ids = seeded_db
         person = ids.people["just_met"]
         with conn.cursor() as cur:
-            for table in ("milestone_person", "prayer_burden", "comment", "contact_log"):
+            for table in ("milestone_person", "prayer_burden", "comment", "contact_log", "prayer_log"):
                 assert count(cur, f"SELECT count(*) FROM {table} WHERE person_id = %s", person) == 0
             cur.execute("SELECT age FROM person WHERE id = %s", (person,))
             assert cur.fetchone() == (None,)
@@ -215,7 +215,56 @@ class TestSeed:
                 "SELECT count(*) FROM person p WHERE p.id = ANY(%s::uuid[]) AND p.created_at > LEAST("
                 "  (SELECT min(contacted_at) FROM contact_log WHERE person_id = p.id),"
                 "  (SELECT min(created_at) FROM comment WHERE person_id = p.id),"
-                "  (SELECT min(created_at) FROM prayer_burden WHERE person_id = p.id))",
+                "  (SELECT min(created_at) FROM prayer_burden WHERE person_id = p.id),"
+                "  (SELECT min(prayed_at) FROM prayer_log WHERE person_id = p.id))",
+                (list(ids.people.values()),),
+            )
+            assert cur.fetchone()[0] == 0
+
+    def test_people_never_prayed_for(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            for key in ("just_met", "lucy"):
+                assert count(cur, "SELECT count(*) FROM prayer_log WHERE person_id = %s", ids.people[key]) == 0
+
+    def test_shared_person_prayed_for_by_both_shepherds_last_by_co_leader(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT user_id FROM prayer_log WHERE person_id = %s", (ids.people["maria"],))
+            assert {r[0] for r in cur.fetchall()} == {ids.users["shepherd"], ids.users["coleader"]}
+            cur.execute(
+                "SELECT user_id FROM prayer_log WHERE person_id = %s ORDER BY prayed_at DESC LIMIT 1",
+                (ids.people["maria"],),
+            )
+            assert cur.fetchone() == (ids.users["coleader"],)
+
+    def test_backdated_prayer(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            assert (
+                count(
+                    cur,
+                    "SELECT count(*) FROM prayer_log WHERE person_id = %s AND created_at - prayed_at > interval '1 day'",
+                    ids.people["david"],
+                )
+                > 0
+            )
+
+    def test_prayed_for_person_with_no_burdens(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            person = ids.people["marcus"]
+            assert count(cur, "SELECT count(*) FROM prayer_log WHERE person_id = %s", person) > 0
+            assert count(cur, "SELECT count(*) FROM prayer_burden WHERE person_id = %s", person) == 0
+
+    def test_prayers_are_by_a_shepherd(self, seeded_db):
+        conn, ids = seeded_db
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT count(*) FROM prayer_log pl "
+                "WHERE pl.person_id = ANY(%s::uuid[]) "
+                "AND NOT EXISTS (SELECT 1 FROM user_person up "
+                "                WHERE up.person_id = pl.person_id AND up.user_id = pl.user_id)",
                 (list(ids.people.values()),),
             )
             assert cur.fetchone()[0] == 0
