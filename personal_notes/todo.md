@@ -31,12 +31,12 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [x] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19). (#72)
   - [x] Confirm each action that can't be undone (remove shepherd, remove yourself, delete person, remove milestone, delete comment) in a dialog before it happens. Release has an Undo toast instead of a confirmation (decided 2026-10-20). (#75)
 - [x] **Prayer list**: all active burdens across the people you shepherd. (#56, #57, #58)
-  - [ ] **Expand / collapse comments on recently released prayers.** In
+  - [x] **Expand / collapse comments on recently released prayers.** In
     the "Recently released" panel (`web/src/pages/PrayerListPage.tsx`),
-    let each burden's comments expand and collapse; collapsed by default.
-  - [ ] Change the sort label "Longest standing" (mWeb "Longest") to
+    let each burden's comments expand and collapse; collapsed by default. (#81)
+  - [x] Change the sort label "Longest standing" (mWeb "Longest") to
     "Oldest" in `web/src/pages/PrayerListPage.tsx`, and update
-    `PrayerListPage.test.tsx` to match.
+    `PrayerListPage.test.tsx` to match. (#81)
   - [ ] **Record when shepherds pray for a person.** Save a timestamp
     (and which shepherd) each time someone prays for a person, e.g. a
     `prayer_log` table alongside `contact_log`. Where it's recorded and
