@@ -60,15 +60,10 @@ a {
   color: var(--accent);
 }
 
-.page,
 .auth {
   max-width: 640px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
-}
-
-.auth {
-  padding-top: 12vh;
+  padding: 12vh 16px 48px;
 }
 .auth h1 {
   text-align: center;
@@ -143,15 +138,8 @@ details summary {
   padding: 4px 0;
 }
 
-.muted {
-  color: var(--muted);
-}
 .small {
   font-size: 0.85rem;
-}
-.empty {
-  color: var(--muted);
-  font-style: italic;
 }
 .error {
   color: var(--error);
