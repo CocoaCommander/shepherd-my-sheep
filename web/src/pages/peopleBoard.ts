@@ -1,4 +1,10 @@
-import { MILESTONES, STATUS_LABELS, type DueTone, type PersonStatus } from '../components'
+import {
+  MILESTONES,
+  STATUS_LABELS,
+  type DueTone,
+  type PersonStatus,
+  type ViewMode,
+} from '../components'
 import { contactDueLabel, parseDateTime } from '../format'
 import { ContactState, type MyPeopleQuery } from '../generated/graphql'
 import { STATUS_BY_NAME } from './personStatus'
@@ -75,6 +81,46 @@ export function movedMessage(name: string, to: PersonStatus, narrow: boolean): s
   const moved = `Moved ${name} to ${STATUS_LABELS[to]}.`
   if (isTracked(to)) return moved
   return `${moved} No longer tracked for ${narrow ? 'alerts' : 'contact alerts'}.`
+}
+
+const VIEW_KEY = 'shepherd.people.view'
+
+/**
+ * The view last chosen on this device (decided 2026-10-16). Board unless Gallery was stored;
+ * storage can be blocked or throw (private windows), which also means Board.
+ */
+export function readView(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'gallery' ? 'gallery' : 'board'
+  } catch {
+    return 'board'
+  }
+}
+
+export function storeView(view: ViewMode) {
+  try {
+    localStorage.setItem(VIEW_KEY, view)
+  } catch {
+    // Ignored, see readView: the choice just isn't remembered.
+  }
+}
+
+/** The gallery's order: by name, as the canvas sorts it. */
+export const byName = (a: Person, b: Person) =>
+  a.name.localeCompare(b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
+/** Case-insensitive substring search by name; a blank query matches everyone. */
+export function matchesName(person: Pick<Person, 'name'>, query: string): boolean {
+  const q = query.trim().toLocaleLowerCase()
+  return !q || person.name.toLocaleLowerCase().includes(q)
+}
+
+/** "52 years old · Met 2016", "Met 2016", "52 years old", or nothing when neither is known. */
+export function personSubtitle(person: Pick<Person, 'age' | 'yearMet'>): string | undefined {
+  const parts = []
+  if (person.age != null) parts.push(`${person.age} years old`)
+  if (person.yearMet != null) parts.push(`Met ${person.yearMet}`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
 /** "1 person you are shepherding", "9 people you are shepherding". */

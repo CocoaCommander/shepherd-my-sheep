@@ -79,9 +79,25 @@
 
 .statusRow {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: var(--sms-space-8);
+}
+
+/* The 2-up mobile gallery card: everything centred in one column. */
+.compact {
+  padding: var(--sms-space-14) var(--sms-space-12);
+  align-items: center;
+  text-align: center;
+  gap: var(--sms-space-8);
+}
+.compact .name {
+  max-width: 100%;
+  font-size: 14px;
+}
+.compactBar {
+  width: 100%;
 }
 .lastContact {
   display: flex;

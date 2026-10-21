@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { GridIcon, ListIcon } from '../icons'
+import { BoardIcon, GridIcon } from '../icons'
 import { cx } from '../utils'
 import styles from './FilterControls.module.css'
 
@@ -61,9 +61,14 @@ export function SegmentedControl<T extends string>({
   )
 }
 
-export type ViewMode = 'gallery' | 'list'
+export type ViewMode = 'board' | 'gallery'
 
-/** The icon-only gallery and list switch. */
+const VIEWS: Array<{ value: ViewMode; label: string; icon: ReactNode }> = [
+  { value: 'board', label: 'Board', icon: <BoardIcon /> },
+  { value: 'gallery', label: 'Gallery', icon: <GridIcon /> },
+]
+
+/** My people's Board / Gallery switch: icon and word, exactly one pressed. */
 export function ViewToggle({
   value,
   onChange,
@@ -75,24 +80,18 @@ export function ViewToggle({
 }) {
   return (
     <div role="group" aria-label="View" className={cx(styles.viewToggle, className)}>
-      <button
-        type="button"
-        className={styles.view}
-        aria-label="Gallery view"
-        aria-pressed={value === 'gallery'}
-        onClick={() => onChange('gallery')}
-      >
-        <GridIcon />
-      </button>
-      <button
-        type="button"
-        className={styles.view}
-        aria-label="List view"
-        aria-pressed={value === 'list'}
-        onClick={() => onChange('list')}
-      >
-        <ListIcon />
-      </button>
+      {VIEWS.map((view) => (
+        <button
+          key={view.value}
+          type="button"
+          className={styles.view}
+          aria-pressed={value === view.value}
+          onClick={() => onChange(view.value)}
+        >
+          {view.icon}
+          {view.label}
+        </button>
+      ))}
     </div>
   )
 }

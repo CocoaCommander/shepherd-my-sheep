@@ -26,16 +26,21 @@ function Name({ name, renderName, headingLevel = 3 }: NameProps) {
   return <Heading className={styles.name}>{renderName ? renderName(name) : name}</Heading>
 }
 
-/** The portrait card in the My people gallery. */
+/**
+ * The portrait card in the My people gallery. `compact` is the 2-up mobile web card: avatar,
+ * name, status, tag and the milestone bar only (no subtitle, last contact, shepherds or prayer).
+ */
 export function PersonCard({
   name,
   renderName,
   subtitle,
   status,
+  tag,
   lastContact,
   milestones,
   shepherds,
   prayerCount,
+  compact = false,
   avatarTint = 'green',
   headingLevel,
   className,
@@ -43,17 +48,32 @@ export function PersonCard({
   /** e.g. "52 years old · Met 2016". */
   subtitle?: ReactNode
   status: PersonStatus
+  /** Beside the status, typically the contact DueTag. */
+  tag?: ReactNode
   /** e.g. "1 week ago". Absent when no contact has been logged (business rule 6). */
   lastContact?: ReactNode
   /** Recorded milestone names; may be empty (business rule 2). */
   milestones: readonly string[]
-  /** The shepherd stack in the footer; omitted when there's no one to show. */
+  /** The shepherd stack beside the name; omitted when there's no one to show. */
   shepherds?: { names: string[]; label: string }
   /** Active prayer burdens; may be zero (business rule 3). */
   prayerCount: number
+  compact?: boolean
   avatarTint?: AvatarTint
   className?: string
 }) {
+  if (compact) {
+    return (
+      <article className={cx(styles.card, styles.compact, className)}>
+        <Avatar name={name} size="lg" tint={avatarTint} />
+        <Name name={name} renderName={renderName} headingLevel={headingLevel} />
+        <StatusPill status={status} />
+        {tag}
+        <Milestones recorded={milestones} compact className={styles.compactBar} />
+      </article>
+    )
+  }
+
   return (
     <article className={cx(styles.card, className)}>
       <div className={styles.head}>
@@ -62,22 +82,21 @@ export function PersonCard({
           <Name name={name} renderName={renderName} headingLevel={headingLevel} />
           {subtitle && <div className={styles.sub}>{subtitle}</div>}
         </div>
+        {shepherds && shepherds.names.length > 0 && (
+          <AvatarStack names={shepherds.names} label={shepherds.label} />
+        )}
       </div>
       <div className={styles.statusRow}>
         <StatusPill status={status} />
-        <span className={cx(styles.sub, styles.lastContact)}>
-          <ClockIcon />
-          {lastContact ?? 'No contact yet'}
-        </span>
+        {tag}
       </div>
       <Milestones recorded={milestones} />
       <div className={styles.foot}>
-        {shepherds && shepherds.names.length > 0 ? (
-          <AvatarStack names={shepherds.names} label={shepherds.label} />
-        ) : (
-          <span />
-        )}
-        <PrayerCount count={prayerCount}>{prayerCount} praying</PrayerCount>
+        <span className={cx(styles.sub, styles.lastContact)}>
+          <ClockIcon />
+          {lastContact ? <>Last contact: {lastContact}</> : 'No contact yet'}
+        </span>
+        <PrayerCount count={prayerCount} hiddenSuffix=" praying" />
       </div>
     </article>
   )

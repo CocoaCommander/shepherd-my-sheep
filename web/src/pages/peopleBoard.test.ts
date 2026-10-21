@@ -1,11 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ContactState } from '../generated/graphql'
 import {
+  byName,
   byUrgency,
   contactTag,
+  matchesName,
   milestoneLabels,
   movedMessage,
+  personSubtitle,
+  readView,
   shepherdingCount,
+  storeView,
   type Person,
 } from './peopleBoard'
 
@@ -146,5 +151,91 @@ describe('shepherdingCount', () => {
     expect(shepherdingCount(0)).toBe('0 people you are shepherding')
     expect(shepherdingCount(1)).toBe('1 person you are shepherding')
     expect(shepherdingCount(9)).toBe('9 people you are shepherding')
+  })
+})
+
+describe('readView and storeView', () => {
+  afterEach(() => {
+    localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it('reads Board when nothing is stored', () => {
+    expect(readView()).toBe('board')
+  })
+
+  it('round-trips the stored view', () => {
+    storeView('gallery')
+    expect(localStorage.getItem('shepherd.people.view')).toBe('gallery')
+    expect(readView()).toBe('gallery')
+    storeView('board')
+    expect(readView()).toBe('board')
+  })
+
+  it('reads Board for any other value', () => {
+    localStorage.setItem('shepherd.people.view', 'list')
+    expect(readView()).toBe('board')
+  })
+
+  it('reads Board, and ignores the write, when storage throws', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    expect(readView()).toBe('board')
+    expect(() => storeView('gallery')).not.toThrow()
+  })
+})
+
+describe('byName', () => {
+  const n = (name: string, id = name) => ({ name, id }) as Person
+
+  it('sorts A to Z', () => {
+    const list = [n('Zed'), n('Amy'), n('Mia')]
+    expect(list.sort(byName).map((x) => x.name)).toEqual(['Amy', 'Mia', 'Zed'])
+  })
+
+  it('breaks a name tie by id so the order is stable', () => {
+    const list = [n('Sam', 'b'), n('Sam', 'a')]
+    expect(list.sort(byName).map((x) => x.id)).toEqual(['a', 'b'])
+  })
+})
+
+describe('matchesName', () => {
+  const maria = { name: 'Maria Santos' }
+
+  it('matches a substring, ignoring case', () => {
+    expect(matchesName(maria, 'SANT')).toBe(true)
+    expect(matchesName(maria, 'a s')).toBe(true)
+  })
+
+  it('trims the query', () => {
+    expect(matchesName(maria, '  maria  ')).toBe(true)
+  })
+
+  it('matches everyone for a blank query', () => {
+    expect(matchesName(maria, '')).toBe(true)
+    expect(matchesName(maria, '   ')).toBe(true)
+  })
+
+  it('does not match a name that is not there', () => {
+    expect(matchesName(maria, 'zz')).toBe(false)
+  })
+})
+
+describe('personSubtitle', () => {
+  it('joins age and year met', () => {
+    expect(personSubtitle({ age: 52, yearMet: 2016 })).toBe('52 years old · Met 2016')
+  })
+
+  it('shows either alone', () => {
+    expect(personSubtitle({ age: null, yearMet: 2016 })).toBe('Met 2016')
+    expect(personSubtitle({ age: 52, yearMet: null })).toBe('52 years old')
+  })
+
+  it('is undefined when neither is known', () => {
+    expect(personSubtitle({ age: null, yearMet: null })).toBeUndefined()
   })
 })

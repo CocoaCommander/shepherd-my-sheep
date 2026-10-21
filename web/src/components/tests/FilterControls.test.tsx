@@ -46,12 +46,13 @@ describe('SegmentedControl', () => {
 })
 
 describe('ViewToggle', () => {
-  it('labels its icon buttons and reports the chosen view', async () => {
+  it('is a View group of Board and Gallery that reports the chosen view', async () => {
     const onChange = vi.fn()
     render(<ViewToggle value="gallery" onChange={onChange} />)
-    expect(screen.getByRole('button', { name: 'Gallery view', pressed: true })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'List view', pressed: false }))
-    expect(onChange).toHaveBeenCalledWith('list')
+    expect(screen.getByRole('group', { name: 'View' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gallery', pressed: true })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Board', pressed: false }))
+    expect(onChange).toHaveBeenCalledWith('board')
   })
 })
 

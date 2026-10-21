@@ -20,7 +20,9 @@ import {
   PlusIcon,
   Select,
   STATUS_LABELS,
+  ViewToggle,
   type PersonStatus,
+  type ViewMode,
 } from '../components'
 import { friendlyMessage } from '../errors'
 import { firstName, timeAgo } from '../format'
@@ -43,12 +45,15 @@ import {
   isTracked,
   milestoneLabels,
   movedMessage,
+  readView,
   shepherdingCount,
+  storeView,
   statusOf,
   STATUS_ORDER,
   STATUS_RULES,
   type Person,
 } from './peopleBoard'
+import { PeopleGallery } from './PeopleGallery'
 import styles from './PeoplePage.module.css'
 import { STATUS_BY_NAME } from './personStatus'
 
@@ -58,11 +63,13 @@ type Summary = UpdatePersonMutation['updatePerson']
 type Via = 'menu' | 'drop'
 
 /**
- * My people as a board: a column per status (tabs on mobile web). A card moves by dragging it
- * to another column or with its Move to menu, the keyboard and screen-reader path (WCAG 2.5.7).
+ * My people, as a board or a gallery (remembered per device). The board has a column per
+ * status (tabs on mobile web); a card moves by dragging it to another column or with its Move
+ * to menu, the keyboard and screen-reader path (WCAG 2.5.7). The gallery is in PeopleGallery.
  */
 export function PeoplePage() {
   const narrow = useMediaQuery(NARROW)
+  const [view, setView] = useState<ViewMode>(readView)
   const { data, loading, error } = useMyPeopleQuery()
   const { data: statusData } = useStatusesQuery()
   const { data: milestoneData } = useMilestonesQuery()
@@ -198,9 +205,19 @@ export function PeoplePage() {
             <h1 className={styles.title}>My people</h1>
             {data && <p className={styles.subline}>{shepherdingCount(people.length)}</p>}
           </div>
-          <Button as={Link} to="/people/new" icon={<PlusIcon />} className={styles.addPerson}>
-            Add person
-          </Button>
+          <div className={styles.headerActions}>
+            <Button as={Link} to="/people/new" icon={<PlusIcon />} className={styles.addPerson}>
+              Add person
+            </Button>
+            <ViewToggle
+              value={view}
+              onChange={(next) => {
+                setView(next)
+                storeView(next)
+              }}
+              className={styles.viewToggle}
+            />
+          </div>
         </div>
 
         {loading && <p className={styles.muted}>Loading…</p>}
@@ -217,7 +234,15 @@ export function PeoplePage() {
         )}
 
         {data &&
-          (narrow ? (
+          (view === 'gallery' ? (
+            <PeopleGallery
+              people={people}
+              milestoneNames={milestoneNames}
+              tints={tints}
+              now={now}
+              narrow={narrow}
+            />
+          ) : narrow ? (
             <StatusTabs
               columns={columns}
               panelRef={panelRef}

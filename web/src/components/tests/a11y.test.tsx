@@ -209,6 +209,25 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             prayerCount={1}
           />
           <C.PersonCard
+            name="Elena Petrova"
+            headingLevel={2}
+            status="active"
+            tag={<C.DueTag tone="overdue">14 days overdue</C.DueTag>}
+            subtitle="52 years old · Met 2016"
+            lastContact="3 weeks ago"
+            milestones={['Baptised']}
+            prayerCount={0}
+          />
+          <C.PersonCard
+            compact
+            name="Maria Santos"
+            headingLevel={2}
+            status="active"
+            tag={<C.DueTag tone="ok">On track</C.DueTag>}
+            milestones={['Baptised', 'Serving']}
+            prayerCount={2}
+          />
+          <C.PersonCard
             name="Tom Becker"
             headingLevel={2}
             status="new"

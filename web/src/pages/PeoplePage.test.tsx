@@ -204,11 +204,13 @@ async function ready() {
 }
 
 beforeEach(() => {
+  localStorage.clear()
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
 })
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('PeoplePage (wide)', () => {
@@ -763,6 +765,337 @@ describe('PeoplePage accessibility', () => {
     })
 
     it('has no violations on the tabs', async () => {
+      const { container } = setup([ELENA, TOM, MARIA, OMAR])
+      await ready()
+      expect(await violations(container)).toEqual([])
+    })
+  })
+})
+
+const VIEW_KEY = 'shepherd.people.view'
+
+/** Makes the page narrow: the mobile layout's media query matches. */
+function stubNarrow() {
+  const original = window.matchMedia
+  beforeEach(() => {
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia
+  })
+  afterEach(() => {
+    window.matchMedia = original
+  })
+}
+
+describe('PeoplePage view toggle', () => {
+  const view = (name: string) =>
+    within(screen.getByRole('group', { name: 'View' })).getByRole('button', { name })
+
+  it('opens on the board by default, with Board pressed', async () => {
+    setup([MARIA])
+    await ready()
+    expect(view('Board')).toHaveAttribute('aria-pressed', 'true')
+    expect(view('Gallery')).toHaveAttribute('aria-pressed', 'false')
+    expect(column('Active')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Search by name')).not.toBeInTheDocument()
+  })
+
+  it('switches to the gallery, hiding the columns and help line, and remembers it', async () => {
+    const user = userEvent.setup()
+    setup([MARIA])
+    await ready()
+    await user.click(view('Gallery'))
+    expect(view('Gallery')).toHaveAttribute('aria-pressed', 'true')
+    expect(view('Board')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByLabelText('Search by name')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Filter by status' })).toBeInTheDocument()
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Drag a card to another column/)).not.toBeInTheDocument()
+    expect(localStorage.getItem(VIEW_KEY)).toBe('gallery')
+  })
+
+  it('goes back to the board and remembers that', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem(VIEW_KEY, 'gallery')
+    setup([MARIA])
+    await ready()
+    await user.click(view('Board'))
+    expect(column('Active')).toBeInTheDocument()
+    expect(screen.getByText(/Drag a card to another column/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Search by name')).not.toBeInTheDocument()
+    expect(localStorage.getItem(VIEW_KEY)).toBe('board')
+  })
+
+  it('opens on the gallery when that was stored', async () => {
+    localStorage.setItem(VIEW_KEY, 'gallery')
+    setup([MARIA])
+    await ready()
+    expect(view('Gallery')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Search by name')).toBeInTheDocument()
+    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+  })
+
+  it('opens on the board for any other stored value', async () => {
+    localStorage.setItem(VIEW_KEY, 'list')
+    setup([MARIA])
+    await ready()
+    expect(view('Board')).toHaveAttribute('aria-pressed', 'true')
+    expect(column('Active')).toBeInTheDocument()
+  })
+
+  it('still works, just not remembered, when storage throws', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    setup([MARIA])
+    await ready()
+    expect(view('Board')).toHaveAttribute('aria-pressed', 'true')
+    await user.click(view('Gallery'))
+    expect(screen.getByLabelText('Search by name')).toBeInTheDocument()
+    expect(view('Gallery')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  describe('narrow', () => {
+    stubNarrow()
+
+    it('shows the gallery instead of the tabs', async () => {
+      const user = userEvent.setup()
+      setup([MARIA])
+      await ready()
+      expect(screen.getByRole('tablist', { name: 'Status' })).toBeInTheDocument()
+      await user.click(view('Gallery'))
+      expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Search by name')).toBeInTheDocument()
+    })
+  })
+})
+
+describe('PeopleGallery (wide)', () => {
+  beforeEach(() => localStorage.setItem(VIEW_KEY, 'gallery'))
+
+  const search = () => screen.getByLabelText('Search by name')
+  const chip = (name: string) =>
+    within(screen.getByRole('group', { name: 'Filter by status' })).getByRole('button', { name })
+  const cardNames = () =>
+    screen.queryAllByRole('article').map((a) => within(a).getByRole('heading').textContent)
+
+  it('lists cards by name, each linking to the person, ending with Add someone new', async () => {
+    setup([MARIA, ZOE, ELENA, OMAR])
+    await ready()
+    expect(cardNames()).toEqual(['Elena Petrova', 'Maria Santos', 'Omar Haddad', 'Zoe Lin'])
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual(
+      cardNames(),
+    )
+    expect(
+      within(cardOf('Maria Santos')).getByRole('link', { name: 'Maria Santos' }),
+    ).toHaveAttribute('href', '/people/p-maria')
+    const add = screen.getByRole('link', { name: 'Add someone new' })
+    expect(add).toHaveAttribute('href', '/people/new')
+    const all = screen.getAllByRole('link')
+    expect(all[all.length - 1]).toBe(add)
+  })
+
+  it('shows status, tag, milestones, last contact and prayers on each card', async () => {
+    setup([MARIA, ELENA, TOM, OMAR])
+    await ready()
+    const maria = cardOf('Maria Santos')
+    expect(maria).toHaveTextContent('Active')
+    expect(maria).toHaveTextContent('On track')
+    expect(maria).toHaveTextContent('Last contact: 3 days ago')
+    expect(maria).toHaveTextContent('2 praying')
+    expect(
+      within(maria).getByRole('img', { name: 'Milestones: 2 of 4: Baptised, Small group' }),
+    ).toBeInTheDocument()
+    expect(cardOf('Elena Petrova')).toHaveTextContent('14 days overdue')
+    expect(cardOf('Tom Becker')).toHaveTextContent('New contact')
+    expect(cardOf('Tom Becker')).toHaveTextContent('Follow-up overdue')
+    expect(cardOf('Omar Haddad')).toHaveTextContent('Inactive')
+    expect(cardOf('Omar Haddad')).toHaveTextContent('Not tracked')
+  })
+
+  it('words a due-today active person', async () => {
+    setup([active('p-today', 'Due Today', 7)])
+    await ready()
+    expect(cardOf('Due Today')).toHaveTextContent('Due today')
+  })
+
+  it('renders a person with no contact, milestones or prayer burdens (rules 2 and 3)', async () => {
+    setup([OMAR])
+    await ready()
+    const card = cardOf('Omar Haddad')
+    expect(card).toHaveTextContent('No contact yet')
+    expect(card).not.toHaveTextContent('Last contact:')
+    expect(card).toHaveTextContent('0 praying')
+    expect(
+      within(card).getByRole('img', { name: 'Milestones: No milestones yet' }),
+    ).toBeInTheDocument()
+  })
+
+  it('writes the subtitle from age and year met, or leaves it out', async () => {
+    setup([
+      person('p-1', 'Both Known', { age: 52, yearMet: 2016 }),
+      person('p-2', 'Year Only', { yearMet: 2020 }),
+      person('p-3', 'Age Only', { age: 30 }),
+      person('p-4', 'Neither Known'),
+    ])
+    await ready()
+    expect(cardOf('Both Known')).toHaveTextContent('52 years old · Met 2016')
+    expect(cardOf('Year Only')).toHaveTextContent('Met 2020')
+    expect(cardOf('Year Only')).not.toHaveTextContent('years old')
+    expect(cardOf('Age Only')).toHaveTextContent('30 years old')
+    expect(cardOf('Age Only')).not.toHaveTextContent('Met')
+    expect(cardOf('Neither Known')).not.toHaveTextContent(/years old|Met/)
+  })
+
+  it('has status chips with whole counts, All pressed by default', async () => {
+    setup([MARIA, ELENA, TOM, OMAR, ZOE])
+    await ready()
+    expect(chip('All 5')).toHaveAttribute('aria-pressed', 'true')
+    for (const name of ['New contact 1', 'Active 2', 'Inactive 1', 'Lost contact 1']) {
+      expect(chip(name)).toHaveAttribute('aria-pressed', 'false')
+    }
+  })
+
+  it('filters by the chosen status', async () => {
+    const user = userEvent.setup()
+    setup([MARIA, ELENA, TOM, OMAR, ZOE])
+    await ready()
+    await user.click(chip('Active 2'))
+    expect(chip('Active 2')).toHaveAttribute('aria-pressed', 'true')
+    expect(chip('All 5')).toHaveAttribute('aria-pressed', 'false')
+    expect(cardNames()).toEqual(['Elena Petrova', 'Maria Santos'])
+    await user.click(chip('All 5'))
+    expect(cardNames()).toHaveLength(5)
+  })
+
+  it('searches case-insensitively, trimming spaces, with chip counts unchanged', async () => {
+    const user = userEvent.setup()
+    setup([MARIA, ELENA, TOM, OMAR])
+    await ready()
+    await user.type(search(), '  MARI ')
+    expect(cardNames()).toEqual(['Maria Santos'])
+    expect(chip('All 4')).toBeInTheDocument()
+    expect(chip('Active 2')).toBeInTheDocument()
+  })
+
+  it('combines search with a status chip', async () => {
+    const user = userEvent.setup()
+    setup([MARIA, ELENA, ZOE, AMY])
+    await ready()
+    await user.type(search(), 'a')
+    await user.click(chip('Lost contact 2'))
+    expect(cardNames()).toEqual(['Amy Park'])
+  })
+
+  it('says no one matches the search, and still offers Add someone new', async () => {
+    const user = userEvent.setup()
+    setup([MARIA, OMAR])
+    await ready()
+    await user.type(search(), 'zz')
+    expect(screen.getByText('No one matches "zz".')).toBeInTheDocument()
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add someone new' })).toBeInTheDocument()
+  })
+
+  it('names the status when a chip and search match no one', async () => {
+    const user = userEvent.setup()
+    setup([MARIA, OMAR])
+    await ready()
+    await user.click(chip('Inactive 1'))
+    await user.type(search(), 'zz')
+    expect(screen.getByText('No one in Inactive matches "zz".')).toBeInTheDocument()
+  })
+
+  it('says no one is in an empty status', async () => {
+    const user = userEvent.setup()
+    setup([MARIA])
+    await ready()
+    await user.click(chip('Inactive 0'))
+    expect(screen.getByText('No one in Inactive.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add someone new' })).toBeInTheDocument()
+  })
+
+  it('has no cards for a user with no people (rule 1), only the empty section and Add tile', async () => {
+    setup([])
+    expect(await screen.findByText('No one is assigned to you yet')).toBeInTheDocument()
+    expect(chip('All 0')).toBeInTheDocument()
+    for (const name of ['New contact 0', 'Active 0', 'Inactive 0', 'Lost contact 0']) {
+      expect(chip(name)).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^No one (in .+ )?(matches|\.)/)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add someone new' })).toBeInTheDocument()
+  })
+})
+
+describe('PeopleGallery (narrow)', () => {
+  stubNarrow()
+  beforeEach(() => localStorage.setItem(VIEW_KEY, 'gallery'))
+
+  it('shows compact cards: name, status, tag and the bar only', async () => {
+    setup([{ ...MARIA, age: 40, yearMet: 2010 }])
+    await ready()
+    const card = cardOf('Maria Santos')
+    expect(card).toHaveClass('compact')
+    expect(card).toHaveTextContent('Active')
+    expect(card).toHaveTextContent('On track')
+    expect(within(card).getByRole('img', { name: /Milestones: 2 of 4/ })).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('years old')
+    expect(card).not.toHaveTextContent('Met 2010')
+    expect(card).not.toHaveTextContent('Last contact')
+    expect(card).not.toHaveTextContent('praying')
+    expect(card.textContent).not.toMatch(/Baptised/)
+  })
+
+  it('has no Add someone new tile, but Add person stays in the header', async () => {
+    setup([MARIA])
+    await ready()
+    expect(screen.queryByRole('link', { name: 'Add someone new' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Add person' })).toHaveAttribute('href', '/people/new')
+  })
+
+  it('can still be searched and filtered', async () => {
+    const user = userEvent.setup()
+    setup([MARIA, ELENA, OMAR])
+    await ready()
+    await user.type(screen.getByLabelText('Search by name'), 'ele')
+    expect(screen.getAllByRole('article')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Inactive 1' }))
+    expect(screen.getByText('No one in Inactive matches "ele".')).toBeInTheDocument()
+  })
+})
+
+describe('PeopleGallery accessibility', () => {
+  async function violations(container: HTMLElement) {
+    const results = await axe.run(container, {
+      runOnly: {
+        type: 'tag',
+        values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'],
+      },
+      rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+    })
+    return results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length})`)
+  }
+
+  beforeEach(() => localStorage.setItem(VIEW_KEY, 'gallery'))
+
+  it('has no violations on the wide gallery', async () => {
+    const { container } = setup([ELENA, TOM, MARIA, OMAR])
+    await ready()
+    expect(await violations(container)).toEqual([])
+  })
+
+  describe('narrow', () => {
+    stubNarrow()
+
+    it('has no violations on the narrow gallery', async () => {
       const { container } = setup([ELENA, TOM, MARIA, OMAR])
       await ready()
       expect(await violations(container)).toEqual([])

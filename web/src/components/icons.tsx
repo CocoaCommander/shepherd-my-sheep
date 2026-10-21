@@ -107,6 +107,17 @@ export function ChevronRightIcon({ size = 14, ...rest }: IconProps) {
   )
 }
 
+/** Three columns, for the board view. */
+export function BoardIcon({ size = 16, ...rest }: IconProps) {
+  return (
+    <svg {...stroke(size, '0 0 16 16', 1.6, rest)}>
+      <rect x="1.8" y="2" width="3.4" height="12" rx="1" />
+      <rect x="6.3" y="2" width="3.4" height="8" rx="1" />
+      <rect x="10.8" y="2" width="3.4" height="10" rx="1" />
+    </svg>
+  )
+}
+
 export function HeartIcon({ size = 14, ...rest }: IconProps) {
   return (
     <svg {...stroke(size, '0 0 16 16', 1.6, rest)}>
