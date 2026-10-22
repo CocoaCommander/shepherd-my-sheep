@@ -197,7 +197,7 @@
 }
 .prayedIcon {
   flex: none;
-  color: var(--sms-brand);
+  color: var(--sms-brand-icon);
 }
 /* A 44px target that doesn't push the line apart. */
 .prayedUndo {

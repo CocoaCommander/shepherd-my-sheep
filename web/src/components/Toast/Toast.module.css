@@ -3,7 +3,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sms-space-14);
-  background: var(--sms-ink);
+  background: var(--sms-toast);
   color: var(--sms-on-brand);
   border-radius: var(--sms-radius-xl);
   padding: var(--sms-space-10) var(--sms-space-12) var(--sms-space-10) var(--sms-space-16);

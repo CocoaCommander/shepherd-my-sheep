@@ -56,9 +56,9 @@
 }
 .error .input,
 .error .group {
-  border-color: var(--sms-danger);
+  border-color: var(--sms-danger-text);
   /* 2px in all, so the state shows in weight as well as colour (with the icon and the text). */
-  box-shadow: inset 0 0 0 1px var(--sms-danger);
+  box-shadow: inset 0 0 0 1px var(--sms-danger-text);
 }
 .error .group .input {
   box-shadow: none;
@@ -66,7 +66,7 @@
 .error .help {
   display: flex;
   gap: var(--sms-space-6);
-  color: var(--sms-danger);
+  color: var(--sms-danger-text);
   font-weight: 600;
 }
 

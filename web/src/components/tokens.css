@@ -1,8 +1,16 @@
 /*
  * Shepherd My Sheep design tokens, copied from the design system's tokens.json.
- * Light theme only. Every name carries an `sms-` prefix.
+ * Light and dark themes. Every name carries an `sms-` prefix.
+ *
+ * Light is the bare :root. Dark follows the OS unless data-theme='light' is set
+ * on <html>, and data-theme='dark' forces it. Plain CSS can't share one block
+ * between a media query and a selector, so the two dark blocks below repeat the
+ * same values; tests/tokens.test.ts checks they match. Dark values come from the
+ * design canvas's *Dark boards.
  */
 :root {
+  color-scheme: light;
+
   /* Ground and surfaces */
   --sms-bg: #f6f5f2;
   --sms-surface: #ffffff;
@@ -20,6 +28,8 @@
   --sms-muted: #5f646a;
   --sms-muted-icon: #8b9298;
   --sms-on-brand: #ffffff;
+  /* Toast fill, with on-brand text. */
+  --sms-toast: #1f2328;
 
   /* Brand */
   --sms-brand: #3b6e4f;
@@ -30,9 +40,17 @@
   --sms-brand-border: #cfe0d5;
   /* Focus ring: 3.02:1 on bg, 3.30:1 on surface (WCAG 1.4.11). Was #8fb9a0, about 2:1. */
   --sms-brand-ring: #749583;
+  /* Icon strokes on a surface (prayed heart, burden icon). */
+  --sms-brand-icon: #3b6e4f;
+  /* The sheep mark: body and head/legs. Its eye is the surface colour. */
+  --sms-logo-body: #3b6e4f;
+  --sms-logo-shade: #2d5a3f;
 
   /* Urgency */
+  /* Danger as a fill (buttons, tags, badges, meters), with on-brand text. */
   --sms-danger: #a13a0a;
+  /* Danger as text, icon or border on a surface (field errors, overdue, delete link). */
+  --sms-danger-text: #a13a0a;
   --sms-danger-ink: #7a2a05;
   --sms-danger-body: #5a3a28;
   --sms-danger-tint: #fbeee6;
@@ -92,13 +110,141 @@
   --sms-radius-pill: 999px;
   --sms-radius-circle: 50%;
 
-  /* Shadow: the toast is the only elevation; everything else uses borders. */
+  /* Shadow: the toast and dialog are the only elevation; everything else uses borders. */
   --sms-shadow-toast: 0 6px 20px rgba(31, 35, 40, 0.25);
-  --sms-shadow-avatar-ring: 0 0 0 1px #e2e0db;
+  --sms-shadow-avatar-ring: 0 0 0 1px var(--sms-border);
+  /* The selected tab of the phone People tabs. */
+  --sms-shadow-tab: 0 1px 3px rgba(31, 35, 40, 0.15);
+  /* Behind an open dialog. */
+  --sms-backdrop: rgba(31, 35, 40, 0.45);
 
   /* Size */
   --sms-size-touch: 44px;
   --sms-size-input: 48px;
   --sms-size-cta: 50px;
   --sms-size-content: 1216px;
+}
+
+/* Dark, from the OS, unless the user chose light. Keep in step with the block below. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sms-bg: #121416;
+    --sms-surface: #1d2125;
+    --sms-surface-sunken: #171a1d;
+    --sms-border: #343a40;
+    --sms-border-control: #4d555d;
+    --sms-border-input: #8b939b;
+    --sms-border-dashed: #5d666e;
+    --sms-border-dashed-soft: #59626a;
+    --sms-ink: #e8eaed;
+    --sms-ink-2: #c9ced3;
+    --sms-muted: #a4acb3;
+    --sms-muted-icon: #a2aab1;
+    --sms-on-brand: #ffffff;
+    --sms-toast: #2f353b;
+    --sms-brand: #3c7e59;
+    --sms-brand-strong: #8fcaa6;
+    --sms-brand-tint: #1f3a2c;
+    --sms-brand-wash: #1b2f25;
+    --sms-brand-wash-2: #1d3428;
+    --sms-brand-border: #336549;
+    --sms-brand-ring: #a8d9bd;
+    --sms-brand-icon: #8fcaa6;
+    --sms-logo-body: #8fcaa6;
+    --sms-logo-shade: #5fa07c;
+    --sms-danger: #bb4c1d;
+    --sms-danger-text: #f4936a;
+    --sms-danger-ink: #ffb899;
+    --sms-danger-body: #e6c6b6;
+    --sms-danger-tint: #341f19;
+    --sms-danger-border: #7a4430;
+    --sms-warn: #d6a329;
+    --sms-warn-ink: #f3d070;
+    --sms-warn-ink-2: #f6dc93;
+    --sms-warn-tint: #3b3115;
+    --sms-warn-wash: #33291a;
+    --sms-warn-border: #6e5a26;
+    --sms-info-ink: #acc9f3;
+    --sms-info-tint: #1e2d46;
+    --sms-info-dot: #6f9fe0;
+    --sms-inactive-ink: #e8d3a0;
+    --sms-inactive-tint: #3a321f;
+    --sms-inactive-dot: #d1a64d;
+    --sms-lost-ink: #c5cad0;
+    --sms-lost-tint: #2b3034;
+    --sms-lost-dot: #8f969d;
+    --sms-av-blue-ink: #acc9f3;
+    --sms-av-sand: #3a3120;
+    --sms-av-sand-ink: #ead6ac;
+    --sms-av-rose: #3e2631;
+    --sms-av-rose-ink: #f2c2d2;
+    --sms-av-violet: #2b2646;
+    --sms-av-violet-ink: #d0c7f4;
+    /* Black at double the light alpha, as on the dark boards. */
+    --sms-shadow-toast: 0 6px 20px rgba(0, 0, 0, 0.5);
+    --sms-shadow-tab: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --sms-backdrop: rgba(0, 0, 0, 0.8);
+    color-scheme: dark;
+  }
+}
+
+/* Dark, chosen by the user. Same values as the block above. */
+:root[data-theme='dark'] {
+  --sms-bg: #121416;
+  --sms-surface: #1d2125;
+  --sms-surface-sunken: #171a1d;
+  --sms-border: #343a40;
+  --sms-border-control: #4d555d;
+  --sms-border-input: #8b939b;
+  --sms-border-dashed: #5d666e;
+  --sms-border-dashed-soft: #59626a;
+  --sms-ink: #e8eaed;
+  --sms-ink-2: #c9ced3;
+  --sms-muted: #a4acb3;
+  --sms-muted-icon: #a2aab1;
+  --sms-on-brand: #ffffff;
+  --sms-toast: #2f353b;
+  --sms-brand: #3c7e59;
+  --sms-brand-strong: #8fcaa6;
+  --sms-brand-tint: #1f3a2c;
+  --sms-brand-wash: #1b2f25;
+  --sms-brand-wash-2: #1d3428;
+  --sms-brand-border: #336549;
+  --sms-brand-ring: #a8d9bd;
+  --sms-brand-icon: #8fcaa6;
+  --sms-logo-body: #8fcaa6;
+  --sms-logo-shade: #5fa07c;
+  --sms-danger: #bb4c1d;
+  --sms-danger-text: #f4936a;
+  --sms-danger-ink: #ffb899;
+  --sms-danger-body: #e6c6b6;
+  --sms-danger-tint: #341f19;
+  --sms-danger-border: #7a4430;
+  --sms-warn: #d6a329;
+  --sms-warn-ink: #f3d070;
+  --sms-warn-ink-2: #f6dc93;
+  --sms-warn-tint: #3b3115;
+  --sms-warn-wash: #33291a;
+  --sms-warn-border: #6e5a26;
+  --sms-info-ink: #acc9f3;
+  --sms-info-tint: #1e2d46;
+  --sms-info-dot: #6f9fe0;
+  --sms-inactive-ink: #e8d3a0;
+  --sms-inactive-tint: #3a321f;
+  --sms-inactive-dot: #d1a64d;
+  --sms-lost-ink: #c5cad0;
+  --sms-lost-tint: #2b3034;
+  --sms-lost-dot: #8f969d;
+  --sms-av-blue-ink: #acc9f3;
+  --sms-av-sand: #3a3120;
+  --sms-av-sand-ink: #ead6ac;
+  --sms-av-rose: #3e2631;
+  --sms-av-rose-ink: #f2c2d2;
+  --sms-av-violet: #2b2646;
+  --sms-av-violet-ink: #d0c7f4;
+  /* Black at double the light alpha, as on the dark boards. */
+  --sms-shadow-toast: 0 6px 20px rgba(0, 0, 0, 0.5);
+  --sms-shadow-tab: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --sms-backdrop: rgba(0, 0, 0, 0.8);
+  color-scheme: dark;
 }

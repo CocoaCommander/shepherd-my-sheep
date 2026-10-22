@@ -21,7 +21,7 @@
 .icon {
   flex: none;
   display: flex;
-  color: var(--sms-danger);
+  color: var(--sms-danger-text);
 }
 .title {
   font-weight: 700;

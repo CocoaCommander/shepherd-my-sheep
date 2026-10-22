@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shepherd My Sheep</title>
+    <script>
+      // The stored theme choice, applied before the first paint so it never flashes the OS
+      // theme. Mirrors applyStoredTheme in src/theme.ts, which main.tsx also runs.
+      try {
+        var theme = localStorage.getItem('shepherd.theme')
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,10 +1,8 @@
 /*
  * Page-wide resets only. Colours, type and spacing come from the --sms-* tokens
  * (components/tokens.css), and every component and page styles its own elements.
+ * tokens.css also sets color-scheme, per theme.
  */
-:root {
-  color-scheme: light;
-}
 
 * {
   box-sizing: border-box;

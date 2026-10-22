@@ -52,4 +52,5 @@ export {
 export { StepsPanel } from './StepsPanel/StepsPanel'
 export { Toast } from './Toast/Toast'
 export { TOAST_MS, useUndoToast } from './Toast/useUndoToast'
+export { ThemeToggle } from './ThemeToggle/ThemeToggle'
 export { STATUS_LABELS, type PersonStatus } from './utils'

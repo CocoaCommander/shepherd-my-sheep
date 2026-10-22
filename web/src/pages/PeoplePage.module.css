@@ -148,7 +148,7 @@
 }
 .tab[aria-selected='true'] {
   background: var(--sms-surface);
-  box-shadow: 0 1px 3px rgba(31, 35, 40, 0.15);
+  box-shadow: var(--sms-shadow-tab);
 }
 .tab:focus-visible,
 .panel:focus-visible {

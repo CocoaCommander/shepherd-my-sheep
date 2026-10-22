@@ -2,7 +2,7 @@
   font-weight: 600;
 }
 .danger {
-  color: var(--sms-danger);
+  color: var(--sms-danger-text);
 }
 .body {
   margin: 0;

@@ -1,7 +1,8 @@
 import { Link, NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { AppHeader, Bell, Brand, Button } from '../components'
+import { AppHeader, Bell, Brand, Button, ThemeToggle } from '../components'
 import { useContactAlertsQuery, useMeQuery } from '../generated/graphql'
+import { NARROW, useMediaQuery } from '../useMediaQuery'
 
 /** How many of your people need contacting (business rule 6). Links to Home, which lists them. */
 function ContactAlertsBell() {
@@ -18,6 +19,8 @@ function ContactAlertsBell() {
 export function Header() {
   const { signOut } = useAuth()
   const { data } = useMeQuery()
+  // In the phone menu the toggle gets a visible label, like the rows around it.
+  const narrow = useMediaQuery(NARROW)
 
   return (
     <AppHeader
@@ -35,6 +38,7 @@ export function Header() {
       alerts={<ContactAlertsBell />}
       actions={
         <>
+          <ThemeToggle showLabel={narrow} />
           {data && <span>{data.me.name}</span>}
           <Button variant="text" onClick={signOut}>
             Sign out
