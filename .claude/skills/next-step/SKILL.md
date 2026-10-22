@@ -1,6 +1,6 @@
 ---
 name: next-step
-description: Picks the highest-priority open item in personal_notes/todo.md (optionally within one part of the list, e.g. UI, backend, housekeeping) and writes a stacked-PR plan file for /run-plan to execute. The plan's last step moves the todo items it ticked into the work log. Use when the user says "next step", "plan the next item", "what's next, plan it", or "/next-step <area>".
+description: Picks the highest-priority open item in personal_notes/todo.md (optionally within one part of the list, e.g. UI, backend, housekeeping) and writes a stacked-PR plan file for /run-plan to execute. The plan's last step moves the todo items it ticked into the work log (folded into the code PR when there is only one code step). Use when the user says "next step", "plan the next item", "what's next, plan it", or "/next-step <area>".
 argument-hint: "[area: ui | backend | housekeeping | mobile | brand | <section name>]"
 ---
 Write a plan for the next todo item. Plan only: don't write code, open
@@ -99,9 +99,15 @@ taken). Follow the shape of the existing plans there (e.g.
    business rules), whether it needs a security review (auth, user input,
    SQL, secrets, CORS), and **Todo to tick**: the exact todo item text(s)
    the step completes, quoted, including copies under `## Next up`.
-   Prefer few steps; one step plus the final step is fine for a small item.
-6. **Final step: move ticked items to the work log** (always last, its own
-   branch `<slug>-work-log`, based on the step before it). It:
+   Prefer few steps; one step is fine for a small item.
+6. **Final step: move ticked items to the work log** (last, its own branch
+   `<slug>-work-log`, based on the step before it). **Exception: with only
+   one code step** (a step 0 with no PR doesn't count), don't add a
+   separate final step; fold the move into that step's PR. Its "Todo to
+   tick" then says: after opening the PR, in a follow-up commit on the same
+   branch, move its items (with this PR's `(#N)`) straight to the work log
+   as below instead of ticking them in place. The Progress table has one
+   row, and the PR body has no merge-order line. Otherwise the final step:
    - collects every todo item ticked by this plan's steps (the "Todo to
      tick" lists plus anything Handoff notes added), as they now read in
      `todo.md` with their `(#N)`;
@@ -119,8 +125,9 @@ taken). Follow the shape of the existing plans there (e.g.
      tick itself.
 7. **How every step works**: worktree under `.claude/worktrees/<branch>`
    (symlink `web/node_modules` and `.env`; remove the symlink before
-   `git add`); draft PRs with the merge-order line ("Merge order: part N
-   of M for <plan>. Merge after #<previous> (base `<base>`)…"); `gh pr
+   `git add`); draft PRs, with the merge-order line when the plan has more
+   than one PR ("Merge order: part N of M for <plan>. Merge after
+   #<previous> (base `<base>`)…"); `gh pr
    edit` fails, use `gh api -X PATCH …/pulls/N -F body=@file`; terse
    commit subjects (memory: commit-message-style); tick todo items with
    the PR number in a follow-up commit on the same branch (memory:
