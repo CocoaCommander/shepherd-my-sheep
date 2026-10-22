@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -77,6 +77,14 @@
     `ShepherdException.Api.RateLimited` show the server's "Too many
     attempts…" / "Too many searches…" instead of "Couldn't reach the
     server". KMP's Apollo client now exposes HTTP error bodies.
+
+- **#99 Drop `lastContactDate`** (draft, base `main`) — removed the
+  deprecated `Person.lastContactDate` and `UpdatePersonInput.lastContactDate`
+  from the schema, DTOs and resolvers. `updatePerson` no longer logs a
+  contact (it was the last API path that logged one with no note, against
+  rule 5); contacts go through `logContact` only. A client that still
+  sends the input key gets no error and nothing is logged (the executor
+  ignores unknown input keys). No client used it.
 
 ### Moved from the todo list
 
@@ -226,6 +234,7 @@ were already listed and aren't repeated here.
   - Depends on the logging follow-up below: `peer_address` isn't
     populated today, so per-IP limits need the client address first
     (and `X-Forwarded-For` from a trusted proxy if one is put in front).
+- Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it. (#99)
 
 #### Backend follow-ups (low priority)
 
