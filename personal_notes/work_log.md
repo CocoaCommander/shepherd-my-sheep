@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log
+## 2026-10-21 — Housekeeping; prayer log; sign in screen
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -43,6 +43,21 @@
   - **#86 Prayer list** (base #85) — a Prayed button on each burden row
     (it records for the person), the "Last prayed for … by …" line under
     the comment (kept under Hide details), inline Undo for 20 s.
+- **Sign in / register** (stacked drafts #89 → #90 → this PR): the
+  login page rebuilt on the design system.
+  - **#89 Page** (base `main`) — `LoginPage` on `TextField` /
+    `PasswordField` / `Button` / `Alert` with its own `--sms-*` wrapper:
+    brand panel beside the form on web, a short brand header on mWeb.
+    Client-side field errors on submit (then live), a banner with
+    `friendlyMessage` for server errors (wrong credentials show the
+    server's "Invalid username or password"; "Username is already taken"
+    goes in the banner too), Show / Hide password. `screenshots.mjs`
+    gains `signed-out:<path>` and `register` targets.
+  - **#90 Globals** (base #89) — `index.css` cut to resets; the old
+    palette, its dark block, the bare `label` / `input` / `button` rules
+    and the unused `ErrorMessage.tsx` are gone. Restored the few spots
+    that leaned on them (phone People tabs, board / gallery switch, "Show
+    prayer history").
 
 ### Moved from the todo list
 
@@ -105,7 +120,11 @@ Completed items as they stood in `todo.md` on 2026-10-21, by section.
     (and which shepherd) each time someone prays for a person, e.g. a
     `prayer_log` table alongside `contact_log`. Recorded and shown on the
     Prayer list and the Person page. (#84, #85, #86)
-- **Sign in / register**:
+- **Sign in / register**: same fields and rules as the old `LoginPage` (name up to 100, username up to 50, password at least 8 on register).
+  - One screen, no tabs: Sign in by default, with a "New here? Create an account" link below the button (and "Already have an account? Sign in" when registering). On web, a brand panel beside the form; on mWeb, a short brand header above it. (#89)
+  - Inline field errors on submit (missing name, username or password; password under 8 characters), a wrong-credentials banner, and a Show / Hide password toggle. (#89)
+  - Use the friendly error messages from `web/src/errors.ts` for the banner. Never say which of username or password was wrong. (#89)
+  - Build on the design system, not the old globals. `LoginPage` still uses `auth`, `card`, `stack`, `error` and the bare `input` / `button` / `label` rules from `web/src/index.css`, so in dark mode its text takes the old `--text` (#e8e6e3) from `body`. The Person page had the same bug (640px cap, light text on white cards; fixed in #78). Give the page its own wrapper like Home's (`.page` / `.main` with `--sms-bg` and `--sms-ink`) and use `TextField` / `PasswordField` / `Button` / `Alert`. Once it no longer uses them, delete the leftover globals and the old colour variables from `index.css`. (#90)
   - Checked 2026-10-16: the brand panel says only people you add as shepherds can see the people you care for. Reads are limited to a person's shepherds, but any co-shepherd can add more shepherds, so "people you add" isn't quite true. Decided: the copy says only a person's shepherds can see them.
 - **"Log contact" modal** (#39, #42):
   - (#42) Until it's built, the buttons log a placeholder note
