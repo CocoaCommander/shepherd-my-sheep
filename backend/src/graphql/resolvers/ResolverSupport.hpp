@@ -56,10 +56,22 @@ public:
         }
     }
 
-    /** Scalar argument as text, or nullopt if absent or JSON null. */
+    /**
+     * Scalar argument as text, or nullopt if absent or JSON null. Use
+     * isNull to tell the two apart, e.g. where `null` clears a field.
+     */
     std::optional<std::string> opt(const std::string& key) const {
         if (!m_obj) return std::nullopt;
         return scalarToString(lookup(key), key);
+    }
+
+    /** True when the key is present and its value is JSON null. */
+    bool isNull(const std::string& key) const {
+        if (!m_obj) return false;
+        for (auto& pair : *m_obj) {
+            if (pair.first == key) return !pair.second;
+        }
+        return false;
     }
 
     std::string req(const std::string& key) const {

@@ -201,11 +201,17 @@ private:
         return person;
     }
 
-    /** Only the fields present in `input` change. */
+    /**
+     * Only the fields present in `input` change; `age: null` / `yearMet: null`
+     * clears them. The other fields can't be empty, so null is rejected.
+     */
     oatpp::Any resolveUpdatePerson(const Args& args, const std::string& userId) {
         auto id    = args.req("id");
         auto input = args.object("input");
-        auto name  = input.opt("name");
+        if (input.isNull("name")) throw BadInput("Name can't be cleared");
+        if (input.isNull("isActive")) throw BadInput("Active can't be cleared");
+        if (input.isNull("statusId")) throw BadInput("Status can't be cleared");
+        auto name = input.opt("name");
         if (name) name = requireName(*name);
 
         PooledConnection conn(m_dbPool);
@@ -218,9 +224,12 @@ private:
                         "p_age               := $3::int, "
                         "p_year_met          := $4::int, "
                         "p_is_active         := $5::boolean, "
-                        "p_status_id         := $6::uuid)",
+                        "p_status_id         := $6::uuid, "
+                        "p_clear_age         := $7::boolean, "
+                        "p_clear_year_met    := $8::boolean)",
                         id, nullable(name), nullable(input.opt("age")), nullable(input.opt("yearMet")),
-                        nullable(input.opt("isActive")), nullable(input.opt("statusId")));
+                        nullable(input.opt("isActive")), nullable(input.opt("statusId")), input.isNull("age"),
+                        input.isNull("yearMet"));
 
         auto person = fetchPersonDetail(txn, id);
         txn.commit();

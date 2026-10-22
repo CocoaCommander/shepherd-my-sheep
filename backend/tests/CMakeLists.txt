@@ -1,6 +1,6 @@
 # Unit tests for the parts of the API that need no database: operation
 # parsing, bearer-token handling, JWT verification, password hashing and
-# client address normalisation and rate limits.
+# client address normalisation, rate limits and reading GraphQL arguments.
 # Resolver behaviour (including authorization) is covered end to end by
 # tests/test_api.py at the repo root.
 
@@ -23,12 +23,14 @@ add_executable(unit_tests
     ClientAddressTest.cpp
     RateLimiterTest.cpp
     LogTest.cpp
+    ArgsTest.cpp
 )
 
 target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
 target_link_libraries(unit_tests PRIVATE
     GTest::gtest
+    PkgConfig::LIBPQXX
     oatpp
     PkgConfig::SODIUM
     jwt-cpp::jwt-cpp

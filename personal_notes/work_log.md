@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -85,6 +85,19 @@
   rule 5); contacts go through `logContact` only. A client that still
   sends the input key gets no error and nothing is logged (the executor
   ignores unknown input keys). No client used it.
+- **Clear age / year met** (stacked drafts #103 → #104 → this PR): a
+  person's age and year met can be emptied once set.
+  - **#103 DB + API** (base `main`) — in `UpdatePersonInput` an absent
+    key leaves a field unchanged and `age: null` / `yearMet: null` clears
+    it. `V011__clear_person_fields.sql` gives `update_person`
+    `p_clear_age` / `p_clear_year_met` flags (a flag plus a value is an
+    error). `null` on `name`, `isActive` or `statusId` is `BAD_USER_INPUT`
+    ("Name can't be cleared"). `Args::isNull` tells a null key from a
+    missing one. Clearing leaves the status and the contact clock alone.
+    KMP still can't clear (todo under Mobile apps).
+  - **#104 Edit person form** (base #103) — Age and Year met are no longer
+    required once set and always show "(optional)"; emptying one sends
+    `null` and the page drops the value without a reload.
 
 ### Moved from the todo list
 
@@ -237,6 +250,10 @@ were already listed and aren't repeated here.
 - Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it. (#99)
 
 #### Backend follow-ups (low priority)
+
+- `update_person` can't clear a value once set (COALESCE treats null as
+  "leave unchanged"), e.g. age or last contact date. Needs an explicit
+  "clear" signal. (#103)
 
 **Logging follow-ups from #30**:
 
