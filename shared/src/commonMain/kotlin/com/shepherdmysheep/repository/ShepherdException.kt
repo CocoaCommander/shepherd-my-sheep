@@ -24,6 +24,9 @@ sealed class ShepherdException(message: String, cause: Throwable? = null) : Exce
         /** The server is busy; retrying may succeed. */
         class Unavailable(message: String, code: String?) : Api(message, code)
 
+        /** Too many attempts (HTTP 429); waiting a moment and retrying will work. */
+        class RateLimited(message: String, code: String?) : Api(message, code)
+
         /** Anything else. The server's text is not shown. */
         class Internal(code: String?) : Api(GENERIC_MESSAGE, code)
     }
@@ -39,16 +42,18 @@ sealed class ShepherdException(message: String, cause: Throwable? = null) : Exce
 internal const val NETWORK_MESSAGE = "Couldn't reach the server. Check your connection and try again."
 internal const val NOT_FOUND_MESSAGE = "This was changed or removed by someone else."
 internal const val GENERIC_MESSAGE = "Something went wrong. Please try again."
+internal const val RATE_LIMITED_MESSAGE = "Too many attempts. Please wait a moment and try again."
 
 /**
  * Maps an API error code to its exception. Messages for BAD_USER_INPUT,
- * CONFLICT and UNAVAILABLE are written for users; anything else is
- * replaced so raw server text never shows.
+ * CONFLICT, UNAVAILABLE and RATE_LIMITED are written for users; anything
+ * else is replaced so raw server text never shows.
  */
 internal fun apiException(code: String?, serverMessage: String): ShepherdException.Api = when (code) {
     "NOT_FOUND" -> ShepherdException.Api.NotFound(code)
     "CONFLICT" -> ShepherdException.Api.Conflict(serverMessage, code)
     "BAD_USER_INPUT" -> ShepherdException.Api.BadInput(serverMessage, code)
     "UNAVAILABLE" -> ShepherdException.Api.Unavailable(serverMessage, code)
+    "RATE_LIMITED" -> ShepherdException.Api.RateLimited(serverMessage, code)
     else -> ShepherdException.Api.Internal(code)
 }

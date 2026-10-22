@@ -90,11 +90,17 @@ class RepositoryTest {
 
     private val tokens = InMemoryTokenStore()
 
-    private fun repo(body: String, status: Int = 200, engine: FakeEngine = FakeEngine(status, body)) =
-        ApolloShepherdRepository(
-            ApolloClient.Builder().serverUrl("http://localhost/graphql").httpEngine(engine).build(),
-            tokens,
-        )
+    /** `exposeErrorBody` matches createApolloClient unless a test turns it off. */
+    private fun repo(
+        body: String,
+        status: Int = 200,
+        engine: FakeEngine = FakeEngine(status, body),
+        exposeErrorBody: Boolean = true,
+    ) = ApolloShepherdRepository(
+        ApolloClient.Builder().serverUrl("http://localhost/graphql").httpEngine(engine)
+            .httpExposeErrorBody(exposeErrorBody).build(),
+        tokens,
+    )
 
     // ── Errors ──────────────────────────────────────────────
 
@@ -112,6 +118,7 @@ class RepositoryTest {
         assertFailsWith<ShepherdException.Api.Conflict> { repo(errorBody("CONFLICT", "dup")).getMyPeople() }
         assertFailsWith<ShepherdException.Api.BadInput> { repo(errorBody("BAD_USER_INPUT", "bad")).getMyPeople() }
         assertFailsWith<ShepherdException.Api.Unavailable> { repo(errorBody("UNAVAILABLE", "down")).getMyPeople() }
+        assertFailsWith<ShepherdException.Api.RateLimited> { repo(errorBody("RATE_LIMITED", "slow")).getMyPeople() }
         assertFailsWith<ShepherdException.Api.Internal> { repo(errorBody("INTERNAL", "boom")).getMyPeople() }
     }
 
@@ -149,6 +156,32 @@ class RepositoryTest {
         tokens.token = "made-up-token"
         assertFailsWith<ShepherdException.Network> { repo("oops", status = 500).getMyPeople() }
         assertEquals("made-up-token", tokens.token)
+    }
+
+    @Test
+    fun tooManyRequestsIsRateLimitedWithServerMessageAndKeepsToken() = runTest {
+        tokens.token = "made-up-token"
+        val body = """{"errors":[{"message":"Too many searches. Please wait a moment and try again.",
+          "extensions":{"code":"RATE_LIMITED"}}]}"""
+        val e = assertFailsWith<ShepherdException.Api.RateLimited> {
+            repo(body, status = 429).searchUsers("pat")
+        }
+        assertEquals("Too many searches. Please wait a moment and try again.", e.message)
+        assertEquals("RATE_LIMITED", e.code)
+        assertEquals("made-up-token", tokens.token)
+    }
+
+    @Test
+    fun tooManyRequestsWithoutRateLimitedBodyFallsBack() = runTest {
+        val fallback = "Too many attempts. Please wait a moment and try again."
+        for (body in listOf("Too Many Requests", "{}", errorBody("INTERNAL", "stack trace here"))) {
+            val e = assertFailsWith<ShepherdException.Api.RateLimited> { repo(body, status = 429).getMyPeople() }
+            assertEquals(fallback, e.message, body)
+        }
+        val noBody = assertFailsWith<ShepherdException.Api.RateLimited> {
+            repo(errorBody("RATE_LIMITED", "server text"), status = 429, exposeErrorBody = false).getMyPeople()
+        }
+        assertEquals(fallback, noBody.message)
     }
 
     // ── searchUsers ─────────────────────────────────────────

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { GraphQLError } from 'graphql'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NETWORK_MESSAGE } from '../errors'
+import { NETWORK_MESSAGE, RATE_LIMITED_MESSAGE } from '../errors'
 import * as G from '../generated/graphql'
 import { LoginPage } from './LoginPage'
 
@@ -197,6 +197,23 @@ describe('LoginPage sign in mode', () => {
     await user.type(password(), PASSWORD)
     await user.click(submit('Sign in'))
     expect(await screen.findByRole('alert')).toHaveTextContent(NETWORK_MESSAGE)
+    expect(auth.signIn).not.toHaveBeenCalled()
+  })
+
+  it('shows the rate-limit message for HTTP 429, not the network message', async () => {
+    // What Apollo's HttpLink raises for a 429: a ServerError with the parsed body.
+    const serverError = Object.assign(new Error('Response not successful'), {
+      statusCode: 429,
+      result: { errors: [{ message: RATE_LIMITED_MESSAGE, extensions: { code: 'RATE_LIMITED' } }] },
+    })
+    const mock: MockedResponse = { ...loginMock().mock, result: undefined, error: serverError }
+    const user = renderPage([mock])
+    await user.type(username(), 'sam_test')
+    await user.type(password(), PASSWORD)
+    await user.click(submit('Sign in'))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(RATE_LIMITED_MESSAGE)
+    expect(alert).not.toHaveTextContent(NETWORK_MESSAGE)
     expect(auth.signIn).not.toHaveBeenCalled()
   })
 })
