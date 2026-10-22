@@ -38,10 +38,6 @@ the small backend clean-ups, then the mobile apps. Left out on purpose:
 "possible later" / "decide on later" items, configurable milestones (needs
 design decisions first), and the `make reset` note.
 
-- [ ] `searchUsers` returns the full `User` type, so
-  `createdAt`/`updatedAt` are visible to any signed-in user. A slimmer
-  `UserSummary { id name username }` would hide them. — *Backend
-  follow-ups*
 - [ ] "Can't remove the last shepherd" is enforced only in the
   resolver, not in the database. — *Backend follow-ups*
 - [ ] **Dark mode for the `--sms-*` tokens.** — *Screens*
@@ -85,14 +81,17 @@ design decisions first), and the `make reset` note.
 
 - [ ] "Can't remove the last shepherd" is enforced only in the resolver,
   not in the database.
-- [ ] `searchUsers` returns the full `User` type, so `createdAt`/`updatedAt`
-  are visible to any signed-in user. A slimmer `UserSummary { id name
-  username }` would hide them.
 - [ ] `assignPerson`'s "User not found" lets a caller probe whether a user
   id exists (low).
 - [ ] `PrayerBurden.person` is filled (id, name, status only) by every
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`.
+- [ ] `Person.shepherds`, `Comment.author`, `ContactLog.contactedBy`,
+  `PrayerLog.prayedBy` and `MilestonePerson.recordedBy` still return the
+  full `User`, so co-shepherds get each other's `createdAt`/`updatedAt`
+  (the executor sends every DTO field, whatever is selected). Switch them
+  to `UserSummary` (#111); the KMP `UserFields` fragment and `User` model
+  for those fields go with it.
 - [ ] **Logging follow-ups from #30.**
   - [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
     parse the env once.

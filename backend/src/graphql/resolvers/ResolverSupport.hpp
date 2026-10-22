@@ -182,6 +182,14 @@ inline UserDto::Wrapper rowToUser(const pqxx::row& row, const std::string& prefi
     return dto;
 }
 
+inline UserSummaryDto::Wrapper rowToUserSummary(const pqxx::row& row) {
+    auto dto      = UserSummaryDto::createShared();
+    dto->id       = row["id"].c_str();
+    dto->name     = row["name"].c_str();
+    dto->username = row["username"].c_str();
+    return dto;
+}
+
 inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const std::string& prefix = "") {
     auto dto          = PrayerBurdenDto::createShared();
     dto->id           = row[prefix + "id"].c_str();
