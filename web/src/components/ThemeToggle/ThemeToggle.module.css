@@ -1,0 +1,23 @@
+/* Sized and coloured like the Bell, so the two sit together in the header. */
+.toggle {
+  composes: control from '../shared.module.css';
+  min-width: var(--sms-size-touch);
+  height: var(--sms-size-touch);
+  padding: 0;
+  border: 0;
+  border-radius: var(--sms-radius-lg);
+  background: none;
+  color: var(--sms-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sms-space-8);
+}
+/* A row of its own in the phone menu, set like the nav links above it. */
+.toggle.labelled {
+  flex-basis: 100%;
+  justify-content: flex-start;
+  padding: 0;
+  font-weight: 400;
+  color: var(--sms-muted);
+}

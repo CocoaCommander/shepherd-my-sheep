@@ -163,6 +163,25 @@ export function BellIcon({ size = 20, ...rest }: IconProps) {
   )
 }
 
+/** The theme toggle while the light theme is on. */
+export function MoonIcon({ size = 20, ...rest }: IconProps) {
+  return (
+    <svg {...stroke(size, '0 0 20 20', 1.6, rest)}>
+      <path d="M16 12.2A6.5 6.5 0 0 1 7.8 4 6.5 6.5 0 1 0 16 12.2z" />
+    </svg>
+  )
+}
+
+/** The theme toggle while the dark theme is on. */
+export function SunIcon({ size = 20, ...rest }: IconProps) {
+  return (
+    <svg {...stroke(size, '0 0 20 20', 1.6, rest)}>
+      <circle cx="10" cy="10" r="3.5" />
+      <path d="M10 2v1.8M10 16.2V18M2 10h1.8M16.2 10H18M4.3 4.3l1.3 1.3M14.4 14.4l1.3 1.3M4.3 15.7l1.3-1.3M14.4 5.6l1.3-1.3" />
+    </svg>
+  )
+}
+
 /** The product mark. Its greens and eye come from tokens, so it works on light and dark grounds. */
 export function SheepMark({ size = 26, ...rest }: IconProps) {
   return (

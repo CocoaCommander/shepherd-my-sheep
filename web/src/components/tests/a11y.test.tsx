@@ -112,6 +112,17 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
     ).toEqual([])
   })
 
+  it('theme toggle, icon-only and labelled', async () => {
+    expect(
+      await violations(
+        <main>
+          <C.ThemeToggle />
+          <C.ThemeToggle showLabel />
+        </main>,
+      ),
+    ).toEqual([])
+  })
+
   it('forms and filters', async () => {
     expect(
       await violations(

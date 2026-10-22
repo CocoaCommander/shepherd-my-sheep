@@ -5,13 +5,14 @@
  * rule against real rendering instead.
  *
  *   node scripts/contrast-audit.mjs --url http://localhost:3000 --user demo_shepherd \
- *     [--dark] [--json /tmp/contrast.json] / /people "person:Marcus Reid" signed-out:/login
+ *     [--dark] [--toggled] [--json /tmp/contrast.json] / /people "person:Marcus Reid" signed-out:/login
  *
  * Needs the API up (`make start`), demo data (`make seed`) and a web dev server at --url.
  * Signs in once through the Sign in form as --user, with the password from
  * SEED_USER_PASSWORD (required, no fallback; never printed), then checks each page at web
  * (1280) and mWeb (390) widths, in light, and in dark too with --dark (by emulating
- * prefers-color-scheme). On a "person:" page it also checks the Log contact dialog.
+ * prefers-color-scheme; with --toggled, by the header toggle's stored choice, the OS set to
+ * the opposite). On a "person:" page it also checks the Log contact dialog.
  *
  * Page targets are described in session.mjs (a path, "person:<name>",
  * "signed-out:<path>" or "register").
@@ -27,11 +28,11 @@ import { chromium } from 'playwright'
 import {
   VIEWPORTS,
   cli,
-  contextOptions,
   isSignedOut,
   openTarget,
   settle,
   signIn,
+  themedContext,
 } from './session.mjs'
 
 const { values, pages, password, themes, fail } = cli('contrast-audit', {
@@ -89,9 +90,10 @@ try {
 
   for (const theme of themes) {
     for (const [size, viewport] of Object.entries(VIEWPORTS)) {
-      const options = contextOptions(viewport, theme)
-      const context = await browser.newContext({ ...options, storageState })
-      const signedOut = await browser.newContext(options)
+      const context = await themedContext(browser, viewport, theme, values.toggled, {
+        storageState,
+      })
+      const signedOut = await themedContext(browser, viewport, theme, values.toggled)
       const page = await context.newPage()
       const signedOutPage = await signedOut.newPage()
       for (const [i, target] of pages.entries()) {

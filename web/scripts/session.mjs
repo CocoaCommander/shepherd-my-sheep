@@ -32,6 +32,7 @@ export function cli(name, options = {}, required = []) {
       url: { type: 'string' },
       user: { type: 'string' },
       dark: { type: 'boolean', default: false },
+      toggled: { type: 'boolean', default: false },
       ...options,
     },
   })
@@ -114,6 +115,20 @@ export async function openTarget(page, base, url, target) {
 }
 
 /** Context options for one theme at one viewport. */
-export function contextOptions(viewport, theme) {
+function contextOptions(viewport, theme) {
   return { viewport, colorScheme: theme, reducedMotion: 'reduce', deviceScaleFactor: 2 }
+}
+
+/**
+ * A browser context showing `theme`. Normally by emulating that OS setting; with `toggled`,
+ * the OS says the opposite and the header toggle's stored choice (shepherd.theme) says
+ * `theme`, so the run proves the choice overrides the OS.
+ */
+export async function themedContext(browser, viewport, theme, toggled, extra = {}) {
+  const os = toggled ? (theme === 'dark' ? 'light' : 'dark') : theme
+  const context = await browser.newContext({ ...contextOptions(viewport, os), ...extra })
+  if (toggled) {
+    await context.addInitScript((stored) => localStorage.setItem('shepherd.theme', stored), theme)
+  }
+  return context
 }

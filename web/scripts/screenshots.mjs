@@ -3,11 +3,12 @@
  * Full-page screenshots of the running web app, for PR descriptions.
  *
  *   node scripts/screenshots.mjs --url http://localhost:3101 --user demo_shepherd \
- *     --out /tmp/shots [--dark] /people "person:Marcus Reid" /prayer
+ *     --out /tmp/shots [--dark] [--toggled] /people "person:Marcus Reid" /prayer
  *
  * Signs in once through the Sign in form as --user, with the password from
  * SEED_USER_PASSWORD (required, no fallback), then shoots each page at web (1280)
- * and mWeb (390) widths, in light, and in dark too with --dark.
+ * and mWeb (390) widths, in light, and in dark too with --dark. --toggled shows each theme
+ * through the header toggle's stored choice, with the OS set to the opposite.
  *
  * Page targets are described in session.mjs (a path, "person:<name>",
  * "signed-out:<path>" or "register").
@@ -16,15 +17,7 @@
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from 'playwright'
-import {
-  VIEWPORTS,
-  cli,
-  contextOptions,
-  isSignedOut,
-  openTarget,
-  signIn,
-  slug,
-} from './session.mjs'
+import { VIEWPORTS, cli, isSignedOut, openTarget, signIn, slug, themedContext } from './session.mjs'
 
 const { values, pages, password, themes, fail } = cli('screenshots', { out: { type: 'string' } }, [
   'out',
@@ -44,9 +37,10 @@ try {
   await mkdir(values.out, { recursive: true })
   for (const theme of themes) {
     for (const [size, viewport] of Object.entries(VIEWPORTS)) {
-      const options = contextOptions(viewport, theme)
-      const context = await browser.newContext({ ...options, storageState })
-      const signedOut = await browser.newContext(options)
+      const context = await themedContext(browser, viewport, theme, values.toggled, {
+        storageState,
+      })
+      const signedOut = await themedContext(browser, viewport, theme, values.toggled)
       const page = await context.newPage()
       const signedOutPage = await signedOut.newPage()
       for (const [i, target] of pages.entries()) {
