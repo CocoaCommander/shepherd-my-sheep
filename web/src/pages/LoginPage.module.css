@@ -26,6 +26,8 @@
 .brand {
   font-size: 18px;
   color: var(--sms-brand-strong);
+  /* The mark's gap line matches the panel, not the surface. */
+  --sms-logo-gap: var(--sms-brand-tint);
 }
 .pitch {
   display: flex;

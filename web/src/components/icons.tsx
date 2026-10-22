@@ -182,23 +182,42 @@ export function SunIcon({ size = 20, ...rest }: IconProps) {
   )
 }
 
-/** The product mark. Its greens and eye come from tokens, so it works on light and dark grounds. */
+/**
+ * The product mark: Option A on the Sheep Icon Options canvas (public/favicon.svg mirrors it).
+ * Its greens, eye and the gap line around the head come from tokens, so it works on any ground.
+ */
 export function SheepMark({ size = 26, ...rest }: IconProps) {
   return (
-    <svg aria-hidden width={size} height={size} viewBox="0 0 32 32" focusable={false} {...rest}>
-      <g style={{ fill: 'var(--sms-logo-body)' }}>
-        <circle cx="10" cy="14" r="5" />
-        <circle cx="16" cy="11.5" r="5.5" />
-        <circle cx="22" cy="14" r="5" />
-        <circle cx="13" cy="18.5" r="5" />
-        <circle cx="20" cy="18.5" r="5" />
+    <svg aria-hidden width={size} height={size} viewBox="0 0 64 64" focusable={false} {...rest}>
+      <g transform="translate(-3.6 -2.5)">
+        <g style={{ fill: 'var(--sms-logo-shade)' }}>
+          <rect x="25.5" y="44" width="4.4" height="12" rx="2.2" />
+          <rect x="37.5" y="44" width="4.4" height="12" rx="2.2" />
+        </g>
+        <g style={{ fill: 'var(--sms-logo-body)' }}>
+          <circle cx="22" cy="28" r="10" />
+          <circle cx="32" cy="24" r="11" />
+          <circle cx="43" cy="28" r="10" />
+          <circle cx="26" cy="38" r="10" />
+          <circle cx="39" cy="38" r="10" />
+        </g>
+        <ellipse
+          cx="52"
+          cy="36"
+          rx="7.2"
+          ry="8.4"
+          style={{ fill: 'var(--sms-logo-shade)', stroke: 'var(--sms-logo-gap)', strokeWidth: 1.6 }}
+        />
+        <ellipse
+          cx="44.4"
+          cy="38.3"
+          rx="7.4"
+          ry="3.3"
+          transform="rotate(-65 44.4 38.3)"
+          style={{ fill: 'var(--sms-logo-shade)', stroke: 'var(--sms-logo-gap)', strokeWidth: 1.4 }}
+        />
+        <circle cx="54.5" cy="33.5" r="1.7" style={{ fill: 'var(--sms-surface)' }} />
       </g>
-      <g style={{ fill: 'var(--sms-logo-shade)' }}>
-        <ellipse cx="27" cy="15.5" rx="3.2" ry="3.8" />
-        <rect x="11.5" y="22" width="2.2" height="6.5" rx="1.1" />
-        <rect x="19" y="22" width="2.2" height="6.5" rx="1.1" />
-      </g>
-      <circle cx="28" cy="14.6" r=".9" style={{ fill: 'var(--sms-surface)' }} />
     </svg>
   )
 }

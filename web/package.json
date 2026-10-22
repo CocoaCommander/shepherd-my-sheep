@@ -10,6 +10,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "codegen": "graphql-codegen",
+    "icons": "node scripts/icons.mjs",
     "pretest": "graphql-codegen",
     "test": "vitest run"
   },
