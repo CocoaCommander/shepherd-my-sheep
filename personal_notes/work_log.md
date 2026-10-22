@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary; last shepherd DB guard
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -116,6 +116,15 @@
   reads only the three columns), not just the schema. `me` and the other
   user fields keep `User`; a new todo item covers switching
   `Person.shepherds`, `Comment.author` and the other co-shepherd fields.
+- **#114 Last shepherd DB guard** (draft, base `main`) — "Can't remove the
+  last shepherd" moves from the `unassignPerson` resolver into the
+  database: V012 adds trigger `trg_user_person_keep_last_shepherd`
+  (AFTER DELETE FOR EACH ROW on `user_person`), which raises
+  `check_violation` when a delete would leave an existing person with no
+  shepherds. Deleting the person is always allowed (the cascade runs after
+  the person row is gone); deleting a user who is someone's last shepherd
+  is refused. The resolver maps 23514 to the same BAD_USER_INPUT message,
+  so the API is unchanged. Dev DBs need `make reset`.
 
 ### Moved from the todo list
 
@@ -275,6 +284,8 @@ were already listed and aren't repeated here.
 - `searchUsers` returns the full `User` type, so `createdAt`/`updatedAt`
   are visible to any signed-in user. A slimmer `UserSummary { id name
   username }` would hide them. (#111)
+- "Can't remove the last shepherd" is enforced only in the resolver,
+  not in the database. (#114)
 
 **Logging follow-ups from #30**:
 
