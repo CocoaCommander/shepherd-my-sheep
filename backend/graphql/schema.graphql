@@ -237,8 +237,10 @@ input CreatePersonInput {
   comment: String                 # optional — saved as a standalone note (Comment) by the creator; blank is ignored
 }
 
+# A field left out is unchanged. null clears age or yearMet; it is
+# BAD_USER_INPUT for name, isActive and statusId, which can't be empty.
 input UpdatePersonInput {
-  name: String                    # all optional — only update what's provided
+  name: String
   age: Int
   yearMet: Int
   isActive: Boolean

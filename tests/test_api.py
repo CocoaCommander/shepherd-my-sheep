@@ -124,6 +124,11 @@ query Person($id: UUID!) {
   }
 }"""
 
+UPDATE_PERSON = """
+mutation UpdatePerson($id: UUID!, $input: UpdatePersonInput!) {
+  updatePerson(id: $id, input: $input) { id name age yearMet isActive status { name } }
+}"""
+
 MY_PEOPLE = "query MyPeople { myPeople { id name } }"
 
 CREATE_BURDEN = """
@@ -301,6 +306,75 @@ class TestPeople:
             "isActive": False,
             "name": "Alice",
         }
+
+    def test_update_with_age_null_clears_age_only(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        gql(UPDATE_PERSON, {"id": person_id, "input": {"age": 34, "yearMet": 2024}}, token)
+        updated = gql(UPDATE_PERSON, {"id": person_id, "input": {"age": None}}, token)["updatePerson"]
+        assert pick(updated, {"age": 0, "yearMet": 0}) == {"age": None, "yearMet": 2024}
+        assert pick(gql(PERSON, {"id": person_id}, token)["person"], {"age": 0, "yearMet": 0}) == {
+            "age": None,
+            "yearMet": 2024,
+        }
+
+    def test_update_with_year_met_null_clears_year_met_only(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        gql(UPDATE_PERSON, {"id": person_id, "input": {"age": 34, "yearMet": 2024}}, token)
+        updated = gql(UPDATE_PERSON, {"id": person_id, "input": {"yearMet": None}}, token)["updatePerson"]
+        assert pick(updated, {"age": 0, "yearMet": 0}) == {"age": 34, "yearMet": None}
+
+    def test_update_can_clear_age_and_year_met_together(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        gql(UPDATE_PERSON, {"id": person_id, "input": {"age": 34, "yearMet": 2024}}, token)
+        updated = gql(UPDATE_PERSON, {"id": person_id, "input": {"age": None, "yearMet": None}}, token)
+        assert pick(updated["updatePerson"], {"age": 0, "yearMet": 0}) == {"age": None, "yearMet": None}
+
+    def test_update_with_key_absent_leaves_value_unchanged(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        gql(UPDATE_PERSON, {"id": person_id, "input": {"age": 34, "yearMet": 2024}}, token)
+        updated = gql(UPDATE_PERSON, {"id": person_id, "input": {"name": "Renamed"}}, token)["updatePerson"]
+        assert pick(updated, {"name": 0, "age": 0, "yearMet": 0}) == {"name": "Renamed", "age": 34, "yearMet": 2024}
+
+    @pytest.mark.parametrize(
+        "field, message",
+        [
+            ("name", "Name can't be cleared"),
+            ("isActive", "Active can't be cleared"),
+            ("statusId", "Status can't be cleared"),
+        ],
+    )
+    def test_update_cannot_clear_required_fields(self, make_user, status_id, field, message):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        gql(UPDATE_PERSON, {"id": person_id, "input": {"age": 34, "yearMet": 2024}}, token)
+        shape = {"name": 0, "age": 0, "yearMet": 0, "isActive": 0, "status": {"name": 0}}
+        before = pick(gql(PERSON, {"id": person_id}, token)["person"], shape)
+
+        error = gql_error_full(UPDATE_PERSON, {"id": person_id, "input": {field: None, "age": 50}}, token)
+        assert error["message"] == message
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+
+        assert pick(gql(PERSON, {"id": person_id}, token)["person"], shape) == before
+
+    def test_clearing_on_a_bare_person_leaves_contact_clock_alone(self, make_user, status_id):
+        """No contacts, milestones or burdens: clearing is still fine and does not touch the clock."""
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        query = PERSON.replace("isActive", "isActive contactState contactClockStart")
+        gql(UPDATE_PERSON, {"id": person_id, "input": {"age": 34, "yearMet": 2024}}, token)
+        before = gql(query, {"id": person_id}, token)["person"]
+
+        updated = gql(UPDATE_PERSON, {"id": person_id, "input": {"age": None, "yearMet": None}}, token)
+        assert pick(updated["updatePerson"], {"age": 0, "yearMet": 0}) == {"age": None, "yearMet": None}
+
+        after = gql(query, {"id": person_id}, token)["person"]
+        assert after["contactState"] == before["contactState"]
+        assert after["contactClockStart"] == before["contactClockStart"]
+        assert after["milestones"] == after["prayerBurdens"] == after["comments"] == []
 
     # Regression: "unassignPerson" used to route to assignPerson.
     def test_unassign_removes_shepherd(self, make_user, status_id):

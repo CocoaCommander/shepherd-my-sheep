@@ -93,6 +93,98 @@ class TestUpdatePerson:
             assert updated[1] == "Updated"  # name changed
             assert updated[2] == 20  # age unchanged
 
+    def test_clear_age_leaves_name_and_year_met(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Keep", age=20, year_met=2020)[0]
+            cur.execute(
+                "SELECT * FROM update_person(p_id := %s, p_clear_age := true)",
+                (person_id,),
+            )
+            updated = cur.fetchone()
+            assert updated[1] == "Keep"
+            assert updated[2] is None  # age cleared
+            assert updated[3] == 2020  # year_met unchanged
+
+    def test_clear_year_met_leaves_name_and_age(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Keep", age=20, year_met=2020)[0]
+            cur.execute(
+                "SELECT * FROM update_person(p_id := %s, p_clear_year_met := true)",
+                (person_id,),
+            )
+            updated = cur.fetchone()
+            assert updated[1] == "Keep"
+            assert updated[2] == 20  # age unchanged
+            assert updated[3] is None  # year_met cleared
+
+    def test_clear_flags_default_to_false(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Keep", age=20, year_met=2020)[0]
+            cur.execute(
+                "SELECT * FROM update_person(p_id := %s, p_age := %s)",
+                (person_id, 21),
+            )
+            updated = cur.fetchone()
+            assert updated[2] == 21
+            assert updated[3] == 2020  # year_met kept
+
+    def test_clearing_already_null_fields_is_fine(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Bare")[0]
+            cur.execute(
+                "SELECT * FROM update_person(p_id := %s, p_clear_age := true, p_clear_year_met := true)",
+                (person_id,),
+            )
+            updated = cur.fetchone()
+            assert updated[1] == "Bare"
+            assert updated[2] is None
+            assert updated[3] is None
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            "p_age := 30, p_clear_age := true",
+            "p_year_met := 2021, p_clear_year_met := true",
+        ],
+    )
+    def test_clear_flag_with_value_raises(self, db, args):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Keep", age=20, year_met=2020)[0]
+            with pytest.raises(psycopg2.Error) as exc:
+                cur.execute(f"SELECT * FROM update_person(p_id := %s, {args})", (person_id,))
+            assert exc.value.pgcode == "22023"  # invalid_parameter_value
+
+    def test_clearing_does_not_touch_status_fields(self, db):
+        with db.cursor() as cur:
+            person_id = sp_create_person(cur, "Mover", age=20, year_met=2020)[0]
+            # Two moves, so previous_status_changed_at is set as well.
+            for name in ("new contact", "inactive"):
+                cur.execute(
+                    "SELECT * FROM update_person(p_id := %s, p_status_id := %s)",
+                    (person_id, get_status_id(cur, name)),
+                )
+            # now() is fixed for the transaction, so backdate the stamps: a
+            # clear that stamped again would then show up.
+            cur.execute(
+                "UPDATE person SET status_changed_at = status_changed_at - INTERVAL '1 hour', "
+                "previous_status_changed_at = previous_status_changed_at - INTERVAL '2 hours' WHERE id = %s",
+                (person_id,),
+            )
+            status_sql = (
+                "SELECT status_id, status_changed_at, previous_status_id, previous_status_changed_at "
+                "FROM person WHERE id = %s"
+            )
+            cur.execute(status_sql, (person_id,))
+            before = cur.fetchone()
+            assert before[1] is not None and before[2] is not None and before[3] is not None
+
+            cur.execute(
+                "SELECT * FROM update_person(p_id := %s, p_clear_age := true, p_clear_year_met := true)",
+                (person_id,),
+            )
+            cur.execute(status_sql, (person_id,))
+            assert cur.fetchone() == before
+
     def test_update_nonexistent_raises(self, db):
         with db.cursor() as cur:
             fake_uuid = "00000000-0000-0000-0000-000000000000"
