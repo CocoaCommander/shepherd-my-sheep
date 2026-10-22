@@ -34,7 +34,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 Ordered by priority (reordered 2026-10-16 after the design
 gap check).
 
-- [ ] Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it.
+- [x] Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it. (#99)
 
 ## Mobile apps
 
