@@ -162,7 +162,7 @@
 .burden svg {
   flex: none;
   margin-top: 4px;
-  color: var(--sms-brand);
+  color: var(--sms-brand-icon);
 }
 .label {
   margin: 0 0 var(--sms-space-8);

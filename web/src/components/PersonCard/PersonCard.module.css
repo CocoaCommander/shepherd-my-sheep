@@ -74,7 +74,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--sms-danger);
+  color: var(--sms-danger-text);
 }
 
 .statusRow {

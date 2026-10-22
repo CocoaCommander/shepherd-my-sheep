@@ -28,7 +28,7 @@
 .heart {
   flex: none;
   margin-top: 3px;
-  color: var(--sms-brand);
+  color: var(--sms-brand-icon);
 }
 .line {
   margin: 0;

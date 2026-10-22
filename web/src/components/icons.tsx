@@ -163,23 +163,23 @@ export function BellIcon({ size = 20, ...rest }: IconProps) {
   )
 }
 
-/** The product mark. Its two greens are fixed, so it only goes on light grounds. */
+/** The product mark. Its greens and eye come from tokens, so it works on light and dark grounds. */
 export function SheepMark({ size = 26, ...rest }: IconProps) {
   return (
     <svg aria-hidden width={size} height={size} viewBox="0 0 32 32" focusable={false} {...rest}>
-      <g fill="#3b6e4f">
+      <g style={{ fill: 'var(--sms-logo-body)' }}>
         <circle cx="10" cy="14" r="5" />
         <circle cx="16" cy="11.5" r="5.5" />
         <circle cx="22" cy="14" r="5" />
         <circle cx="13" cy="18.5" r="5" />
         <circle cx="20" cy="18.5" r="5" />
       </g>
-      <g fill="#2d5a3f">
+      <g style={{ fill: 'var(--sms-logo-shade)' }}>
         <ellipse cx="27" cy="15.5" rx="3.2" ry="3.8" />
         <rect x="11.5" y="22" width="2.2" height="6.5" rx="1.1" />
         <rect x="19" y="22" width="2.2" height="6.5" rx="1.1" />
       </g>
-      <circle cx="28" cy="14.6" r=".9" fill="#fff" />
+      <circle cx="28" cy="14.6" r=".9" style={{ fill: 'var(--sms-surface)' }} />
     </svg>
   )
 }

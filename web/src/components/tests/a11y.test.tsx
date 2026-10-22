@@ -7,8 +7,8 @@ import * as C from '..'
 
 /**
  * Runs axe-core's WCAG 2.2 A/AA and best-practice rules over every component and variant.
- * Colour contrast can't be measured in jsdom (no layout), so it isn't covered here; the token
- * pairs were checked by hand against 4.5:1 for text and 3:1 for UI (see tokens.css).
+ * Colour contrast can't be measured in jsdom (no layout), so it isn't covered here; it is checked
+ * in a real browser, in both light and dark, by web/scripts/contrast-audit.mjs.
  */
 async function violations(ui: ReactNode) {
   const { container } = render(<MemoryRouter>{ui}</MemoryRouter>)
