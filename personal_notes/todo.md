@@ -38,10 +38,6 @@ the small backend clean-ups, then the mobile apps. Left out on purpose:
 "possible later" / "decide on later" items, configurable milestones (needs
 design decisions first), and the `make reset` note.
 
-- [x] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
-  character at the cap, and doesn't redact Postgres `DETAIL` text,
-  which can quote user input. — *Backend follow-ups, Logging
-  follow-ups from #30* (#107)
 - [ ] `searchUsers` returns the full `User` type, so
   `createdAt`/`updatedAt` are visible to any signed-in user. A slimmer
   `UserSummary { id name username }` would hide them. — *Backend
@@ -100,9 +96,6 @@ design decisions first), and the `make reset` note.
 - [ ] **Logging follow-ups from #30.**
   - [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
     parse the env once.
-  - [x] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
-    character at the cap, and doesn't redact Postgres `DETAIL` text,
-    which can quote user input. (#107)
 
 ## Housekeeping
 

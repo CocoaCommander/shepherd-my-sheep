@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -98,6 +98,16 @@
   - **#104 Edit person form** (base #103) — Age and Year met are no longer
     required once set and always show "(optional)"; emptying one sends
     `null` and the page drops the value without a reload.
+- **#107 `forLog` UTF-8 / DETAIL** (draft, base `main`) — `forLog` caps
+  on a UTF-8 boundary: a character straddling the cap is dropped whole
+  (stepping back at most 3 bytes, so stray continuation bytes can't wipe
+  the line). New `sqlErrorForLog` in `ErrorMapping.hpp` logs only the
+  primary line of a Postgres error, without the `ERROR:  ` prefix, so
+  `DETAIL` / `HINT` / `CONTEXT` (keys, whole failing rows) never reach the
+  log. For class 22 SQLSTATEs the line is cut at its first `"` and
+  `"..."` appended, since the bad value is quoted there and may hold
+  quotes or newlines. Constraint names and our `RAISE` ids still log; the
+  client response is unchanged.
 
 ### Moved from the todo list
 
@@ -259,6 +269,9 @@ were already listed and aren't repeated here.
 
 - Client address always logs as "unknown": `peer_address` isn't
   populated on the connection in `RequestLogger.hpp`. (#94)
+- `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
+  character at the cap, and doesn't redact Postgres `DETAIL` text,
+  which can quote user input. (#107)
 
 #### Done
 
