@@ -202,6 +202,13 @@ class TestAuthentication:
         me = gql("query Me { me { id username } }", token=token)["me"]
         assert pick(me, {"id": 0, "username": 0}) == {"id": user_id, "username": username}
 
+    def test_me_still_returns_full_user_with_timestamps(self, make_user):
+        token, user_id, _ = make_user()
+        me = gql("query Me { me { id name username createdAt updatedAt } }", token=token)["me"]
+        assert me["id"] == user_id
+        assert me["createdAt"]
+        assert me["updatedAt"]
+
     def test_login_returns_working_token(self, make_user):
         _, user_id, username = make_user(password="s3cret-pass")
         data = gql(LOGIN, {"input": {"username": username, "password": "s3cret-pass"}})
@@ -1393,6 +1400,32 @@ class TestSearchUsers:
         assert [r["id"] for r in rows] == [target_id]
         assert rows[0]["username"] == target_username
         assert [r["id"] for r in self.search(token, part.upper())] == [target_id]
+
+    def test_rows_are_user_summaries_with_only_four_keys(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        _, target_id, _ = make_user(name=f"Summary {tag}")
+
+        rows = self.search(token, tag)
+        assert [r["id"] for r in rows] == [target_id]
+        for row in rows:
+            assert set(row) == {"__typename", "id", "name", "username"}
+            assert row["__typename"] == "UserSummary"
+
+    def test_timestamps_stay_hidden_even_when_selected(self, make_user):
+        tag = uuid.uuid4().hex[:10]
+        token, _, _ = make_user()
+        _, target_id, _ = make_user(name=f"Hidden {tag}")
+        query = """
+        query SearchUsers($query: String!) {
+          searchUsers(query: $query) { id name username createdAt updatedAt }
+        }"""
+
+        rows = gql(query, {"query": tag}, token)["searchUsers"]
+        assert [r["id"] for r in rows] == [target_id]
+        for row in rows:
+            assert "createdAt" not in row
+            assert "updatedAt" not in row
 
     def test_excludes_the_caller(self, make_user):
         tag = uuid.uuid4().hex[:10]

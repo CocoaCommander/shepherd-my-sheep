@@ -31,6 +31,13 @@ type User {
   updatedAt: DateTime!
 }
 
+# Another user as search results show them, without account timestamps.
+type UserSummary {
+  id: UUID!
+  name: String!
+  username: String!
+}
+
 type Person {
   id: UUID!
   name: String!
@@ -158,7 +165,7 @@ type Query {
   # Other users whose name or username contains `query` (case-insensitive),
   # for adding a shepherd. Excludes the caller; at most 10; a query under
   # 2 characters returns [] — may be empty.
-  searchUsers(query: String!): [User!]!
+  searchUsers(query: String!): [UserSummary!]!
 
   # Prayer burdens — optionally filter by person; each with its person (id, name, status) and its comments
   activePrayerBurdens(personId: UUID): [PrayerBurden!]!

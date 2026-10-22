@@ -77,6 +77,21 @@ class UserDto : public oatpp::DTO {
 };
 
 /**
+ * Another user as searchUsers returns them: id, name and username, without
+ * the account timestamps. The executor serializes every DTO field whatever
+ * the query selects, so leaving fields out of the DTO is what keeps them off
+ * the wire.
+ */
+class UserSummaryDto : public oatpp::DTO {
+    DTO_INIT(UserSummaryDto, DTO)
+
+    DTO_FIELD(String, typename_, "__typename") = "UserSummary";
+    DTO_FIELD(String, id);
+    DTO_FIELD(String, name);
+    DTO_FIELD(String, username);
+};
+
+/**
  * The person on a burden: id, name and status only, for places that point at
  * a person without loading them (PersonDto is declared later and embeds
  * burdens itself). The typename and id let clients' caches merge it with the

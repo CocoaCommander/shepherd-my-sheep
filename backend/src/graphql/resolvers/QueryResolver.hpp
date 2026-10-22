@@ -185,7 +185,7 @@ private:
         const auto query =
             first == std::string::npos ? "" : raw.substr(first, raw.find_last_not_of(" \t\n\r") - first + 1);
 
-        auto list = oatpp::Vector<oatpp::Object<UserDto>>::createShared();
+        auto list = oatpp::Vector<oatpp::Object<UserSummaryDto>>::createShared();
         if (characterCount(query) > MAX_SEARCH_LENGTH) {
             throw BadInput("Search is too long");
         }
@@ -197,16 +197,16 @@ private:
         pqxx::work       txn(*conn);
 
         auto pattern = "%" + escapeLike(query) + "%";
-        auto result  = txn.exec_params(std::string(USER_SELECT)
-                                           + "WHERE u.id <> $1 "
-                                              "  AND (u.name ILIKE $2 ESCAPE '\\' OR u.username ILIKE $2 ESCAPE '\\') "
-                                              "ORDER BY u.name, u.username "
-                                              "LIMIT $3",
+        auto result  = txn.exec_params("SELECT u.id, u.name, u.username FROM \"user\" u "
+                                        "WHERE u.id <> $1 "
+                                        "  AND (u.name ILIKE $2 ESCAPE '\\' OR u.username ILIKE $2 ESCAPE '\\') "
+                                        "ORDER BY u.name, u.username "
+                                        "LIMIT $3",
                                        userId, pattern, MAX_SEARCH_RESULTS);
         txn.commit();
 
         for (const auto& row : result) {
-            list->push_back(rowToUser(row));
+            list->push_back(rowToUserSummary(row));
         }
         return list;
     }

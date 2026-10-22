@@ -190,8 +190,8 @@ class RepositoryTest {
     fun searchUsersMapsResults() = runTest {
         val engine = FakeEngine(
             body = data(
-                """{"searchUsers":[{"__typename":"User","id":"u1","name":"Pat Shepherd","username":"pat"},
-                {"__typename":"User","id":"u2","name":"Lee Shepherd","username":"lee"}]}""",
+                """{"searchUsers":[{"__typename":"UserSummary","id":"u1","name":"Pat Shepherd","username":"pat"},
+                {"__typename":"UserSummary","id":"u2","name":"Lee Shepherd","username":"lee"}]}""",
             ),
         )
         val result = repo("", engine = engine).searchUsers("shep")
