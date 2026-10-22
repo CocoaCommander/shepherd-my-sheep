@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary; last shepherd DB guard; dark mode
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary; last shepherd DB guard; dark mode; logo
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -153,6 +153,17 @@
     at 390). An inline script in `index.html` applies the stored choice
     before first paint. `--toggled` on `screenshots.mjs` and
     `contrast-audit.mjs` forces the choice opposite the OS.
+- **#122 Logo and favicon** (draft, base `main`) — Option A
+  ("Refined profile") from the Sheep Icon Options canvas, web only.
+  `SheepMark` draws it in a 64×64 viewBox from the same tokens, plus a new
+  `--sms-logo-gap` (defaults to `--sms-surface`; the sign-in brand panel
+  sets it to `--sms-brand-tint`) for the line between head and wool.
+  `web/public/favicon.svg` is the mark on a green tile (dark tile under
+  `prefers-color-scheme: dark`; follows the OS, not the toggle).
+  `npm run icons` (`web/scripts/icons.mjs`, Playwright) renders
+  `favicon-32.png` and a full-square 180×180 `apple-touch-icon.png`,
+  both committed. `Favicon.test.tsx` fails if the favicon's shapes drift
+  from `SheepMark` or its dark colours from `tokens.css`.
 
 ### Moved from the todo list
 
@@ -262,6 +273,11 @@ were already listed and aren't repeated here.
 - **Person status on burdens.** `activePrayerBurdens` returns the
   person as `{id, name}` only; each Prayer list card shows a status pill.
   (#52)
+
+#### Brand
+
+- **Logo: simple vector sheep in brand green**: web, Option A in the app
+  header and sign-in, and the favicon (`web/public/favicon.svg`). (#122)
 
 #### Next up
 
