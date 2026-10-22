@@ -477,6 +477,23 @@ class TestUnassignAndDelete:
         assert gql(MY_PEOPLE, token=a_token)["myPeople"] == []
         assert gql(MY_PEOPLE, token=b_token)["myPeople"] == []
 
+    def test_three_shepherds_lose_two_then_last_is_protected(self, pair, make_user):
+        a_token, a_id, _, b_id, person_id = pair
+        _, c_id, _ = make_user()
+        gql(ASSIGN, {"personId": person_id, "userId": c_id}, a_token)
+        for removed in (b_id, c_id):
+            result = gql(UNASSIGN, {"personId": person_id, "userId": removed}, a_token)
+            assert removed not in [s["id"] for s in result["unassignPerson"]["shepherds"]]
+        error = gql_error_full(UNASSIGN, {"personId": person_id, "userId": a_id}, a_token)
+        assert error["message"] == LAST_SHEPHERD
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+
+    def test_sole_shepherd_can_delete_person(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        assert gql(DELETE_PERSON, {"id": person_id}, token)["deletePerson"] is True
+        assert gql(MY_PEOPLE, token=token)["myPeople"] == []
+
     def test_stranger_cannot_delete(self, pair, make_user):
         a_token, _, _, _, person_id = pair
         stranger_token, _, _ = make_user()

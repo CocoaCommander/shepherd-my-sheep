@@ -38,8 +38,6 @@ the small backend clean-ups, then the mobile apps. Left out on purpose:
 "possible later" / "decide on later" items, configurable milestones (needs
 design decisions first), and the `make reset` note.
 
-- [ ] "Can't remove the last shepherd" is enforced only in the
-  resolver, not in the database. — *Backend follow-ups*
 - [ ] **Dark mode for the `--sms-*` tokens.** — *Screens*
 - [ ] **Logo: simple vector sheep in brand green.** Web SVG and
   favicon first; the Android and iOS icons can wait for the apps.
@@ -79,8 +77,6 @@ design decisions first), and the `make reset` note.
 
 ## Backend follow-ups (low priority)
 
-- [ ] "Can't remove the last shepherd" is enforced only in the resolver,
-  not in the database.
 - [ ] `assignPerson`'s "User not found" lets a caller probe whether a user
   id exists (low).
 - [ ] `PrayerBurden.person` is filled (id, name, status only) by every

@@ -34,10 +34,25 @@ Read operations use plain SQL queries in the GraphQL resolvers.
 | `update_person` | Update person details |
 | `delete_person` | Remove a person (cascades handled by FK constraints) |
 | `assign_person` | Link a user to a person (shepherding relationship) |
-| `unassign_person` | Remove a user-person link |
+| `unassign_person` | Remove a user-person link; a person's last link can't be removed |
 | `record_milestone` | Mark a milestone as achieved for a person |
 | `remove_milestone` | Remove a milestone record from a person |
 | `create_prayer_burden` | Add a prayer burden for a person |
 | `release_prayer_burden` | Mark a prayer burden as released |
 | `create_comment` | Add a comment (standalone or linked to a prayer burden) |
 | `delete_comment` | Remove a comment |
+
+## Triggers
+
+| Trigger | Purpose |
+|---|---|
+| `trg_user_person_keep_last_shepherd` | AFTER DELETE FOR EACH ROW on `user_person`; runs `keep_last_shepherd()` |
+
+`keep_last_shepherd()` raises `check_violation` (23514) "A person needs at least one
+shepherd" when a delete would leave an existing person with no shepherds. It locks the
+person row first, so concurrent removals serialise.
+
+- Deleting the person is always allowed: the cascade runs after the person row is gone.
+- Deleting a user who is someone's last shepherd is refused; hand their people over or
+  delete them first.
+- Only removal is guarded; a person can still be created with no shepherd.

@@ -269,10 +269,110 @@ class TestAssignment:
     def test_unassign_user_from_person(self, db):
         with db.cursor() as cur:
             user_row = sp_create_user(cur)
+            other_row = sp_create_user(cur, "Other", "otheruser")
             person_row = sp_create_person(cur)
             cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (other_row[0], person_row[0]))
             cur.execute("SELECT * FROM unassign_person(%s, %s)", (user_row[0], person_row[0]))
             assert cur.fetchone()[0] is True
+
+    def test_unassign_only_shepherd_raises_and_keeps_link(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
+            cur.execute("SAVEPOINT before_unassign")
+            with pytest.raises(psycopg2.errors.CheckViolation, match="at least one shepherd"):
+                cur.execute("SELECT * FROM unassign_person(%s, %s)", (user_row[0], person_row[0]))
+            cur.execute("ROLLBACK TO SAVEPOINT before_unassign")
+            cur.execute(
+                "SELECT COUNT(*) FROM user_person WHERE user_id = %s AND person_id = %s",
+                (user_row[0], person_row[0]),
+            )
+            assert cur.fetchone()[0] == 1
+
+    def test_raw_delete_of_all_shepherds_raises(self, db):
+        with db.cursor() as cur:
+            a = sp_create_user(cur)
+            b = sp_create_user(cur, "Other", "otheruser")
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (a[0], person_row[0]))
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (b[0], person_row[0]))
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute("DELETE FROM user_person WHERE person_id = %s", (person_row[0],))
+
+    def test_two_shepherds_remove_one_then_second_raises(self, db):
+        with db.cursor() as cur:
+            a = sp_create_user(cur)
+            b = sp_create_user(cur, "Other", "otheruser")
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (a[0], person_row[0]))
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (b[0], person_row[0]))
+            cur.execute("SELECT * FROM unassign_person(%s, %s)", (a[0], person_row[0]))
+            assert cur.fetchone()[0] is True
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute("SELECT * FROM unassign_person(%s, %s)", (b[0], person_row[0]))
+
+    @pytest.mark.parametrize("use_procedure", [False, True])
+    @pytest.mark.parametrize("shepherd_count", [1, 3])
+    def test_deleting_person_with_shepherds_succeeds(self, db, shepherd_count, use_procedure):
+        with db.cursor() as cur:
+            person_row = sp_create_person(cur)
+            for i in range(shepherd_count):
+                user_row = sp_create_user(cur, f"User {i}", f"shepuser{i}")
+                cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
+            if use_procedure:
+                cur.execute("SELECT * FROM delete_person(%s)", (person_row[0],))
+            else:
+                cur.execute("DELETE FROM person WHERE id = %s", (person_row[0],))
+            cur.execute("SELECT COUNT(*) FROM user_person WHERE person_id = %s", (person_row[0],))
+            assert cur.fetchone()[0] == 0
+            cur.execute("SELECT COUNT(*) FROM person WHERE id = %s", (person_row[0],))
+            assert cur.fetchone()[0] == 0
+
+    def test_person_without_shepherd_can_still_be_created(self, db):
+        with db.cursor() as cur:
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT COUNT(*) FROM user_person WHERE person_id = %s", (person_row[0],))
+            assert cur.fetchone()[0] == 0
+
+    def test_user_with_zero_people_after_handing_over_is_valid(self, db):
+        """Business rule 1: a user left with no people is fine."""
+        with db.cursor() as cur:
+            a = sp_create_user(cur)
+            b = sp_create_user(cur, "Other", "otheruser")
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (a[0], person_row[0]))
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (b[0], person_row[0]))
+            cur.execute("SELECT * FROM unassign_person(%s, %s)", (a[0], person_row[0]))
+            cur.execute("SELECT person_id FROM user_person WHERE user_id = %s", (a[0],))
+            assert cur.fetchall() == []
+
+    def test_deleting_sole_shepherd_user_raises(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (user_row[0], person_row[0]))
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute('DELETE FROM "user" WHERE id = %s', (user_row[0],))
+
+    def test_deleting_user_with_no_people_succeeds(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            cur.execute('DELETE FROM "user" WHERE id = %s', (user_row[0],))
+            cur.execute('SELECT COUNT(*) FROM "user" WHERE id = %s', (user_row[0],))
+            assert cur.fetchone()[0] == 0
+
+    def test_deleting_user_whose_person_has_another_shepherd_succeeds(self, db):
+        with db.cursor() as cur:
+            a = sp_create_user(cur)
+            b = sp_create_user(cur, "Other", "otheruser")
+            person_row = sp_create_person(cur)
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (a[0], person_row[0]))
+            cur.execute("SELECT * FROM assign_person(%s, %s)", (b[0], person_row[0]))
+            cur.execute('DELETE FROM "user" WHERE id = %s', (a[0],))
+            cur.execute("SELECT user_id FROM user_person WHERE person_id = %s", (person_row[0],))
+            assert [r[0] for r in cur.fetchall()] == [b[0]]
 
     def test_unassign_nonexistent_raises(self, db):
         with db.cursor() as cur:
