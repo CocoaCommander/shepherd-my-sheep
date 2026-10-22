@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -58,6 +58,25 @@
     and the unused `ErrorMessage.tsx` are gone. Restored the few spots
     that leaned on them (phone People tabs, board / gallery switch, "Show
     prayer history").
+- **Rate limiting** (stacked drafts #94 → #95 → #96 → this PR): login,
+  register and `searchUsers` are limited in memory, and the clients say so.
+  - **#94 Client address** (base `main`) — the listener uses extended
+    connections, so `peer_address` is filled and logs name the client
+    (`--> POST /graphql (from 172.23.0.1)`) instead of `unknown`.
+    `ClientAddress.hpp` turns `::ffff:1.2.3.4` into `1.2.3.4`. 429s name
+    the address in the log too.
+  - **#95 Limiter** (base #94) — `RateLimiter.hpp`: token buckets (login
+    + register per client IP, IPv6 by /64; `searchUsers` per user, 60 a
+    minute, burst 20) and a failed-login backoff per username (5 free,
+    then 1 s doubling to 15 min, the same for unknown usernames). Over
+    the limit: HTTP 429, `Retry-After`, code `RATE_LIMITED`. New required
+    env var `AUTH_RATE_LIMIT_PER_MINUTE` (about 10 in production, 1000
+    for local dev); the API exits without it. An `unknown` address skips
+    the per-IP bucket and logs a WARN.
+  - **#96 Clients** (base #95) — web `friendlyMessage` and KMP
+    `ShepherdException.Api.RateLimited` show the server's "Too many
+    attempts…" / "Too many searches…" instead of "Couldn't reach the
+    server". KMP's Apollo client now exposes HTTP error bodies.
 
 ### Moved from the todo list
 
@@ -190,6 +209,30 @@ were already listed and aren't repeated here.
   `API_HOST` / `API_PORT` are unset, against the no-defaults rule.
   Validate them in `AppComponent::validateEnv()` with the rest. (#31)
 - **Home** (based on option B, care-first): people who need contacting, up top. Web and mWeb mocked up. (#32)
+- No rate limiting on `searchUsers` or login. (#95)
+  - Strategy (decided 2026-10-16): **token bucket**, which is the
+    "leaky bucket as a meter" (same maths). It allows a small burst and
+    never queues, so legitimate requests get no added delay. A leaky
+    bucket used as a queue would hold connections open and slow real
+    users, which is a poor fit for login.
+  - Login and register: a bucket per client IP. Also count failed logins
+    per username with exponential backoff, so an attack spread over many
+    IPs on one account is still slowed. Reply the same way whether or not
+    the username exists.
+  - `searchUsers`: a bucket per user id (it requires sign-in).
+  - Over the limit: HTTP 429 with `Retry-After`.
+  - In memory is fine while there is one API instance; move to shared
+    storage if it scales out.
+  - Depends on the logging follow-up below: `peer_address` isn't
+    populated today, so per-IP limits need the client address first
+    (and `X-Forwarded-For` from a trusted proxy if one is put in front).
+
+#### Backend follow-ups (low priority)
+
+**Logging follow-ups from #30**:
+
+- Client address always logs as "unknown": `peer_address` isn't
+  populated on the connection in `RequestLogger.hpp`. (#94)
 
 #### Done
 
