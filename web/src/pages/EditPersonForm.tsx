@@ -51,8 +51,7 @@ export function EditPersonForm({ person, onDone }: { person: Person; onDone: () 
     }
   }
 
-  // The API treats null as "leave unchanged", so a value that is set can't be
-  // cleared from here; `required` keeps the form from pretending otherwise.
+  // Emptying Age or Year met sends null, which clears it.
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       <label className={styles.field}>
@@ -68,7 +67,7 @@ export function EditPersonForm({ person, onDone }: { person: Person; onDone: () 
       <div className={styles.row}>
         <label className={styles.field}>
           <span>
-            Age {person.age === null && <span className={styles.optional}>(optional)</span>}
+            Age <span className={styles.optional}>(optional)</span>
           </span>
           <input
             className={styles.input}
@@ -77,13 +76,11 @@ export function EditPersonForm({ person, onDone }: { person: Person; onDone: () 
             max={150}
             value={age}
             onChange={(e) => setAge(e.target.value)}
-            required={person.age !== null}
           />
         </label>
         <label className={styles.field}>
           <span>
-            Year met{' '}
-            {person.yearMet === null && <span className={styles.optional}>(optional)</span>}
+            Year met <span className={styles.optional}>(optional)</span>
           </span>
           <input
             className={styles.input}
@@ -92,7 +89,6 @@ export function EditPersonForm({ person, onDone }: { person: Person; onDone: () 
             max={2100}
             value={yearMet}
             onChange={(e) => setYearMet(e.target.value)}
-            required={person.yearMet !== null}
           />
         </label>
       </div>

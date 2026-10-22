@@ -130,6 +130,9 @@ async function openForm(user: ReturnType<typeof userEvent.setup>) {
   await screen.findByRole('button', { name: 'Save' })
 }
 
+/** The sidebar's value for a fact, e.g. "Age". */
+const fact = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling
+
 describe('edit person form', () => {
   it('opens prefilled with the current values', async () => {
     const user = userEvent.setup()
@@ -141,13 +144,14 @@ describe('edit person form', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   })
 
-  it('requires name, and requires optional fields that already have a value', async () => {
+  it('requires only the name, even when age and year met have a value', async () => {
     const user = userEvent.setup()
     renderPage(person())
     await openForm(user)
     expect(screen.getByLabelText('Name')).toBeRequired()
-    expect(screen.getByLabelText(/^Age/)).toBeRequired()
-    expect(screen.getByLabelText(/^Year met/)).toBeRequired()
+    expect(screen.getByLabelText(/^Age/)).not.toBeRequired()
+    expect(screen.getByLabelText(/^Year met/)).not.toBeRequired()
+    expect(screen.getAllByText('(optional)')).toHaveLength(2)
   })
 
   it('has no status field: the Person page dropdown changes status', async () => {
@@ -227,6 +231,66 @@ describe('edit person form', () => {
 
     expect(await screen.findByText('2024')).toBeInTheDocument()
     expect(result).toHaveBeenCalledTimes(1)
+  })
+
+  it('emptying age sends only age: null and the page stops showing it', async () => {
+    const user = userEvent.setup()
+    const { mock, result } = updateMock({ age: null })
+    renderPage(person(), [mock])
+    await openForm(user)
+    expect(fact('Age')).toHaveTextContent('30')
+    await user.clear(screen.getByLabelText(/^Age/))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('button', { name: 'Edit details' })).toBeInTheDocument()
+    expect(result).toHaveBeenCalledTimes(1)
+    expect(fact('Age')).toHaveTextContent('Not recorded')
+    expect(fact('Year met')).toHaveTextContent('2020')
+  })
+
+  it('emptying year met sends only yearMet: null and the page stops showing it', async () => {
+    const user = userEvent.setup()
+    const { mock, result } = updateMock({ yearMet: null })
+    renderPage(person(), [mock])
+    await openForm(user)
+    await user.clear(screen.getByLabelText(/^Year met/))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('button', { name: 'Edit details' })).toBeInTheDocument()
+    expect(result).toHaveBeenCalledTimes(1)
+    expect(fact('Year met')).toHaveTextContent('Not recorded')
+    expect(fact('Age')).toHaveTextContent('30')
+    expect(screen.queryByText(/Met 2020/)).not.toBeInTheDocument()
+  })
+
+  it('emptying both sends age and yearMet as null', async () => {
+    const user = userEvent.setup()
+    const { mock, result } = updateMock({ age: null, yearMet: null })
+    renderPage(person(), [mock])
+    await openForm(user)
+    await user.clear(screen.getByLabelText(/^Age/))
+    await user.clear(screen.getByLabelText(/^Year met/))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('button', { name: 'Edit details' })).toBeInTheDocument()
+    expect(result).toHaveBeenCalledTimes(1)
+    expect(fact('Age')).toHaveTextContent('Not recorded')
+    expect(fact('Year met')).toHaveTextContent('Not recorded')
+  })
+
+  it('sends nothing when a field is emptied and the same value retyped', async () => {
+    const user = userEvent.setup()
+    const { mock, result } = updateMock({ age: null })
+    renderPage(person(), [mock])
+    await openForm(user)
+    const age = screen.getByLabelText(/^Age/)
+    await user.clear(age)
+    await user.type(age, '30')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('button', { name: 'Edit details' })).toBeInTheDocument()
+    expect(result).not.toHaveBeenCalled()
+    expect(fact('Age')).toHaveTextContent('30')
   })
 
   it('sends no mutation and closes when nothing changed', async () => {
