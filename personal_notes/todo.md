@@ -38,9 +38,6 @@ the small backend clean-ups, then the mobile apps. Left out on purpose:
 "possible later" / "decide on later" items, configurable milestones (needs
 design decisions first), and the `make reset` note.
 
-- [x] `update_person` can't clear a value once set (COALESCE treats null
-  as "leave unchanged"), e.g. age or last contact date. Needs an
-  explicit "clear" signal. — *Backend follow-ups* (#103)
 - [ ] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
   character at the cap, and doesn't redact Postgres `DETAIL` text,
   which can quote user input. — *Backend follow-ups, Logging
@@ -90,9 +87,6 @@ design decisions first), and the `make reset` note.
 
 ## Backend follow-ups (low priority)
 
-- [x] `update_person` can't clear a value once set (COALESCE treats null as
-  "leave unchanged"), e.g. age or last contact date. Needs an explicit
-  "clear" signal. (#103)
 - [ ] "Can't remove the last shepherd" is enforced only in the resolver,
   not in the database.
 - [ ] `searchUsers` returns the full `User` type, so `createdAt`/`updatedAt`
