@@ -55,6 +55,7 @@ describe('dark theme tokens', () => {
       '--sms-brand-icon',
       '--sms-logo-body',
       '--sms-logo-shade',
+      '--sms-logo-gap',
       '--sms-backdrop',
       '--sms-shadow-tab',
     ]) {

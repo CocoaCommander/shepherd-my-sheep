@@ -27,6 +27,8 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 ## Brand
 
 - [ ] **Logo: simple vector sheep in brand green** (`#3b6e4f` body, `#2d5a3f` head and legs). Used in every header and on the sign-in screen across all mockups. Turn it into a real SVG asset for web, then the favicon, Android launcher icon and iOS app icon.
+  - [ ] Android launcher icon (Option A, `t-green` tile; the canvas has a round-mask preview).
+  - [ ] iOS app icon (Option A, `t-green`, full square).
 
 ## Next up
 
@@ -37,9 +39,6 @@ the small backend clean-ups, then the mobile apps. Left out on purpose:
 "possible later" / "decide on later" items, configurable milestones (needs
 design decisions first), and the `make reset` note.
 
-- [ ] **Logo: simple vector sheep in brand green.** Web SVG and
-  favicon first; the Android and iOS icons can wait for the apps.
-  — *Brand*
 - [ ] `PrayerBurden.person` is filled (id, name, status only) by every
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`. — *Backend follow-ups*

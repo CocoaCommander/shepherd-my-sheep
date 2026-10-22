@@ -45,6 +45,8 @@
   /* The sheep mark: body and head/legs. Its eye is the surface colour. */
   --sms-logo-body: #3b6e4f;
   --sms-logo-shade: #2d5a3f;
+  /* The line between the mark's head and its wool: set it to whatever the mark sits on. */
+  --sms-logo-gap: var(--sms-surface);
 
   /* Urgency */
   /* Danger as a fill (buttons, tags, badges, meters), with on-brand text. */
