@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary; last shepherd DB guard
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary; last shepherd DB guard; dark mode
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -125,6 +125,34 @@
   the person row is gone); deleting a user who is someone's last shepherd
   is refused. The resolver maps 23514 to the same BAD_USER_INPUT message,
   so the API is unchanged. Dev DBs need `make reset`.
+- **Dark mode** (stacked drafts #116 → #117 → #118, plus this work
+  log): the `--sms-*` tokens get dark values from the canvas's `*Dark`
+  boards. The app follows the OS until the header toggle is clicked;
+  then the stored choice wins. Web only (Android and iOS have no screens).
+  - **#116 Contrast audit** (base `main`) —
+    `web/scripts/contrast-audit.mjs` runs axe's `color-contrast` rule in
+    Chromium over the listed pages, web and mWeb, light or `--dark`, and
+    on `person:` pages also with the Log contact dialog open. Exits 1 on
+    any violation. The shared sign-in / page parsing moved from
+    `screenshots.mjs` into `web/scripts/session.mjs`. Light baseline: 0
+    violations.
+  - **#117 Dark values** (base #116) — dark blocks in `tokens.css`, once
+    under `prefers-color-scheme: dark` (unless `data-theme='light'`) and
+    once under `[data-theme='dark']`, with the same values. New split
+    tokens keep light pixel-identical: `--sms-danger-text`, `--sms-toast`,
+    `--sms-brand-icon`, `--sms-logo-body` / `-shade`, `--sms-backdrop`,
+    `--sms-shadow-tab`. `SheepMark` fills from tokens. `tokens.test.ts`
+    fails on a token missing its dark value, on the two dark blocks
+    differing, or on a colour literal outside `tokens.css`. Audit: 0
+    violations in both themes, empty lists included. The canvas
+    `tokens.json` has the dark values too.
+  - **#118 Theme toggle** (base #117) — `web/src/theme.ts` (key
+    `shepherd.theme`, light / dark only) and a `ThemeToggle` (moon / sun,
+    `aria-pressed`) in the signed-in header beside the Bell, and as a
+    labelled row in the phone menu. Not on the Review header (it wrapped
+    at 390). An inline script in `index.html` applies the stored choice
+    before first paint. `--toggled` on `screenshots.mjs` and
+    `contrast-audit.mjs` forces the choice opposite the OS.
 
 ### Moved from the todo list
 
@@ -197,6 +225,7 @@ Completed items as they stood in `todo.md` on 2026-10-21, by section.
   - (#42) Until it's built, the buttons log a placeholder note
     (`QUICK_CONTACT_NOTE` in `web/src/contacts.ts`), since the API now
     requires one. Remove `quickContact` once the modal replaces it.
+- **Dark mode for the `--sms-*` tokens.** `web/src/tokens.css` is light only, and the dark mode in `index.css` covers only the old palette, so the new screens (Home, Person, Add person, the Log contact dialog) stay light. Add dark values, then re-run the colour-contrast audit on the new screens in both themes (axe can't check contrast in jsdom, so do it in a browser). (#118)
 
 #### Design gaps (canvas vs API)
 
@@ -275,6 +304,7 @@ were already listed and aren't repeated here.
     populated today, so per-IP limits need the client address first
     (and `X-Forwarded-For` from a trusted proxy if one is put in front).
 - Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it. (#99)
+- **Dark mode for the `--sms-*` tokens.** — *Screens* (#118)
 
 #### Backend follow-ups (low priority)
 

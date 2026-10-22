@@ -23,7 +23,6 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 - [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
 - [ ] **"Log contact" modal on Android and iOS.** The web one is done (#39, #42); Android and iOS need the same modal.
 - [ ] **Add person page on Android and iOS.** The web one is done (#41); Android and iOS need the same screen. The shared module's `createPerson` already takes `comment` (#43).
-- [x] **Dark mode for the `--sms-*` tokens.** `web/src/tokens.css` is light only, and the dark mode in `index.css` covers only the old palette, so the new screens (Home, Person, Add person, the Log contact dialog) stay light. Add dark values, then re-run the colour-contrast audit on the new screens in both themes (axe can't check contrast in jsdom, so do it in a browser). (#118)
 
 ## Brand
 
@@ -38,7 +37,6 @@ the small backend clean-ups, then the mobile apps. Left out on purpose:
 "possible later" / "decide on later" items, configurable milestones (needs
 design decisions first), and the `make reset` note.
 
-- [x] **Dark mode for the `--sms-*` tokens.** — *Screens* (#118)
 - [ ] **Logo: simple vector sheep in brand green.** Web SVG and
   favicon first; the Android and iOS icons can wait for the apps.
   — *Brand*
