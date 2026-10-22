@@ -80,15 +80,58 @@ inline ClientError classifySqlState(const std::string& sqlstate) {
 /**
  * Makes error text safe for a one-line log entry. Database messages can
  * quote the caller's input, so control characters (newlines, ANSI escapes)
- * become spaces and the length is capped.
+ * become spaces and the length is capped on a character boundary: a UTF-8
+ * character that would straddle the cap is dropped whole.
  */
 inline std::string forLog(std::string_view text, std::size_t maxLength = 300) {
+    std::size_t cut = std::min(text.size(), maxLength);
+    if (text.size() > maxLength) {
+        // Step back over continuation bytes (10xxxxxx) to the start of the
+        // straddling character. A UTF-8 character has at most 3 of them, so
+        // stray bytes in invalid input can't pull the cut back further.
+        auto isContinuation = [&](std::size_t i) { return (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80; };
+        std::size_t back    = 0;
+        while (back < 3 && cut - back > 0 && isContinuation(cut - back))
+            ++back;
+        if (!isContinuation(cut - back)) cut -= back;
+    }
+
     std::string out;
-    out.reserve(std::min(text.size(), maxLength));
-    for (char c : text.substr(0, maxLength)) {
+    out.reserve(cut);
+    for (char c : text.substr(0, cut)) {
         auto u = static_cast<unsigned char>(c);
         out.push_back(u < 0x20 || u == 0x7f ? ' ' : c);
     }
     if (text.size() > maxLength) out += "...";
     return out;
+}
+
+/**
+ * A Postgres error message for the log: the primary line only. pqxx 6.4
+ * gives only libpq's joined text ("ERROR:  ...\nDETAIL:  ...\nHINT: ..."),
+ * and DETAIL quotes data: the duplicate key, or the whole failing row for
+ * NOT NULL and CHECK violations. Class 22 (data exception) also quotes the
+ * bad value in the primary line, so the line is cut at its first quote.
+ * Constraint names and the ids in our own RAISE EXCEPTIONs are kept.
+ */
+inline std::string sqlErrorForLog(const std::string& sqlstate, std::string_view what) {
+    std::string line(what.substr(0, what.find('\n')));
+
+    // Everything from the first quote on goes, not just up to a closing
+    // quote: Postgres doesn't escape a '"' or a newline inside the value,
+    // so where the value ends can't be told. What's lost is fixed text
+    // ("is out of range for type integer") that the SQLSTATE already says.
+    if (sqlstate.rfind("22", 0) == 0) {
+        auto quote = line.find('"');
+        if (quote != std::string::npos) line.replace(quote, std::string::npos, "\"...\"");
+    }
+
+    for (std::string_view prefix : {"ERROR:  ", "FATAL:  "}) {
+        if (line.rfind(prefix, 0) == 0) {
+            line.erase(0, prefix.size());
+            break;
+        }
+    }
+
+    return forLog(line);
 }
