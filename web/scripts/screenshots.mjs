@@ -11,6 +11,8 @@
  *
  * A page is a path ("/people") or "person:<name>", the Person page of the first
  * link with that name on My people, so a Person page needs no id.
+ * "signed-out:<path>" shoots that path without the stored token (e.g. signed-out:/login),
+ * and "register" shoots /login signed out after following its "Create an account" link.
  * Files are named <page>-<web|mweb>-<light|dark>.png.
  */
 import { mkdir } from 'node:fs/promises'
@@ -69,6 +71,8 @@ async function settle(page) {
  * status tab at a time, so the link may be hidden there). Paths pass through.
  */
 async function resolve(page, target) {
+  if (target === 'register') return '/login'
+  if (target.startsWith('signed-out:')) return target.slice('signed-out:'.length)
   if (!target.startsWith('person:')) return target
   const name = target.slice('person:'.length)
   await page.goto(new URL('/people', values.url).href)
@@ -89,8 +93,9 @@ try {
   const login = await browser.newContext()
   const loginPage = await login.newPage()
   await loginPage.goto(new URL('/login', values.url).href)
-  await loginPage.getByLabel('Username').fill(values.user)
-  await loginPage.getByLabel('Password').fill(password)
+  // exact: the Password field's Show / Hide toggle is labelled "Show password".
+  await loginPage.getByLabel('Username', { exact: true }).fill(values.user)
+  await loginPage.getByLabel('Password', { exact: true }).fill(password)
   await loginPage.getByRole('button', { name: 'Sign in' }).click()
   await loginPage.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15_000 })
   const storageState = await login.storageState()
@@ -101,21 +106,29 @@ try {
   await mkdir(values.out, { recursive: true })
   for (const theme of themes) {
     for (const [size, viewport] of Object.entries(VIEWPORTS)) {
-      const context = await browser.newContext({
-        storageState,
+      const options = {
         viewport,
         colorScheme: theme,
         reducedMotion: 'reduce',
         deviceScaleFactor: 2,
-      })
+      }
+      const context = await browser.newContext({ ...options, storageState })
+      const signedOut = await browser.newContext(options)
       const page = await context.newPage()
+      const signedOutPage = await signedOut.newPage()
       for (const [i, target] of pages.entries()) {
-        await open(page, urls[i])
+        const outside = target === 'register' || target.startsWith('signed-out:')
+        const shot = outside ? signedOutPage : page
+        await open(shot, urls[i])
+        if (target === 'register') {
+          await shot.getByRole('button', { name: 'New here? Create an account' }).click()
+        }
         const file = path.join(values.out, `${slug(target)}-${size}-${theme}.png`)
-        await page.screenshot({ path: file, fullPage: true, animations: 'disabled' })
+        await shot.screenshot({ path: file, fullPage: true, animations: 'disabled' })
         console.log(file)
       }
       await context.close()
+      await signedOut.close()
     }
   }
 } finally {
