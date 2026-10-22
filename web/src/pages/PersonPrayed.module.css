@@ -96,6 +96,7 @@
   min-height: var(--sms-size-touch);
   padding: 0 2px;
   border: 0;
+  border-radius: var(--sms-radius-lg);
   background: none;
   color: var(--sms-brand-strong);
   font: inherit;

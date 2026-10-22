@@ -1,7 +1,6 @@
 /*
  * Shepherd My Sheep design tokens, copied from the design system's tokens.json.
- * Light theme only. Every name carries an `sms-` prefix so it can't collide with
- * the older palette (and its dark mode) in src/index.css.
+ * Light theme only. Every name carries an `sms-` prefix.
  */
 :root {
   /* Ground and surfaces */
