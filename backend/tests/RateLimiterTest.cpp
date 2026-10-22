@@ -315,7 +315,7 @@ TEST(RateLimits, HugeUsernamesShareACappedKey) {
 
     auto prefix = std::string(RateLimits::MAX_USERNAME_KEY, 'x');
     for (int i = 0; i < 5; ++i)
-        limits.loginFailed(prefix + std::string(1000000, 'a' + i));
+        limits.loginFailed(prefix + std::string(1000000, static_cast<char>('a' + i)));
     EXPECT_THROW(limits.checkLogin(prefix + "anything"), RateLimited);
     EXPECT_NO_THROW(limits.checkLogin(prefix.substr(1)));
 }
