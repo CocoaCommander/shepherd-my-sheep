@@ -20,12 +20,12 @@ recently changed files in `~/.claude/plans/` and ask which one; don't guess.
 4. If the plan lists open questions and the step depends on one that has
    no answer, ask the user. Don't invent an answer.
 
-**Check it's still current.** `git fetch`, then compare against what merged
-to `main` since the plan's survey commit or the last Handoff note
-(`gh pr list --state merged`). Look hardest at files the step touches. If
-the step's base PR has merged, branch from `origin/main` and say so in the
-PR. If something merged that changes the step, tell the user before
-building on it.
+**Check it's still current.** `git fetch`, then
+`git log --oneline <survey or last Handoff commit>..origin/main -- <files the step names>`.
+Empty output means the plan is current: don't read further. Otherwise read
+only those commits' diffs. If the step's base PR has merged, branch from
+`origin/main` and say so in the PR. If something merged that changes the
+step, tell the user before building on it.
 
 **Do only that step.** Follow the plan's "How every step works" section (or
 equivalent) and the step's own notes: branch name, base, worktree, tests,
