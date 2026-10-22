@@ -188,7 +188,7 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
 inline const char* PERSON_SELECT =
     "SELECT p.id, p.name, p.age, p.year_met, p.is_active, "
     "       p.created_at, p.updated_at, p.status_changed_at, s.id AS status_id, s.name AS status_name, "
-    "       cs.last_contacted_at::date AS last_contact_date, cs.last_contacted_at, "
+    "       cs.last_contacted_at, "
     "       cs.contact_due_at, cs.contact_clock_start, cs.contact_state, "
     "       (SELECT string_agg(mp.milestone_id::text, ',' ORDER BY mp.milestone_id) "
     "          FROM milestone_person mp WHERE mp.person_id = p.id) AS milestone_ids, "
@@ -227,7 +227,6 @@ inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     auto dto               = PersonDto::createShared();
     dto->id                = row["id"].c_str();
     dto->name              = row["name"].c_str();
-    dto->lastContactDate   = textOrNull(row["last_contact_date"]);
     dto->lastContactedAt   = textOrNull(row["last_contacted_at"]);
     dto->contactDueAt      = textOrNull(row["contact_due_at"]);
     dto->contactClockStart = textOrNull(row["contact_clock_start"]);

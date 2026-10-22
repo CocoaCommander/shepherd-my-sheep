@@ -201,10 +201,7 @@ private:
         return person;
     }
 
-    /**
-     * Only the fields present in `input` change. The deprecated
-     * `lastContactDate` logs a contact on that date for older clients.
-     */
+    /** Only the fields present in `input` change. */
     oatpp::Any resolveUpdatePerson(const Args& args, const std::string& userId) {
         auto id    = args.req("id");
         auto input = args.object("input");
@@ -224,11 +221,6 @@ private:
                         "p_status_id         := $6::uuid)",
                         id, nullable(name), nullable(input.opt("age")), nullable(input.opt("yearMet")),
                         nullable(input.opt("isActive")), nullable(input.opt("statusId")));
-
-        if (auto lastContactDate = input.opt("lastContactDate")) {
-            txn.exec_params("SELECT * FROM log_contact($1::uuid, $2::uuid, $3::date::timestamptz)", id, userId,
-                            *lastContactDate);
-        }
 
         auto person = fetchPersonDetail(txn, id);
         txn.commit();
