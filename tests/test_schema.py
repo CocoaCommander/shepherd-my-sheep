@@ -53,6 +53,18 @@ class TestForeignKeys:
 # ── Updated-at Trigger ───────────────────────────────────────
 
 
+class TestKeepLastShepherdTrigger:
+    def test_trigger_exists_on_user_person(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT p.proname FROM pg_trigger t
+                   JOIN pg_proc p ON p.oid = t.tgfoid
+                   WHERE t.tgname = 'trg_user_person_keep_last_shepherd'
+                     AND t.tgrelid = 'user_person'::regclass"""
+            )
+            assert cur.fetchone()[0] == "keep_last_shepherd"
+
+
 class TestUpdatedAtTrigger:
     def test_person_updated_at_changes_on_update(self, db):
         with db.cursor() as cur:
