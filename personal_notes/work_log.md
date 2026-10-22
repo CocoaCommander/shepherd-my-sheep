@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL
+## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
   todo items in one PR. Removing the old worktrees is still open (the
@@ -108,6 +108,14 @@
   `"..."` appended, since the bad value is quoted there and may hold
   quotes or newlines. Constraint names and our `RAISE` ids still log; the
   client response is unchanged.
+- **#111 `searchUsers` UserSummary** (draft, base `main`) — `searchUsers`
+  returns a new `UserSummary { id name username }` (`__typename`
+  "UserSummary") instead of `User`, so account timestamps no longer reach
+  other users. The executor serializes every DTO field whatever is
+  selected, so the fix is a slimmer `UserSummaryDto` (and a resolver that
+  reads only the three columns), not just the schema. `me` and the other
+  user fields keep `User`; a new todo item covers switching
+  `Person.shepherds`, `Comment.author` and the other co-shepherd fields.
 
 ### Moved from the todo list
 
@@ -264,6 +272,9 @@ were already listed and aren't repeated here.
 - `update_person` can't clear a value once set (COALESCE treats null as
   "leave unchanged"), e.g. age or last contact date. Needs an explicit
   "clear" signal. (#103)
+- `searchUsers` returns the full `User` type, so `createdAt`/`updatedAt`
+  are visible to any signed-in user. A slimmer `UserSummary { id name
+  username }` would hide them. (#111)
 
 **Logging follow-ups from #30**:
 
