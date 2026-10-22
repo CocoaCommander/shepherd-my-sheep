@@ -41,8 +41,10 @@ void run() {
 
     // UNSPEC lets API_HOST pick the family: 0.0.0.0 is IPv4 only, :: is
     // IPv6 and (on Linux) IPv4 too. A hostname binds its first address.
-    auto connectionProvider =
-        oatpp::network::tcp::server::ConnectionProvider::createShared({host, port, oatpp::network::Address::UNSPEC});
+    // Extended connections fill peer_address, which clientAddress() reads;
+    // without them every client logs as "unknown".
+    auto connectionProvider = oatpp::network::tcp::server::ConnectionProvider::createShared(
+        {host, port, oatpp::network::Address::UNSPEC}, /*useExtendedConnections=*/true);
 
     oatpp::network::Server server(connectionProvider, connectionHandler);
 
