@@ -1,17 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Mirrors SheepMark (src/components/icons.tsx) on a tile; Favicon.test.ts checks they match. -->
+  <!-- Generated from SheepMark by scripts/icons.mjs (npm run icons); don't edit by hand. -->
   <title>Shepherd My Sheep</title>
   <style>
     .tile { fill: #3b6e4f }
     .wool { fill: #ffffff }
     .head { fill: #cfe0d5 }
-    ellipse.head { stroke: #3b6e4f }
+    .gap { stroke: #3b6e4f }
     .eye { fill: #2d5a3f }
     @media (prefers-color-scheme: dark) {
       .tile { fill: #1d2125 }
       .wool { fill: #8fcaa6 }
       .head { fill: #5fa07c }
-      ellipse.head { stroke: #1d2125 }
+      .gap { stroke: #1d2125 }
       .eye { fill: #1d2125 }
     }
   </style>
@@ -29,9 +29,9 @@
         <circle cx="26" cy="38" r="10"/>
         <circle cx="39" cy="38" r="10"/>
       </g>
-      <ellipse class="head" cx="52" cy="36" rx="7.2" ry="8.4" stroke-width="1.6"/>
-      <ellipse class="head" cx="44.4" cy="38.3" rx="7.4" ry="3.3" transform="rotate(-65 44.4 38.3)" stroke-width="1.4"/>
-      <circle class="eye" cx="54.5" cy="33.5" r="1.7"/>
+      <ellipse cx="52" cy="36" rx="7.2" ry="8.4" class="head gap" stroke-width="1.6"/>
+      <ellipse cx="44.4" cy="38.3" rx="7.4" ry="3.3" transform="rotate(-65 44.4 38.3)" class="head gap" stroke-width="1.4"/>
+      <circle cx="54.5" cy="33.5" r="1.7" class="eye"/>
     </g>
   </g>
 </svg>
