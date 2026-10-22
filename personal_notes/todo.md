@@ -34,7 +34,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 Ordered by priority (reordered 2026-10-16 after the design
 gap check).
 
-- [ ] No rate limiting on `searchUsers` or login.
+- [x] No rate limiting on `searchUsers` or login. (#95)
   - Strategy (decided 2026-10-16): **token bucket**, which is the
     "leaky bucket as a meter" (same maths). It allows a small burst and
     never queues, so legitimate requests get no added delay. A leaky
