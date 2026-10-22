@@ -67,4 +67,14 @@ web/scripts/pr-screenshots.sh --base main --user demo_shepherd --dark --publish 
 
 It starts a dev server for the base branch and one for yours, each on a free port, and shoots each page at 1280 and 390 wide (light, plus dark with `--dark`). With `--publish` it commits the images to the `pr-assets` branch and prints a Before | After Markdown table for the PR body. `pr-assets` holds only images and shares no history with `main`. Only demo data appears. `web/scripts/screenshots.mjs` takes the screenshots and can be run on its own against any running dev server. Page targets are a path (`/people`), `person:<name>`, `signed-out:<path>` (shot without the stored token, e.g. `signed-out:/login`) and `register` (the signed-out sign in page after switching to Create an account). The first run needs `npx playwright install --only-shell chromium` in `web/`.
 
+## Contrast audit
+
+axe can't measure colour contrast in jsdom, so `web/scripts/contrast-audit.mjs` runs axe's `color-contrast` rule in Chromium against a running dev server (with `make start` and `make seed` done), from `web/`:
+
+```sh
+node scripts/contrast-audit.mjs --url http://localhost:3000 --user demo_shepherd --dark / /people /people/new "person:Marcus Reid" /prayer /review signed-out:/login register
+```
+
+It takes the same page targets as `screenshots.mjs` and checks each at 1280 and 390 wide, in light and (with `--dark`) dark. On `person:` pages it also checks with the Log contact dialog open. It prints one line per failing node (page, width, theme, selector, colours, ratio, needed ratio) and a summary, and exits 1 on any violation. `--json <file>` also writes the results. Nodes axe can't decide (for example fields partly covered by another element) are counted as incomplete and don't fail the run.
+
 Applied migrations (`V001`, `V002`) are excluded from SQL formatting, because changing them breaks migration checksums. Add each new migration to `.sqlfluffignore` and the `exclude` pattern in `.pre-commit-config.yaml` once it has been applied anywhere shared.
