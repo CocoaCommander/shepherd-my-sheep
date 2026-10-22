@@ -346,6 +346,26 @@ the Prayer list or `/review` in a browser yet. New todos from the day:
 collapse comments in Recently released by default, and rename "Longest
 standing" to "Oldest". See [todo.md](todo.md) for next steps.
 
+### Moved from the todo list
+
+Completed items from `todo.md` whose PRs were opened this day (moved
+2026-10-21).
+
+#### Screens (web + mWeb/mobile)
+
+- **My people** (#65, #66, #67): one page with a **Board / Gallery toggle**.
+  - **Gallery**: full overview grid with search by name and status filter chips. 2-column cards on mWeb.
+  - Decided 2026-10-16: milestone progress stays four fixed segments in this order for the demo: baptised, joined small group, serving, leading. Configurable milestones are a separate item below.
+- **Person page** (web and mWeb), using Maria Santos as the example. (#71-#75)
+  - Header card with a contact-status banner (on track / due / overdue) and a prominent "Log contact" button that opens the Log contact dialog. Replaces today's "Contacted today" link in the details card. (#40)
+    - Progress bar against the 7-day or 72-hour goal. `Person.contactClockStart` (#47) now gives the start; the window is `contactDueAt - contactClockStart`, as Home's meter uses it (#48). (#71)
+  - Milestones as a four-step journey (baptised, small group, serving, leading) showing when and any note; unrecorded steps get a "Record" button. (#73)
+  - Prayer burdens: active burden with its comment thread (latest two shown, "Show earlier comments" for the rest), comment box and Release; released burdens in a collapsed list. (#74)
+  - Notes: standalone notes with an add-note box (comments with no prayer burden). (#74)
+  - Sidebar (web) or stacked sections (mWeb): details, shepherds (add / remove, "You" and co-shepherd labels), contact rule reminder, delete person. (#75)
+  - Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19). (#72)
+  - Confirm each action that can't be undone (remove shepherd, remove yourself, delete person, remove milestone, delete comment) in a dialog before it happens. Release has an Undo toast instead of a confirmation (decided 2026-10-20). (#75)
+
 ## 2026-10-19 — Add person + Log contact
 
 - **#37–#44 Add person + Log contact** — eight stacked PRs on top of #36
@@ -393,6 +413,22 @@ drafts (merge in order, retargeting each to main). Test counts are from
 the plan's step 8 notes. Open follow-ups (Android/iOS dialog and Add
 person, dark mode, exposing the clock start, dropping `lastContactDate`
 from the API) are in [todo.md](todo.md).
+
+### Moved from the todo list
+
+Completed items from `todo.md` whose PRs were opened this day (moved
+2026-10-21). Their Android and iOS follow-ups stay open in the todo list.
+
+#### Screens (web + mWeb/mobile)
+
+- **"Log contact" modal** (#39, #42) (to design, probably on the design canvas
+  first). The one-tap buttons ("Contacted today" and "Log follow-up" on
+  Home, "Contacted today" / "Followed up today" on the person card) open
+  it instead of logging straight away. Fields: a date (defaults to the
+  device's current date and time), a required note on what was talked
+  about, and an optional prayer burden text field. Sends `logContact`
+  with `contactedAt`, `note` and `prayerBurden`.
+- **Add person page** (#41) at `/people/new`: name, age, year met and an optional first comment (status is always New contact), then a confirmation screen with the 72-hour follow-up deadline and "Log contact now". Replaces the inline form on My people.
 
 ## 2026-10-15 — Polished UI design started, contact cadence rule
 
