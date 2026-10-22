@@ -10,6 +10,7 @@ with the people assigned to those users.
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -41,8 +42,8 @@ except OSError:
 # ── Helpers ──────────────────────────────────────────────────
 
 
-def post(query, variables=None, token=None):
-    """Returns (http_status, body)."""
+def post_with_headers(query, variables=None, token=None):
+    """Returns (http_status, headers, body)."""
     body = json.dumps({"query": query, "variables": variables or {}}).encode()
     request = urllib.request.Request(GRAPHQL_URL, data=body, method="POST")
     request.add_header("Content-Type", "application/json")
@@ -50,9 +51,15 @@ def post(query, variables=None, token=None):
         request.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
-            return response.status, json.loads(response.read())
+            return response.status, response.headers, json.loads(response.read())
     except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read())
+        return e.code, e.headers, json.loads(e.read())
+
+
+def post(query, variables=None, token=None):
+    """Returns (http_status, body)."""
+    status, _, body = post_with_headers(query, variables, token)
+    return status, body
 
 
 def gql(query, variables=None, token=None):
@@ -199,7 +206,9 @@ class TestAuthentication:
     def test_login_does_not_reveal_which_usernames_exist(self, make_user):
         _, _, username = make_user()
         wrong_password = gql_error(LOGIN, {"input": {"username": username, "password": "nope-nope"}})
-        no_such_user = gql_error(LOGIN, {"input": {"username": "no_such_user_x", "password": "nope-nope"}})
+        # A fresh name each run: failures for one username back off.
+        no_such = f"no_such_user_{uuid.uuid4().hex[:12]}"
+        no_such_user = gql_error(LOGIN, {"input": {"username": no_such, "password": "nope-nope"}})
         assert wrong_password == no_such_user == "Invalid username or password"
 
     def test_duplicate_username(self, make_user):
@@ -1411,6 +1420,87 @@ class TestSearchUsers:
         assert person["id"] == person_id
         assert {s["id"] for s in person["shepherds"]} == {owner_id, friend_id}
         assert person_id in [p["id"] for p in gql(MY_PEOPLE, {}, friend)["myPeople"]]
+
+
+# ── Rate limits ──────────────────────────────────────────────
+#
+# The per-address login / register limit is covered by the unit tests
+# only: draining it here would block every later make_user from this
+# address. The dev .env sets AUTH_RATE_LIMIT_PER_MINUTE high for that.
+
+
+def assert_rate_limited(status, headers, body, message):
+    assert status == 429, body
+    assert int(headers["Retry-After"]) >= 1
+    [error] = body["errors"]
+    assert error["extensions"]["code"] == "RATE_LIMITED"
+    assert error["message"] == message
+
+
+class TestRateLimits:
+    TOO_MANY_ATTEMPTS = "Too many attempts. Please wait a moment and try again."
+    TOO_MANY_SEARCHES = "Too many searches. Please wait a moment and try again."
+
+    def login(self, username, password):
+        return post_with_headers(LOGIN, {"input": {"username": username, "password": password}})
+
+    def fail_five_times(self, username):
+        for _ in range(5):
+            status, _, body = self.login(username, "wrong-password")
+            assert status == 200, body
+            assert body["errors"][0]["message"] == "Invalid username or password"
+
+    def test_search_users_is_limited_per_user(self, make_user):
+        token, _, _ = make_user()
+        other_token, _, _ = make_user()
+
+        # A burst of 20, then one a second: the 21st is refused unless the
+        # first 20 took over a second, so allow a few more to reach it.
+        for _ in range(20):
+            status, _, body = post_with_headers(SEARCH_USERS, {"query": "nobody-here"}, token)
+            assert status == 200, body
+        for _ in range(10):
+            status, headers, body = post_with_headers(SEARCH_USERS, {"query": "nobody-here"}, token)
+            if status != 200:
+                break
+        assert_rate_limited(status, headers, body, self.TOO_MANY_SEARCHES)
+
+        status, _, body = post_with_headers(SEARCH_USERS, {"query": "nobody-here"}, other_token)
+        assert status == 200, body
+
+    def test_failed_logins_back_off_even_with_the_right_password(self, make_user):
+        _, _, username = make_user(password="right-password")
+        self.fail_five_times(username)
+        status, headers, body = self.login(username, "right-password")
+        assert_rate_limited(status, headers, body, self.TOO_MANY_ATTEMPTS)
+        assert headers["Retry-After"] == "1"
+
+    def test_unknown_username_backs_off_the_same(self, make_user):
+        _, _, username = make_user(password="right-password")
+        unknown = f"no_such_user_{uuid.uuid4().hex[:12]}"
+        self.fail_five_times(username)
+        self.fail_five_times(unknown)
+
+        known_reply = self.login(username, "right-password")
+        unknown_reply = self.login(unknown, "right-password")
+        assert_rate_limited(*known_reply, self.TOO_MANY_ATTEMPTS)
+        assert (known_reply[0], known_reply[1]["Retry-After"], known_reply[2]) == (
+            unknown_reply[0],
+            unknown_reply[1]["Retry-After"],
+            unknown_reply[2],
+        )
+
+    def test_right_password_after_the_wait_signs_in_and_resets(self, make_user):
+        _, user_id, username = make_user(password="right-password")
+        self.fail_five_times(username)
+        status, headers, _ = self.login(username, "right-password")
+        assert status == 429
+        time.sleep(int(headers["Retry-After"]))
+
+        status, _, body = self.login(username, "right-password")
+        assert status == 200, body
+        assert body["data"]["login"]["user"]["id"] == user_id
+        self.fail_five_times(username)  # counted from zero again
 
 
 # ── Contact cadence (business rule 6) ────────────────────────

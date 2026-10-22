@@ -6,6 +6,7 @@
 
 #include "db/DatabasePool.hpp"
 #include "auth/JWTService.hpp"
+#include "middleware/RateLimiter.hpp"
 #include "Log.hpp"
 
 #include <cstdint>
@@ -30,6 +31,7 @@ public:
         std::string jwtIssuer;
         int         jwtAccessTtl;
         LogLevel    logLevel;
+        int         authRateLimitPerMinute;
     };
 
     // Read and checked once, before any component is built; exits if
@@ -58,6 +60,9 @@ public:
         return std::make_shared<JWTService>(env.jwtSecret, env.jwtIssuer, env.jwtAccessTtl);
     }());
 
+    OATPP_CREATE_COMPONENT(std::shared_ptr<RateLimits>,
+                           rateLimits)([this] { return std::make_shared<RateLimits>(env.authRateLimitPerMinute); }());
+
 private:
 
     // A JWT_SECRET shorter than the HMAC-SHA256 block gains nothing from
@@ -82,6 +87,8 @@ private:
         auto jwtAccessTtl = requireEnv("JWT_ACCESS_TTL", missing);
 
         auto logLevelName = requireEnv("LOG_LEVEL", missing);
+
+        auto authRateLimit = requireEnv("AUTH_RATE_LIMIT_PER_MINUTE", missing);
 
         if (!jwtSecret.empty() && jwtSecret.size() < MIN_JWT_SECRET_BYTES) {
             invalid.push_back("JWT_SECRET must be at least " + std::to_string(MIN_JWT_SECRET_BYTES) + " bytes (got "
@@ -111,6 +118,19 @@ private:
                 }
             } catch (const std::exception&) {
                 invalid.push_back("JWT_ACCESS_TTL must be a positive integer (seconds)");
+            }
+        }
+
+        int authPerMinute = 0;
+        if (!authRateLimit.empty()) {
+            try {
+                size_t consumed = 0;
+                authPerMinute   = std::stoi(authRateLimit, &consumed);
+                if (consumed != authRateLimit.size() || authPerMinute <= 0) {
+                    throw std::invalid_argument("not a positive integer");
+                }
+            } catch (const std::exception&) {
+                invalid.push_back("AUTH_RATE_LIMIT_PER_MINUTE must be a positive integer");
             }
         }
 
@@ -145,6 +165,8 @@ private:
             std::cerr << "  JWT_ISSUER:     " << (jwtIssuer.empty() ? "(not set)" : jwtIssuer) << std::endl;
             std::cerr << "  JWT_ACCESS_TTL: " << (jwtAccessTtl.empty() ? "(not set)" : jwtAccessTtl) << std::endl;
             std::cerr << "  LOG_LEVEL:      " << (logLevelName.empty() ? "(not set)" : logLevelName) << std::endl;
+            std::cerr << "  AUTH_RATE_LIMIT_PER_MINUTE: " << (authRateLimit.empty() ? "(not set)" : authRateLimit)
+                      << std::endl;
             std::exit(1);
         }
 
@@ -153,7 +175,7 @@ private:
                 dbName,     dbUser,
                 dbPassword, jwtSecret,
                 jwtIssuer,  ttlSeconds,
-                *logLevel};
+                *logLevel,  authPerMinute};
     }
 
     static std::string requireEnv(const char* name, std::vector<std::string>& missing) {

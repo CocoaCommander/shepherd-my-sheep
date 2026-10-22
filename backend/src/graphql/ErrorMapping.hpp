@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -15,6 +16,7 @@
  *                   or it changed since the client last saw it (undo a move)
  *   BAD_USER_INPUT  the request itself is wrong; the message says how
  *   UNAVAILABLE     the server is busy; retrying may succeed
+ *   RATE_LIMITED    too many requests; sent with HTTP 429 and Retry-After
  *   INTERNAL        anything else; details are logged, never sent
  */
 struct ClientError {
@@ -34,6 +36,23 @@ class BadInput : public std::invalid_argument {
 public:
     using std::invalid_argument::invalid_argument;
 };
+
+/**
+ * Over a rate limit (see middleware/RateLimiter.hpp). GraphQLController
+ * answers HTTP 429 with Retry-After; the message is written for the user.
+ */
+class RateLimited : public std::runtime_error {
+public:
+    RateLimited(std::chrono::steady_clock::duration wait, const std::string& message)
+        : std::runtime_error(message), wait(wait) {}
+
+    std::chrono::steady_clock::duration wait;
+};
+
+/** The Retry-After value for a wait: whole seconds, rounded up, at least 1. */
+inline long long retryAfterSeconds(std::chrono::steady_clock::duration wait) {
+    return std::max<long long>(1, std::chrono::ceil<std::chrono::seconds>(wait).count());
+}
 
 /**
  * Classifies a Postgres SQLSTATE. Postgres messages name tables,

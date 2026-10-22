@@ -35,9 +35,9 @@
  * which bounds the wait queue as well as the memory — a sustained flood
  * cannot pile up waiters holding oatpp threads and DB pool connections.
  *
- * This is separate from per-IP/per-username rate limiting, which is what
- * actually protects accounts from credential stuffing. This bound only
- * protects the server's memory.
+ * This is separate from the per-address and per-username rate limits in
+ * middleware/RateLimiter.hpp, which are what actually protect accounts
+ * from credential stuffing. This bound only protects the server's memory.
  */
 class PasswordHasher {
 public:

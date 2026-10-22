@@ -4,6 +4,7 @@
 #include "../../models/DTOs.hpp"
 #include "../../auth/PasswordHasher.hpp"
 #include "../../auth/JWTService.hpp"
+#include "../../middleware/RateLimiter.hpp"
 #include "ResolverSupport.hpp"
 
 #include <pqxx/pqxx>
@@ -28,8 +29,9 @@ public:
     // is not the only thing slowing down a guesser.
     static constexpr size_t MIN_PASSWORD_LENGTH = 8;
 
-    MutationResolver(std::shared_ptr<DatabasePool> dbPool, std::shared_ptr<JWTService> jwtService)
-        : m_dbPool(std::move(dbPool)), m_jwt(std::move(jwtService)) {}
+    MutationResolver(std::shared_ptr<DatabasePool> dbPool, std::shared_ptr<JWTService> jwtService,
+                     std::shared_ptr<RateLimits> rateLimits)
+        : m_dbPool(std::move(dbPool)), m_jwt(std::move(jwtService)), m_rateLimits(std::move(rateLimits)) {}
 
     /** Mutations that run without an access token. */
     static bool isPublic(const std::string& field) {
@@ -64,6 +66,7 @@ public:
 private:
     std::shared_ptr<DatabasePool> m_dbPool;
     std::shared_ptr<JWTService>   m_jwt;
+    std::shared_ptr<RateLimits>   m_rateLimits;
 
     oatpp::Object<AuthPayloadDto> authPayload(const pqxx::row& userRow) {
         auto payload   = AuthPayloadDto::createShared();
@@ -110,6 +113,10 @@ private:
         auto username = input.req("username");
         auto password = input.req("password");
 
+        // Before the lookup and any argon2 work; known and unknown
+        // usernames back off alike.
+        m_rateLimits->checkLogin(username);
+
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
 
@@ -120,6 +127,7 @@ private:
             // Spend the same time a real verify would before failing, so
             // response latency does not reveal which usernames exist.
             PasswordHasher::dummyVerify(password);
+            m_rateLimits->loginFailed(username);
             throw BadInput("Invalid username or password");
         }
 
@@ -128,8 +136,10 @@ private:
         if (!PasswordHasher::verify(storedHash, password)) {
             // Identical message to the branch above — never distinguish
             // "no such user" from "wrong password" to the caller.
+            m_rateLimits->loginFailed(username);
             throw BadInput("Invalid username or password");
         }
+        m_rateLimits->loginSucceeded(username);
 
         // The plaintext is only in hand during login, so this is the one
         // chance to upgrade a hash stored under weaker cost parameters.

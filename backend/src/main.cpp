@@ -19,8 +19,9 @@ void run() {
 
     auto router = components.httpRouter.getObject();
 
-    auto graphqlController = std::make_shared<GraphQLController>(
-        components.objectMapper.getObject(), components.dbPool.getObject(), components.jwtService.getObject());
+    auto graphqlController =
+        std::make_shared<GraphQLController>(components.objectMapper.getObject(), components.dbPool.getObject(),
+                                            components.jwtService.getObject(), components.rateLimits.getObject());
     router->addController(graphqlController);
 
     auto connectionHandler = oatpp::web::server::HttpConnectionHandler::createShared(router);

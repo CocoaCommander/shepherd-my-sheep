@@ -9,6 +9,8 @@
 #include "../db/DatabasePool.hpp"
 #include "../auth/Authenticator.hpp"
 #include "../auth/JWTService.hpp"
+#include "../middleware/ClientAddress.hpp"
+#include "../middleware/RateLimiter.hpp"
 #include "ErrorMapping.hpp"
 #include "../Log.hpp"
 #include "Operation.hpp"
@@ -39,6 +41,11 @@
  * HTTP 401 with code UNAUTHENTICATED, so clients can send the user back
  * to the login screen.
  *
+ * Login and register are rate limited per client address before they
+ * resolve, and searchUsers per user once signed in (see RateLimiter.hpp).
+ * Over a limit the response is HTTP 429 with Retry-After and code
+ * RATE_LIMITED.
+ *
  * Every other error carries a code in `extensions.code` (see
  * ErrorMapping.hpp). Messages written by the resolvers are meant for users
  * and pass through; database and unexpected errors are logged here and
@@ -48,11 +55,11 @@
 class GraphQLController : public oatpp::web::server::api::ApiController {
 public:
     GraphQLController(const std::shared_ptr<ObjectMapper>& objectMapper, const std::shared_ptr<DatabasePool>& dbPool,
-                      const std::shared_ptr<JWTService>& jwtService)
+                      const std::shared_ptr<JWTService>& jwtService, const std::shared_ptr<RateLimits>& rateLimits)
         : oatpp::web::server::api::ApiController(objectMapper), m_dbPool(dbPool),
-          m_authenticator(std::make_shared<Authenticator>(jwtService)),
+          m_authenticator(std::make_shared<Authenticator>(jwtService)), m_rateLimits(rateLimits),
           m_queryResolver(std::make_shared<QueryResolver>(dbPool)),
-          m_mutationResolver(std::make_shared<MutationResolver>(dbPool, jwtService)) {}
+          m_mutationResolver(std::make_shared<MutationResolver>(dbPool, jwtService, rateLimits)) {}
 
     ENDPOINT("POST", "/graphql", handleGraphQL, REQUEST(std::shared_ptr<IncomingRequest>, httpRequest),
              BODY_DTO(oatpp::Object<GraphQLRequest>, request)) {
@@ -68,13 +75,18 @@ public:
             bool isMutation = op.type == ParsedOperation::Type::Mutation;
 
             std::string userId;
-            if (!(isMutation && MutationResolver::isPublic(op.field))) {
+            if (isMutation && MutationResolver::isPublic(op.field)) {
+                m_rateLimits->checkAuth(clientAddress(httpRequest), op.field);
+            } else {
                 auto header        = httpRequest->getHeader("Authorization");
                 auto authenticated = m_authenticator->authenticate(header ? header->c_str() : "");
                 if (!authenticated) {
                     return createUnauthenticatedResponse();
                 }
                 userId = *authenticated;
+                if (!isMutation && op.field == "searchUsers") {
+                    m_rateLimits->checkSearch(userId);
+                }
             }
 
             Args args(request->variables);
@@ -87,6 +99,8 @@ public:
 
         } catch (const Unauthenticated&) {
             return createUnauthenticatedResponse();
+        } catch (const RateLimited& e) {
+            return createRateLimitedResponse(e);
         } catch (const NotFound& e) {
             return createErrorResponse({"NOT_FOUND", e.what()});
         } catch (const Conflict& e) {
@@ -115,6 +129,7 @@ private:
 
     std::shared_ptr<DatabasePool>     m_dbPool;
     std::shared_ptr<Authenticator>    m_authenticator;
+    std::shared_ptr<RateLimits>       m_rateLimits;
     std::shared_ptr<QueryResolver>    m_queryResolver;
     std::shared_ptr<MutationResolver> m_mutationResolver;
 
@@ -140,6 +155,13 @@ private:
     std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> createUnauthenticatedResponse() {
         auto response = createDtoResponse(Status::CODE_401, errorBody("Not authenticated", "UNAUTHENTICATED"));
         response->putHeader("WWW-Authenticate", "Bearer");
+        return response;
+    }
+
+    // The response logger names the client address on 429.
+    std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> createRateLimitedResponse(const RateLimited& e) {
+        auto response = createDtoResponse(Status::CODE_429, errorBody(e.what(), "RATE_LIMITED"));
+        response->putHeader("Retry-After", std::to_string(retryAfterSeconds(e.wait)).c_str());
         return response;
     }
 };
