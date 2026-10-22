@@ -36,7 +36,6 @@ type Person {
   name: String!
   age: Int                        # nullable — may not be known
   yearMet: Int                    # nullable
-  lastContactDate: Date @deprecated(reason: "Use lastContactedAt.")  # date part of lastContactedAt
   lastContactedAt: DateTime       # nullable — latest logged contact
   contactDueAt: DateTime          # nullable — null when contactState is NOT_TRACKED
   contactClockStart: DateTime     # nullable — when the current contact window started (last contact, when added, or a status move); null when NOT_TRACKED
@@ -242,7 +241,6 @@ input UpdatePersonInput {
   name: String                    # all optional — only update what's provided
   age: Int
   yearMet: Int
-  lastContactDate: Date @deprecated(reason: "Use logContact.")  # logs a contact on that date
   isActive: Boolean
   statusId: UUID
 }

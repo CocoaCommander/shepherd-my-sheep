@@ -162,7 +162,6 @@ class PersonDto : public oatpp::DTO {
     DTO_FIELD(String, name);
     DTO_FIELD(Int32, age);                 // nullable
     DTO_FIELD(Int32, yearMet);             // nullable
-    DTO_FIELD(String, lastContactDate);    // nullable; deprecated, date part of lastContactedAt
     DTO_FIELD(String, lastContactedAt);    // nullable
     DTO_FIELD(String, contactDueAt);       // nullable — null when NOT_TRACKED
     DTO_FIELD(String, contactClockStart);  // nullable — null when NOT_TRACKED
@@ -235,7 +234,6 @@ class UpdatePersonInput : public oatpp::DTO {
     DTO_FIELD(String, name);  // nullable — only update if provided
     DTO_FIELD(Int32, age);
     DTO_FIELD(Int32, yearMet);
-    DTO_FIELD(String, lastContactDate);  // deprecated — logs a contact on that date
     DTO_FIELD(Boolean, isActive);
     DTO_FIELD(String, statusId);
 };

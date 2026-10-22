@@ -1508,7 +1508,7 @@ class TestRateLimits:
 LOG_CONTACT = """
 mutation LogContact($input: LogContactInput!) {
   logContact(input: $input) {
-    id contactState contactDueAt lastContactedAt lastContactDate status { name }
+    id contactState contactDueAt lastContactedAt status { name }
     contacts { id isFollowUp note contactedBy { id } }
     comments { content contactLogId prayerBurden { id } author { id } }
   }
@@ -1749,22 +1749,34 @@ class TestContactCadence:
         person = gql(LOG_CONTACT, {"input": contact_input(person_id, contactedAt="2026-01-05T10:00:00Z")}, token)[
             "logContact"
         ]
-        assert person["lastContactDate"] == "2026-01-05"
+        assert parse_time(person["lastContactedAt"]) == datetime(2026, 1, 5, 10, tzinfo=timezone.utc)
         assert person["contactState"] == "OVERDUE"
 
-    def test_deprecated_last_contact_date_logs_a_contact(self, make_user, statuses):
+    def test_update_person_ignores_last_contact_date(self, make_user, statuses):
+        """The removed lastContactDate input no longer logs a contact."""
         token, _, _ = make_user()
         person_id = create_person(token, statuses["active"])
-        gql(
-            "mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }",
+        updated = gql(
+            "mutation U($id: UUID!, $input: UpdatePersonInput!) {"
+            " updatePerson(id: $id, input: $input) { id lastContactedAt lastContactDate contacts { id } } }",
             {"id": person_id, "input": {"lastContactDate": "2026-01-05"}},
             token,
-        )
+        )["updatePerson"]
+        assert updated["contacts"] == []
+        assert updated["lastContactedAt"] is None
+        assert "lastContactDate" not in updated
+
+    def test_person_has_no_last_contact_date(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"])
+        gql(LOG_CONTACT, {"input": contact_input(person_id)}, token)
         person = gql(
-            "query P($id: UUID!) { person(id: $id) { lastContactDate contacts { id } } }", {"id": person_id}, token
+            "query P($id: UUID!) { person(id: $id) { id lastContactedAt lastContactDate } }", {"id": person_id}, token
         )["person"]
-        assert person["lastContactDate"] == "2026-01-05"
-        assert len(person["contacts"]) == 1
+        [mine] = gql("query { myPeople { id lastContactedAt lastContactDate } }", token=token)["myPeople"]
+        assert person["lastContactedAt"] is not None
+        assert "lastContactDate" not in person
+        assert "lastContactDate" not in mine
 
 
 # ── Per-person summaries on list queries ─────────────────────
