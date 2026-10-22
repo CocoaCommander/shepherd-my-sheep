@@ -96,3 +96,9 @@ design decisions first), and the `make reset` note.
   (auth-middleware, claude-rules-setup, docker-config, implement-security,
   multi-agent-setup). Leave `design-notes` alone: it is locked, probably by
   an active session.
+- [ ] **Fix the `punycode` deprecation warning** (`DEP0040`: "The
+  `punycode` module is deprecated"), printed by a Node tool on 22.12.
+  Find the caller with `NODE_OPTIONS=--trace-deprecation`. Candidates:
+  root `eslint` → `ajv@6` → `uri-js`, and `web/` `jsdom` →
+  `whatwg-url` → `tr46`. Fix it by upgrading or replacing the
+  dependency, not by silencing the warning (`--no-deprecation`).
