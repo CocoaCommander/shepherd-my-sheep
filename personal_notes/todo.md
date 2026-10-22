@@ -31,8 +31,48 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 
 ## Next up
 
-Ordered by priority (reordered 2026-10-16 after the design
-gap check).
+Ordered by priority (reordered 2026-10-21 once the list had emptied).
+Each item is a copy of one in its own section, named after the dash; tick
+both. User-facing bugs and data exposure first, then the web polish, then
+the small backend clean-ups, then the mobile apps. Left out on purpose:
+"possible later" / "decide on later" items, configurable milestones (needs
+design decisions first), and the `make reset` note.
+
+- [ ] `update_person` can't clear a value once set (COALESCE treats null
+  as "leave unchanged"), e.g. age or last contact date. Needs an
+  explicit "clear" signal. — *Backend follow-ups*
+- [ ] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
+  character at the cap, and doesn't redact Postgres `DETAIL` text,
+  which can quote user input. — *Backend follow-ups, Logging
+  follow-ups from #30*
+- [ ] `searchUsers` returns the full `User` type, so
+  `createdAt`/`updatedAt` are visible to any signed-in user. A slimmer
+  `UserSummary { id name username }` would hide them. — *Backend
+  follow-ups*
+- [ ] "Can't remove the last shepherd" is enforced only in the
+  resolver, not in the database. — *Backend follow-ups*
+- [ ] **Dark mode for the `--sms-*` tokens.** — *Screens*
+- [ ] **Logo: simple vector sheep in brand green.** Web SVG and
+  favicon first; the Android and iOS icons can wait for the apps.
+  — *Brand*
+- [ ] `PrayerBurden.person` is filled (id, name, status only) by every
+  root burden field (#52); still unset under `Person.prayerBurdens` and
+  inside a `Comment`. — *Backend follow-ups*
+- [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
+  parse the env once. — *Backend follow-ups, Logging follow-ups from
+  #30*
+- [ ] `assignPerson`'s "User not found" lets a caller probe whether a
+  user id exists (low). — *Backend follow-ups*
+- [ ] Remove old worktrees and branches under `.claude/worktrees/`.
+  The worktrees are already gone (checked 2026-10-21); the branches
+  `auth-middleware` (local and origin), `docker-config`,
+  `implement-security` and `worktree-multi-agent-setup` (origin)
+  remain. — *Housekeeping*
+- [ ] **Android screens** (Jetpack Compose), with the "Log contact"
+  modal, the Add person page and the KMP `statusChangedAt` /
+  `undoStatusChange` item along the way. — *Mobile apps, Screens*
+- [ ] **iOS screens** (SwiftUI), with the same modal and Add person
+  page. — *Mobile apps, Screens*
 
 ## Mobile apps
 
