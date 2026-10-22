@@ -110,7 +110,7 @@ public:
         } catch (const BadInput& e) {
             return createErrorResponse({"BAD_USER_INPUT", e.what()});
         } catch (const pqxx::sql_error& e) {
-            Log::error("SQLSTATE " + e.sqlstate() + ": " + forLog(e.what()));
+            Log::error("SQLSTATE " + e.sqlstate() + ": " + sqlErrorForLog(e.sqlstate(), e.what()));
             return createErrorResponse(classifySqlState(e.sqlstate()));
         } catch (const std::exception& e) {
             Log::error(forLog(e.what()));
