@@ -1,4 +1,4 @@
-/* Composed into each component's root so the global element rules in index.css can't leak in. */
+/* Composed into each component's root so it sets its own type and box sizing wherever it is placed. */
 .base {
   box-sizing: border-box;
   font-family: var(--sms-font-sans);
@@ -10,7 +10,7 @@
   box-sizing: border-box;
 }
 
-/* Interactive controls: index.css styles bare `button`, so reset what it sets. */
+/* Interactive controls: the type, cursor and disabled look every button shares. */
 .control {
   composes: base;
   font-size: 14px;

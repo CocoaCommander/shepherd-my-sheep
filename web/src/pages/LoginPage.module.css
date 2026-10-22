@@ -1,0 +1,143 @@
+/*
+ * Sign in / register. Web: the brand panel and the form side by side (5fr / 6fr).
+ * Below 720px (AppHeader's breakpoint) the panel shrinks to a short header above the form.
+ * jsdom ignores media queries, so the web-only parts are hidden by a max-width query
+ * rather than shown by a min-width one.
+ */
+.page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 5fr 6fr;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--sms-space-32);
+  padding: var(--sms-space-56) 64px;
+  background: var(--sms-brand-tint);
+}
+.brand {
+  font-size: 18px;
+  color: var(--sms-brand-strong);
+}
+.pitch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-28);
+}
+.tagline {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.2;
+  max-width: 14em;
+}
+.points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-18);
+  font-size: 15px;
+  color: var(--sms-ink-2);
+}
+.point {
+  display: flex;
+  gap: var(--sms-space-12);
+  align-items: flex-start;
+}
+.pointIcon {
+  flex: none;
+  display: inline-flex;
+  margin-top: 2px;
+  color: var(--sms-brand-strong);
+}
+.pointTitle {
+  color: var(--sms-ink);
+}
+.footnote {
+  margin: 0;
+  font-size: 13px;
+  color: var(--sms-muted);
+}
+
+.main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sms-space-56) var(--sms-space-32);
+}
+.form {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-24);
+}
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-6);
+}
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.sub {
+  margin: 0;
+  color: var(--sms-muted);
+}
+.switch {
+  align-self: center;
+}
+
+@media (max-width: 719px) {
+  .page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .panel {
+    justify-content: flex-start;
+    gap: var(--sms-space-12);
+    padding: var(--sms-space-28) var(--sms-space-24) var(--sms-space-24);
+  }
+  .brand {
+    font-size: 17px;
+  }
+  .tagline {
+    font-size: 15px;
+    font-weight: 400;
+    max-width: none;
+    color: var(--sms-ink-2);
+  }
+  .points,
+  .footnote,
+  .wideOnly {
+    display: none;
+  }
+  .main {
+    align-items: flex-start;
+    padding: var(--sms-space-20) var(--sms-space-24);
+  }
+  .form {
+    max-width: none;
+    gap: var(--sms-space-16);
+  }
+  .title {
+    font-size: 24px;
+  }
+  /* 16px text stops iOS zooming into a focused input. */
+  .form input {
+    min-height: 52px;
+    font-size: 16px;
+  }
+}

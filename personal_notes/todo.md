@@ -31,11 +31,7 @@ The app needs both web and mobile-web layouts for every screen, then Android and
   - [x] Status change as a dropdown on the page, following the My people decision (New contact to Active opens the Log contact dialog; decided 2026-10-19). (#72)
   - [x] Confirm each action that can't be undone (remove shepherd, remove yourself, delete person, remove milestone, delete comment) in a dialog before it happens. Release has an Undo toast instead of a confirmation (decided 2026-10-20). (#75)
 - [ ] **Sign in / register** (mocked up for web and mWeb, pending build): same fields and rules as today's `LoginPage` (name up to 100, username up to 50, password at least 8 on register).
-  - [ ] One screen, no tabs: Sign in by default, with a "New here? Create an account" link below the button (and "Already have an account? Sign in" when registering). On web, a brand panel beside the form; on mWeb, a short brand header above it.
-  - [ ] Inline field errors on submit (missing name, username or password; password under 8 characters), a wrong-credentials banner, and a Show / Hide password toggle.
-  - [ ] Use the friendly error messages from `web/src/errors.ts` for the banner. Never say which of username or password was wrong.
   - [ ] Decide on later: password reset, "stay signed in", and how a new user lands on an empty Home (business rule 1: zero people).
-  - [ ] Build on the design system, not the old globals. `LoginPage` still uses `auth`, `card`, `stack`, `error` and the bare `input` / `button` / `label` rules from `web/src/index.css`, so in dark mode its text takes the old `--text` (#e8e6e3) from `body`. The Person page had the same bug (640px cap, light text on white cards; fixed in #78). Give the page its own wrapper like Home's (`.page` / `.main` with `--sms-bg` and `--sms-ink`) and use `TextField` / `PasswordField` / `Button` / `Alert`. Once it no longer uses them, delete the leftover globals and the old colour variables from `index.css`.
 - [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
 - [x] **"Log contact" modal** (#39, #42) (to design, probably on the design canvas
   first). The one-tap buttons ("Contacted today" and "Log follow-up" on
