@@ -29,6 +29,7 @@ All secrets and connection parameters come from `.env` (gitignored). Never hardc
 - `JWT_SECRET` — HS256 signing key. Minimum 32 bytes; generate with `openssl rand -base64 48`.
 - `JWT_ISSUER` — `iss` claim, and the value tokens are verified against (e.g. `shepherd-my-sheep`)
 - `JWT_ACCESS_TTL` — access token lifetime in seconds (e.g. `3600`)
+- `AUTH_RATE_LIMIT_PER_MINUTE` — login + register attempts per client address per minute (also the burst). Required, no default: the API exits at startup if it is missing or not a positive integer. About `10` in production; set it high (e.g. `1000`) for local dev so the API test suite can register its users. The other limits (`searchUsers`, failed-login backoff) are constants in `backend/src/middleware/RateLimiter.hpp`.
 - `LOG_LEVEL` — `DEBUG`, `INFO`, `WARN` or `ERROR`. Required, no default: the API exits at startup if it is missing or invalid. `DEBUG` for local dev (also logs each incoming request), `INFO` otherwise.
 
 **CRITICAL: No credential defaults anywhere.** Actual usernames, passwords, and database names must never appear as fallback/default values in source code, test fixtures, config files, or anywhere outside of `.env`. All code must read from environment variables and fail if they are missing.

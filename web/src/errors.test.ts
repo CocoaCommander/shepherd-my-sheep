@@ -9,12 +9,22 @@ function gqlError(code: string | undefined, message = 'server text') {
   })
 }
 
-function networkError(statusCode?: number) {
-  const err = Object.assign(new Error('network'), statusCode ? { statusCode } : {})
+/** `result` is the parsed body, as Apollo's ServerError carries it. */
+function networkError(statusCode?: number, result?: unknown) {
+  const err = Object.assign(
+    new Error('network'),
+    statusCode ? { statusCode } : {},
+    result !== undefined ? { result } : {},
+  )
   return new ApolloError({ networkError: err })
 }
 
+function rateLimitedBody(message: string, code = 'RATE_LIMITED') {
+  return { errors: [{ message, extensions: { code } }] }
+}
+
 const GENERIC = 'Something went wrong. Please try again.'
+const RATE_LIMITED = 'Too many attempts. Please wait a moment and try again.'
 
 describe('errorCode', () => {
   it('is undefined for no error', () => {
@@ -42,6 +52,21 @@ describe('friendlyMessage', () => {
     const msg = "Couldn't reach the server. Check your connection and try again."
     expect(friendlyMessage(networkError())).toBe(msg)
     expect(friendlyMessage(networkError(500))).toBe(msg)
+    expect(friendlyMessage(networkError(500, rateLimitedBody('Exactly this')))).toBe(msg)
+  })
+
+  it('passes the server message through for HTTP 429 with RATE_LIMITED', () => {
+    expect(friendlyMessage(networkError(429, rateLimitedBody('Exactly this')))).toBe('Exactly this')
+  })
+
+  it('falls back to the rate-limit message for HTTP 429 without a RATE_LIMITED body', () => {
+    expect(friendlyMessage(networkError(429))).toBe(RATE_LIMITED)
+    expect(friendlyMessage(networkError(429, 'Too Many Requests'))).toBe(RATE_LIMITED)
+    expect(friendlyMessage(networkError(429, { errors: [] }))).toBe(RATE_LIMITED)
+    expect(friendlyMessage(networkError(429, rateLimitedBody('secret', 'INTERNAL')))).toBe(
+      RATE_LIMITED,
+    )
+    expect(friendlyMessage(networkError(429, rateLimitedBody('')))).toBe(RATE_LIMITED)
   })
 
   it('tells the user something changed for NOT_FOUND', () => {

@@ -34,23 +34,6 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 Ordered by priority (reordered 2026-10-16 after the design
 gap check).
 
-- [ ] No rate limiting on `searchUsers` or login.
-  - Strategy (decided 2026-10-16): **token bucket**, which is the
-    "leaky bucket as a meter" (same maths). It allows a small burst and
-    never queues, so legitimate requests get no added delay. A leaky
-    bucket used as a queue would hold connections open and slow real
-    users, which is a poor fit for login.
-  - Login and register: a bucket per client IP. Also count failed logins
-    per username with exponential backoff, so an attack spread over many
-    IPs on one account is still slowed. Reply the same way whether or not
-    the username exists.
-  - `searchUsers`: a bucket per user id (it requires sign-in).
-  - Over the limit: HTTP 429 with `Retry-After`.
-  - In memory is fine while there is one API instance; move to shared
-    storage if it scales out.
-  - Depends on the logging follow-up below: `peer_address` isn't
-    populated today, so per-IP limits need the client address first
-    (and `X-Forwarded-For` from a trusted proxy if one is put in front).
 - [ ] Drop the deprecated `lastContactDate` (on `Person` and `UpdatePersonInput`) from the API. Since #43 only `tests/test_api.py` uses it.
 
 ## Mobile apps
@@ -80,8 +63,6 @@ gap check).
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`.
 - [ ] **Logging follow-ups from #30.**
-  - [ ] Client address always logs as "unknown": `peer_address` isn't
-    populated on the connection in `RequestLogger.hpp`.
   - [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
     parse the env once.
   - [ ] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8

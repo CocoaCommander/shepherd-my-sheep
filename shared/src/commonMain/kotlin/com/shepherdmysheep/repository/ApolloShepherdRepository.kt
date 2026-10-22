@@ -4,6 +4,9 @@ import com.apollographql.apollo.ApolloCall
 import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.api.Operation
 import com.apollographql.apollo.api.Optional
+import com.apollographql.apollo.api.json.jsonReader
+import com.apollographql.apollo.api.parseResponse
+import com.apollographql.apollo.exception.ApolloException
 import com.apollographql.apollo.exception.ApolloHttpException
 import com.shepherdmysheep.graphql.*
 import com.shepherdmysheep.graphql.type.CreateCommentInput
@@ -16,6 +19,9 @@ import com.shepherdmysheep.graphql.type.RegisterInput
 import com.shepherdmysheep.graphql.type.UpdatePersonInput
 import com.shepherdmysheep.models.*
 import com.shepherdmysheep.network.TokenStore
+import okio.BufferedSource
+import okio.IOException
+import okio.use
 import kotlin.time.Instant
 
 /**
@@ -226,7 +232,7 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
     /**
      * Apollo reports failures on the response rather than throwing; this
      * turns them into ShepherdException. A 401 also clears the token so
-     * the app knows it is signed out.
+     * the app knows it is signed out. A 429 keeps it.
      */
     private suspend fun <D : Operation.Data> execute(call: ApolloCall<D>): D {
         val response = call.execute()
@@ -234,13 +240,23 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
         when (val exception = response.exception) {
             null -> Unit
 
-            is ApolloHttpException ->
-                if (exception.statusCode == 401) {
-                    tokenStore.token = null
-                    throw ShepherdException.NotAuthenticated()
-                } else {
-                    throw ShepherdException.Network(exception)
+            // createApolloClient keeps error bodies so a 429 can show the server's
+            // message; whatever the status, the body must be closed.
+            is ApolloHttpException -> exception.body.use { body ->
+                when (exception.statusCode) {
+                    HTTP_UNAUTHORIZED -> {
+                        tokenStore.token = null
+                        throw ShepherdException.NotAuthenticated()
+                    }
+
+                    HTTP_TOO_MANY_REQUESTS -> throw ShepherdException.Api.RateLimited(
+                        body?.let { rateLimitedMessage(call.operation, it) } ?: RATE_LIMITED_MESSAGE,
+                        "RATE_LIMITED",
+                    )
+
+                    else -> throw ShepherdException.Network(exception)
                 }
+            }
 
             else -> throw ShepherdException.Network(exception)
         }
@@ -248,4 +264,19 @@ class ApolloShepherdRepository(private val apolloClient: ApolloClient, private v
         response.errors?.firstOrNull()?.let { throw apiException(it.extensions?.get("code") as? String, it.message) }
         return response.data ?: throw apiException(null, "Empty response")
     }
+
+    /** The message of a RATE_LIMITED error in a 429 body, or null if the body holds anything else. */
+    private fun rateLimitedMessage(operation: Operation<*>, body: BufferedSource): String? {
+        val error = try {
+            operation.parseResponse(body.jsonReader()).errors?.firstOrNull()
+        } catch (ignored: ApolloException) {
+            null
+        } catch (ignored: IOException) {
+            null
+        }
+        return error?.message?.takeIf { error.extensions?.get("code") == "RATE_LIMITED" && it.isNotBlank() }
+    }
 }
+
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_TOO_MANY_REQUESTS = 429

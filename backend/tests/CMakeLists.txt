@@ -1,5 +1,6 @@
 # Unit tests for the parts of the API that need no database: operation
-# parsing, bearer-token handling, JWT verification and password hashing.
+# parsing, bearer-token handling, JWT verification, password hashing and
+# client address normalisation and rate limits.
 # Resolver behaviour (including authorization) is covered end to end by
 # tests/test_api.py at the repo root.
 
@@ -19,6 +20,8 @@ add_executable(unit_tests
     PasswordHasherTest.cpp
     ErrorMappingTest.cpp
     CorsMiddlewareTest.cpp
+    ClientAddressTest.cpp
+    RateLimiterTest.cpp
     LogTest.cpp
 )
 

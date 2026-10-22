@@ -19,7 +19,7 @@ The web app is at http://localhost:3000. The dev server runs in the background a
 
 The API logs to stdout only (`[YYYY-MM-DD HH:MM:SS] LEVEL message`), at the threshold set by `LOG_LEVEL`; Docker keeps it and `make logs` shows it. It writes no log file of its own.
 
-If you already have a `.env`, add `LOG_LEVEL` (see `.env.example`); the API will not start without it.
+If you already have a `.env`, add `LOG_LEVEL` and `AUTH_RATE_LIMIT_PER_MINUTE` (see `.env.example`); the API will not start without them. For local dev set `AUTH_RATE_LIMIT_PER_MINUTE` high (e.g. `1000`): `make test` registers a few hundred users from one address.
 
 ## Sample data
 
