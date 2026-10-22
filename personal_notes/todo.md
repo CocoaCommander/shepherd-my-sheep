@@ -80,8 +80,8 @@ gap check).
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`.
 - [ ] **Logging follow-ups from #30.**
-  - [ ] Client address always logs as "unknown": `peer_address` isn't
-    populated on the connection in `RequestLogger.hpp`.
+  - [x] Client address always logs as "unknown": `peer_address` isn't
+    populated on the connection in `RequestLogger.hpp`. (#94)
   - [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
     parse the env once.
   - [ ] `forLog` (`backend/src/graphql/ErrorMapping.hpp`) can cut a UTF-8
