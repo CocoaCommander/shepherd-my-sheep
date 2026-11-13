@@ -23,6 +23,10 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 - [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
 - [ ] **"Log contact" modal on Android and iOS.** The web one is done (#39, #42); Android and iOS need the same modal.
 - [ ] **Add person page on Android and iOS.** The web one is done (#41); Android and iOS need the same screen. The shared module's `createPerson` already takes `comment` (#43).
+- [ ] **Group people by milestone.** See everyone who has completed a
+  given milestone, from the `Milestone` and `MilestonePerson` types.
+- [ ] **Attendance feature.** No design or code yet; it needs a screen on
+  the design canvas first.
 
 ## Brand
 
