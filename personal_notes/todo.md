@@ -20,11 +20,30 @@ The app needs both web and mobile-web layouts for every screen, then Android and
 - [ ] **My people gallery: sort options** (possible later): name, last contact, most overdue. The gallery itself is done (#67).
 - [ ] **Sign in / register** (mocked up for web and mWeb, pending build): same fields and rules as today's `LoginPage` (name up to 100, username up to 50, password at least 8 on register).
   - [ ] Decide on later: password reset, "stay signed in", and how a new user lands on an empty Home (business rule 1: zero people).
-- [ ] **Configurable milestones.** Let milestones be set up rather than fixed, and think through the other design decisions that come with it later. Until then, keep the four fixed milestones for the demo.
+- [ ] **Configurable milestones.** Let milestones be set up rather than
+  fixed: one shared list that any signed-in user can add to, rename and
+  delete, on an "Edit milestones" page (mocked up for web and mWeb on the
+  "Milestones" design canvas, page "Edit milestones"). Plan:
+  `~/.claude/plans/configurable-milestones.md` (backend and web built in
+  parallel against an API contract; backend merges first).
+  - No order: milestones can be reached in any order, so every list is A
+    to Z. The person page drops the fixed four-step journey and shows
+    every milestone.
+  - Names are trimmed, up to 100 characters, unique ignoring case.
+    Descriptions are optional.
+  - Delete warns how many people have it recorded ("Their dates and notes
+    for this milestone will be deleted too") and offers Undo. In the DB it
+    is a soft delete (`milestone.deleted_at`), restorable for an hour.
+  - The list may be empty; every milestone screen must work with none
+    (extends business rule 2).
+  - Until it lands, keep the four fixed milestones for the demo.
 - [ ] **"Log contact" modal on Android and iOS.** The web one is done (#39, #42); Android and iOS need the same modal.
 - [ ] **Add person page on Android and iOS.** The web one is done (#41); Android and iOS need the same screen. The shared module's `createPerson` already takes `comment` (#43).
 - [ ] **Group people by milestone.** See everyone who has completed a
   given milestone, from the `Milestone` and `MilestonePerson` types.
+  Mocked up as "Milestones view" on the "Milestones" design canvas. It
+  builds on configurable milestones; see that plan's "Later: Milestones
+  view" for the API it needs (dates per recorded milestone on `myPeople`).
 - [ ] **Attendance feature.** No design or code yet; it needs a screen on
   the design canvas first.
 
@@ -40,8 +59,9 @@ Ordered by priority (reordered 2026-10-21 once the list had emptied).
 Each item is a copy of one in its own section, named after the dash; tick
 both. User-facing bugs and data exposure first, then the web polish, then
 the small backend clean-ups, then the mobile apps. Left out on purpose:
-"possible later" / "decide on later" items, configurable milestones (needs
-design decisions first), and the `make reset` note.
+"possible later" / "decide on later" items and the `make reset` note.
+Configurable milestones now has a design and a plan (2026-11-16) but
+hasn't been ranked here yet.
 
 - [ ] `assignPerson`'s "User not found" lets a caller probe whether a
   user id exists (low). — *Backend follow-ups*
@@ -69,6 +89,11 @@ design decisions first), and the `make reset` note.
 - [ ] KMP `updatePerson` can't clear age / year met: it sends
   `Optional.presentIfNotNull`, so null means unchanged. When the mobile
   edit screen needs it, send `Optional.present(null)` to clear (#103).
+- [ ] KMP shared module: configurable milestones. Add `recordedCount`,
+  `createdAt` and `updatedAt` to `Milestone`, and the `createMilestone` /
+  `updateMilestone` / `deleteMilestone` / `restoreMilestone` mutations, when
+  the mobile apps get an Edit milestones screen. Until then the existing
+  `Milestones` query keeps working; drop any hard-coded four.
 
 ## Backend follow-ups (low priority)
 
