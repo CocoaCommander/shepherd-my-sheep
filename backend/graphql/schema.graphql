@@ -119,7 +119,7 @@ type MilestonePerson {
 
 type PrayerBurden {
   id: UUID!
-  person: Person!                 # only id, name and status are filled, and only where a root field returns the burden; under Person.prayerBurdens use the parent, and a burden inside a Comment has no person
+  person: Person!                 # only id, name and status are filled
   content: String!
   releasedDate: DateTime          # null = still active
   comments: [Comment!]!           # newest first; may be empty (a burden needs no comments); not filled on a burden inside a Comment
@@ -130,7 +130,7 @@ type PrayerBurden {
 type Comment {
   id: UUID!
   author: User!
-  person: Person!
+  person: Person!                 # only id, name and status are filled
   prayerBurden: PrayerBurden      # nullable — comment may be a standalone note
   contactLogId: UUID              # nullable — set when the note was written by logging a contact (shown as "Logged contact")
   content: String!

@@ -223,7 +223,9 @@ inline const char* PERSON_SELECT =
     "           u.id AS lc_author_id, u.name AS lc_author_name, u.username AS lc_author_username, "
     "           u.created_at AS lc_author_created_at, u.updated_at AS lc_author_updated_at, "
     "           pb.id AS lc_pb_id, pb.content AS lc_pb_content, pb.released_date AS lc_pb_released_date, "
-    "           pb.created_at AS lc_pb_created_at, pb.updated_at AS lc_pb_updated_at "
+    "           pb.created_at AS lc_pb_created_at, pb.updated_at AS lc_pb_updated_at, "
+    "           p.id AS lc_person_id, p.name AS lc_person_name, "
+    "           s.id AS lc_person_status_id, s.name AS lc_person_status_name "
     "    FROM comment c "
     "    JOIN \"user\" u ON u.id = c.user_id "
     "    LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id "
@@ -282,12 +284,21 @@ inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
 
 inline const char* USER_SELECT = "SELECT u.id, u.name, u.username, u.created_at, u.updated_at FROM \"user\" u ";
 
-inline const char* PRAYER_BURDEN_SELECT =
-    "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at "
-    "FROM prayer_burden pb ";
+/** A person ref (id, name and status) from `<prefix>person_id`, `<prefix>person_name` and `<prefix>person_status_*`. */
+inline PersonRefDto::Wrapper rowToPersonRef(const pqxx::row& row, const std::string& prefix = "") {
+    auto person  = PersonRefDto::createShared();
+    person->id   = row[prefix + "person_id"].c_str();
+    person->name = row[prefix + "person_name"].c_str();
 
-// A burden a root field returns, with its person's name and status so a list
-// across people can say whose each one is and show their status.
+    auto status    = StatusDto::createShared();
+    status->id     = row[prefix + "person_status_id"].c_str();
+    status->name   = row[prefix + "person_status_name"].c_str();
+    person->status = status;
+    return person;
+}
+
+// A burden with its person's name and status, so a list across people can
+// say whose each one is and show their status.
 inline const char* BURDEN_SELECT =
     "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at, "
     "       p.name AS person_name, s.id AS person_status_id, s.name AS person_status_name "
@@ -297,18 +308,8 @@ inline const char* BURDEN_SELECT =
 
 /** A BURDEN_SELECT row, with `person` set (id, name and status only). */
 inline PrayerBurdenDto::Wrapper rowToBurdenWithPerson(const pqxx::row& row) {
-    auto burden = rowToPrayerBurden(row);
-
-    auto person  = PersonRefDto::createShared();
-    person->id   = row["person_id"].c_str();
-    person->name = row["person_name"].c_str();
-
-    auto status    = StatusDto::createShared();
-    status->id     = row["person_status_id"].c_str();
-    status->name   = row["person_status_name"].c_str();
-    person->status = status;
-
-    burden->person = person;
+    auto burden    = rowToPrayerBurden(row);
+    burden->person = rowToPersonRef(row);
     return burden;
 }
 
@@ -341,15 +342,20 @@ inline MilestonePersonDto::Wrapper rowToMilestonePerson(const pqxx::row& row) {
     return dto;
 }
 
-// Prefixes: "author_" for the writer, "pb_" for the linked burden (may be null).
+// Prefixes: "author_" for the writer, "pb_" for the linked burden (may be null),
+// "person_" for the person. A comment's burden is always the same person's
+// (createComment checks it), so those columns serve the burden's person too.
 inline const char* COMMENT_SELECT =
     "SELECT c.id, c.content, c.created_at, c.updated_at, c.contact_log_id, "
+    "       p.id AS person_id, p.name AS person_name, s.id AS person_status_id, s.name AS person_status_name, "
     "       u.id AS author_id, u.name AS author_name, u.username AS author_username, "
     "       u.created_at AS author_created_at, u.updated_at AS author_updated_at, "
     "       pb.id AS pb_id, pb.content AS pb_content, pb.released_date AS pb_released_date, "
     "       pb.created_at AS pb_created_at, pb.updated_at AS pb_updated_at "
     "FROM comment c "
     "JOIN \"user\" u ON u.id = c.user_id "
+    "JOIN person p ON p.id = c.person_id "
+    "JOIN status s ON s.id = p.status_id "
     "LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id ";
 
 inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix) {
@@ -360,8 +366,10 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string&
     dto->updatedAt    = row[prefix + "updated_at"].c_str();
     dto->contactLogId = textOrNull(row[prefix + "contact_log_id"]);
     dto->author       = rowToUser(row, prefix + "author_");
+    dto->person       = rowToPersonRef(row, prefix);
     if (!row[prefix + "pb_id"].is_null()) {
-        dto->prayerBurden = rowToPrayerBurden(row, prefix + "pb_");
+        dto->prayerBurden         = rowToPrayerBurden(row, prefix + "pb_");
+        dto->prayerBurden->person = rowToPersonRef(row, prefix);
     }
     return dto;
 }
@@ -369,7 +377,8 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string&
 /**
  * Fills `comments` on a list of burdens with one query, newest first. Empty,
  * not null, for a burden with none (business rule 4). The comments' own
- * `prayerBurden` stays shallow, so there is no burden → comments → burden cycle.
+ * `prayerBurden` has its person but no comments, so there is no
+ * burden → comments → burden cycle.
  */
 inline void loadBurdenComments(pqxx::work& txn, const oatpp::Vector<oatpp::Object<PrayerBurdenDto>>& burdens) {
     if (burdens->empty()) return;
@@ -496,10 +505,10 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     // Active burdens first, newest first within each group.
     person->prayerBurdens = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
     for (const auto& row :
-         txn.exec_params(std::string(PRAYER_BURDEN_SELECT)
+         txn.exec_params(std::string(BURDEN_SELECT)
                              + "WHERE pb.person_id = $1 ORDER BY pb.released_date IS NOT NULL, pb.created_at DESC",
                          personId)) {
-        person->prayerBurdens->push_back(rowToPrayerBurden(row));
+        person->prayerBurdens->push_back(rowToBurdenWithPerson(row));
     }
 
     person->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
@@ -509,7 +518,7 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     }
 
     // Each burden gets its own comments from the list just loaded, newest
-    // first, with no extra query. Its person is the parent, so left unset.
+    // first, with no extra query.
     std::unordered_map<std::string, oatpp::Vector<oatpp::Object<CommentDto>>> byBurden;
     for (const auto& burden : *person->prayerBurdens) {
         burden->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();

@@ -92,7 +92,7 @@ class UserSummaryDto : public oatpp::DTO {
 };
 
 /**
- * The person on a burden: id, name and status only, for places that point at
+ * The person on a burden or comment: id, name and status only, for places that point at
  * a person without loading them (PersonDto is declared later and embeds
  * burdens itself). The typename and id let clients' caches merge it with the
  * full person.
@@ -113,7 +113,7 @@ class PrayerBurdenDto : public oatpp::DTO {
 
     DTO_FIELD(String, typename_, "__typename") = "PrayerBurden";
     DTO_FIELD(String, id);
-    DTO_FIELD(oatpp::Object<PersonRefDto>, person);  // set only where a root field returns the burden
+    DTO_FIELD(oatpp::Object<PersonRefDto>, person);  // id, name and status only
     DTO_FIELD(String, content);
     DTO_FIELD(String, releasedDate);  // nullable — null means still active
     DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>,
@@ -128,6 +128,7 @@ class CommentDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "Comment";
     DTO_FIELD(String, id);
     DTO_FIELD(oatpp::Object<UserDto>, author);
+    DTO_FIELD(oatpp::Object<PersonRefDto>, person);           // id, name and status only
     DTO_FIELD(oatpp::Object<PrayerBurdenDto>, prayerBurden);  // nullable — null means standalone note
     DTO_FIELD(String, contactLogId);  // nullable — set for a note written when logging a contact
     DTO_FIELD(String, content);

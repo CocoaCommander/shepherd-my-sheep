@@ -1062,7 +1062,7 @@ class TestPrayerBurdenComments:
 
         assert gql(RELEASE_BURDEN, {"id": bare_id}, token)["releasePrayerBurden"]["comments"] == []
 
-    def test_burden_nested_in_comment_stays_shallow(self, make_user, status_id):
+    def test_burden_nested_in_comment_has_no_comments(self, make_user, status_id):
         token, _, _ = make_user()
         person_id = create_person(token, status_id)
         burden_id = self.burden(token, person_id)
@@ -1074,7 +1074,200 @@ class TestPrayerBurdenComments:
         [comment] = gql(PERSON, {"id": person_id}, token)["person"]["comments"]
         assert comment["prayerBurden"]["id"] == burden_id
         assert comment["prayerBurden"].get("comments") is None
-        assert comment["prayerBurden"].get("person") is None
+        assert comment["prayerBurden"]["person"]["id"] == person_id
+
+
+PERSON_REF = "person { id name status { id name } }"
+
+BURDEN_PERSON_REFS = f"""
+query P($id: UUID!) {{
+  person(id: $id) {{
+    prayerBurdens {{
+      id content releasedDate {PERSON_REF}
+      comments {{ id content {PERSON_REF} prayerBurden {{ id {PERSON_REF} }} }}
+    }}
+  }}
+}}"""
+
+PERSON_COMMENT_REFS = f"""
+query P($id: UUID!) {{
+  person(id: $id) {{ comments {{ id content {PERSON_REF} prayerBurden {{ id {PERSON_REF} }} }} }}
+}}"""
+
+ACTIVE_BURDEN_REFS = f"""
+query Q($personId: UUID) {{
+  activePrayerBurdens(personId: $personId) {{
+    id comments {{ id content {PERSON_REF} prayerBurden {{ id {PERSON_REF} }} }}
+  }}
+}}"""
+
+CREATE_COMMENT_REFS = f"""
+mutation C($input: CreateCommentInput!) {{
+  createComment(input: $input) {{ id {PERSON_REF} prayerBurden {{ id {PERSON_REF} }} }}
+}}"""
+
+LATEST_COMMENT_REFS = f"""
+query {{ myPeople {{ id latestComment {{ id content {PERSON_REF} prayerBurden {{ id {PERSON_REF} }} }} }} }}"""
+
+SET_STATUS_ID = """
+mutation U($id: UUID!, $input: UpdatePersonInput!) { updatePerson(id: $id, input: $input) { id } }"""
+
+
+class TestPersonRefsOnBurdensAndComments:
+    @pytest.fixture()
+    def statuses(self, db_connection):
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT name, id FROM status")
+            return {name: str(id_) for name, id_ in cur.fetchall()}
+
+    def burden(self, token, person_id, content="pray"):
+        return gql(CREATE_BURDEN, {"input": {"personId": person_id, "content": content}}, token)["createPrayerBurden"][
+            "id"
+        ]
+
+    def comment(self, token, person_id, content, burden_id=None):
+        fields = {"personId": person_id, "content": content}
+        if burden_id:
+            fields["prayerBurdenId"] = burden_id
+        return gql(CREATE_COMMENT, {"input": fields}, token)["createComment"]["id"]
+
+    def by_content(self, comments):
+        return {c["content"]: c for c in comments}
+
+    def test_person_burdens_carry_person_active_and_released(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        active = self.burden(token, person_id, "active")
+        released = self.burden(token, person_id, "released")
+        gql(RELEASE_BURDEN, {"id": released}, token)
+
+        burdens = {b["id"]: b for b in gql(BURDEN_PERSON_REFS, {"id": person_id}, token)["person"]["prayerBurdens"]}
+        expected = person_dict(person_id, "Alice", statuses["active"], "active")
+        assert set(burdens) == {active, released}
+        assert burdens[active]["releasedDate"] is None
+        assert burdens[released]["releasedDate"] is not None
+        assert burdens[active]["person"] == expected
+        assert burdens[released]["person"] == expected
+
+    def test_person_without_burdens_or_comments_has_empty_lists(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        assert gql(BURDEN_PERSON_REFS, {"id": person_id}, token)["person"]["prayerBurdens"] == []
+        assert gql(PERSON_COMMENT_REFS, {"id": person_id}, token)["person"]["comments"] == []
+
+    def test_person_comments_carry_person_and_burden_person(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        self.comment(token, person_id, "standalone")
+        self.comment(token, person_id, "on burden", burden_id)
+        gql(LOG_CONTACT, {"input": contact_input(person_id, note="contact note")}, token)
+
+        expected = person_dict(person_id, "Alice", statuses["active"], "active")
+        comments = self.by_content(gql(PERSON_COMMENT_REFS, {"id": person_id}, token)["person"]["comments"])
+        assert set(comments) == {"standalone", "on burden", "contact note"}
+        assert all(c["person"] == expected for c in comments.values())
+        assert comments["on burden"]["prayerBurden"]["id"] == burden_id
+        assert comments["on burden"]["prayerBurden"]["person"] == expected
+        assert comments["standalone"]["prayerBurden"] is None
+        assert comments["contact note"]["prayerBurden"] is None
+
+    def test_burden_comments_under_person_carry_person_refs(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        bare_id = self.burden(token, person_id, "bare")
+        comment_id = self.comment(token, person_id, "on burden", burden_id)
+
+        expected = person_dict(person_id, "Alice", statuses["active"], "active")
+        burdens = {b["id"]: b for b in gql(BURDEN_PERSON_REFS, {"id": person_id}, token)["person"]["prayerBurdens"]}
+        [comment] = burdens[burden_id]["comments"]
+        assert comment["id"] == comment_id
+        assert comment["person"] == expected
+        assert comment["prayerBurden"]["id"] == burden_id
+        assert comment["prayerBurden"]["person"] == expected
+        assert burdens[bare_id]["comments"] == []
+
+    def test_active_burden_comments_carry_person_refs(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        comment_id = self.comment(token, person_id, "on burden", burden_id)
+
+        expected = person_dict(person_id, "Alice", statuses["active"], "active")
+        [row] = gql(ACTIVE_BURDEN_REFS, {"personId": person_id}, token)["activePrayerBurdens"]
+        [comment] = row["comments"]
+        assert comment["id"] == comment_id
+        assert comment["person"] == expected
+        assert comment["prayerBurden"]["id"] == burden_id
+        assert comment["prayerBurden"]["person"] == expected
+
+    def test_create_comment_returns_person_refs(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        expected = person_dict(person_id, "Alice", statuses["active"], "active")
+
+        linked = gql(
+            CREATE_COMMENT_REFS,
+            {"input": {"personId": person_id, "content": "linked", "prayerBurdenId": burden_id}},
+            token,
+        )["createComment"]
+        assert linked["person"] == expected
+        assert linked["prayerBurden"]["id"] == burden_id
+        assert linked["prayerBurden"]["person"] == expected
+
+        standalone = gql(CREATE_COMMENT_REFS, {"input": {"personId": person_id, "content": "note"}}, token)[
+            "createComment"
+        ]
+        assert standalone["person"] == expected
+        assert standalone["prayerBurden"] is None
+
+    def test_latest_comment_carries_person(self, make_user, statuses):
+        token, _, _ = make_user()
+        quiet = create_person(token, statuses["active"], name="Quiet")
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        self.comment(token, person_id, "older")
+        self.comment(token, person_id, "newest", burden_id)
+
+        expected = person_dict(person_id, "Alice", statuses["active"], "active")
+        rows = {p["id"]: p for p in gql(LATEST_COMMENT_REFS, token=token)["myPeople"]}
+        assert rows[quiet]["latestComment"] is None
+        latest = rows[person_id]["latestComment"]
+        assert latest["content"] == "newest"
+        assert latest["person"] == expected
+        assert latest["prayerBurden"]["person"] == expected
+
+    def test_latest_contact_note_has_person_and_no_burden(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        gql(LOG_CONTACT, {"input": contact_input(person_id, note="contact note")}, token)
+
+        [row] = gql(LATEST_COMMENT_REFS, token=token)["myPeople"]
+        assert row["latestComment"]["content"] == "contact note"
+        assert row["latestComment"]["person"] == person_dict(person_id, "Alice", statuses["active"], "active")
+        assert row["latestComment"]["prayerBurden"] is None
+
+    def test_status_change_shows_in_every_nested_person(self, make_user, statuses):
+        token, _, _ = make_user()
+        person_id = create_person(token, statuses["active"], name="Alice")
+        burden_id = self.burden(token, person_id)
+        self.comment(token, person_id, "on burden", burden_id)
+
+        gql(SET_STATUS_ID, {"id": person_id, "input": {"statusId": statuses["inactive"]}}, token)
+
+        expected = person_dict(person_id, "Alice", statuses["inactive"], "inactive")
+        [burden] = gql(BURDEN_PERSON_REFS, {"id": person_id}, token)["person"]["prayerBurdens"]
+        assert burden["person"] == expected
+        assert burden["comments"][0]["person"] == expected
+        assert burden["comments"][0]["prayerBurden"]["person"] == expected
+        [comment] = gql(PERSON_COMMENT_REFS, {"id": person_id}, token)["person"]["comments"]
+        assert comment["person"] == expected
+        assert comment["prayerBurden"]["person"] == expected
+        [row] = gql(LATEST_COMMENT_REFS, token=token)["myPeople"]
+        assert row["latestComment"]["person"] == expected
+        assert row["latestComment"]["prayerBurden"]["person"] == expected
 
 
 UNRELEASE_BURDEN = """
