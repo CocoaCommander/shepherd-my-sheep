@@ -5,6 +5,7 @@ import com.apollographql.apollo.api.http.HttpRequest
 import com.apollographql.apollo.api.http.HttpResponse
 import com.apollographql.apollo.network.http.HttpEngine
 import com.shepherdmysheep.models.ContactState
+import com.shepherdmysheep.models.UserSummary
 import com.shepherdmysheep.network.InMemoryTokenStore
 import kotlinx.coroutines.test.runTest
 import okio.Buffer
@@ -31,8 +32,9 @@ private class FakeEngine(private val status: Int = 200, private val body: String
 
 // The API puts "__typename" on every object (backend/src/models/DTOs.hpp), and
 // Apollo needs it to read fragments, so every fixture object carries one.
+// Another user (author, contactor): a UserSummary, without timestamps.
 private fun user(id: String = "u1") =
-    """{"__typename":"User","id":"$id","name":"Pat Shepherd","username":"pat","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"""
+    """{"__typename":"UserSummary","id":"$id","name":"Pat Shepherd","username":"pat"}"""
 
 private fun jsonOrNull(value: String?) = value?.let { "\"$it\"" } ?: "null"
 
@@ -243,7 +245,7 @@ class RepositoryTest {
         val (b1, b2) = repo(body).getActivePrayerBurdens()
         assertEquals(listOf("c2", "c1"), b1.comments.map { it.id })
         assertEquals("note c2", b1.comments.first().content)
-        assertEquals("u1", b1.comments.first().author.id)
+        assertEquals(UserSummary(id = "u1", name = "Pat Shepherd", username = "pat"), b1.comments.first().author)
         assertEquals(emptyList(), b2.comments)
     }
 

@@ -47,7 +47,7 @@ function recorded(
     dateAchieved: opts.dateAchieved === undefined ? '2026-01-02' : opts.dateAchieved,
     notes: opts.notes ?? null,
     milestone: { __typename: 'Milestone', id: type.id, name: type.name },
-    recordedBy: { __typename: 'User', id: ME.id, name: ME.name },
+    recordedBy: { __typename: 'UserSummary', id: ME.id, name: ME.name },
   }
 }
 

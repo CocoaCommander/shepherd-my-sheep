@@ -41,7 +41,7 @@ function added(overrides: Record<string, unknown> = {}) {
     activeBurdenCount: 0,
     latestComment: null,
     lastPrayer: null,
-    shepherds: [{ __typename: 'User', id: ME.id, name: ME.name }],
+    shepherds: [{ __typename: 'UserSummary', id: ME.id, name: ME.name }],
     createdAt: at(0),
     ...overrides,
   }

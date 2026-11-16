@@ -78,7 +78,8 @@ interface ShepherdRepository {
     suspend fun removeMilestone(personId: String, milestoneId: String): Boolean
 
     // Prayer Burdens — these all fill PrayerBurden.person (id, name and
-    // status) and its comments, newest first; getPerson's burdens have no person.
+    // status) and its comments, newest first. getPerson doesn't select its
+    // burdens' person (it's the parent), so theirs is null.
     suspend fun getActivePrayerBurdens(personId: String? = null): List<PrayerBurden>
 
     /** The latest 5 releases, of any age, newest release first; may be empty. */

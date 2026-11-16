@@ -35,7 +35,7 @@ function person(overrides: Record<string, unknown> = {}) {
     activeBurdenCount: 0,
     latestComment: null,
     lastPrayer: null,
-    shepherds: [{ __typename: 'User', id: ME.id, name: ME.name }],
+    shepherds: [{ __typename: 'UserSummary', id: ME.id, name: ME.name }],
     milestones: [],
     prayerBurdens: [],
     comments: [],
@@ -105,8 +105,8 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
           contactClockStart: at(-HOUR),
           createdAt: at(-HOUR),
           shepherds: [
-            { __typename: 'User', id: ME.id, name: ME.name },
-            { __typename: 'User', id: 'u-grace', name: 'Grace Lin' },
+            { __typename: 'UserSummary', id: ME.id, name: ME.name },
+            { __typename: 'UserSummary', id: 'u-grace', name: 'Grace Lin' },
           ],
         }),
       ),
@@ -131,14 +131,14 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
       dateAchieved: m.dateAchieved,
       notes: m.notes,
       milestone: { __typename: 'Milestone', id: m.type.id, name: m.type.name },
-      recordedBy: { __typename: 'User', id: ME.id, name: ME.name },
+      recordedBy: { __typename: 'UserSummary', id: ME.id, name: ME.name },
     }))
     expect(await violations(person({ milestones }))).toEqual([])
   })
 
   it('with a burden thread, a released burden and notes', async () => {
-    const author = { __typename: 'User', id: ME.id, name: ME.name }
-    const other = { __typename: 'User', id: 'user-other', name: 'Other Shepherd' }
+    const author = { __typename: 'UserSummary', id: ME.id, name: ME.name }
+    const other = { __typename: 'UserSummary', id: 'user-other', name: 'Other Shepherd' }
     const burden = (id: string, content: string, releasedDate: string | null) => ({
       __typename: 'PrayerBurden',
       id,
@@ -180,7 +180,7 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
     ).toEqual([])
   })
   it('with prayers, one back-dated, and the Another day form open', async () => {
-    const by = { __typename: 'User', id: ME.id, name: ME.name }
+    const by = { __typename: 'UserSummary', id: ME.id, name: ME.name }
     const prayer = (id: string, prayedAt: string, createdAt: string, who: object | null = by) => ({
       __typename: 'PrayerLog',
       id,
@@ -192,7 +192,7 @@ describe('Person page accessibility (axe-core, WCAG 2.2 A/AA)', () => {
       prayer('pr1', at(0), at(0)),
       prayer('pr2', at(-2 * DAY), at(-DAY)),
       prayer('pr3', at(-3 * DAY), at(-3 * DAY), {
-        __typename: 'User',
+        __typename: 'UserSummary',
         id: 'u-grace',
         name: 'Grace Lin',
       }),

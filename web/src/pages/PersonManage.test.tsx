@@ -13,8 +13,8 @@ vi.mock('../auth/AuthProvider', () => ({
 
 const PERSON_ID = 'person-1'
 const ME = { __typename: 'User', id: 'user-me', name: 'Me Shepherd', username: 'me' }
-const OTHER = { __typename: 'User', id: 'user-other', name: 'Other Shepherd' }
-const ME_SHEPHERD = { __typename: 'User', id: ME.id, name: ME.name }
+const OTHER = { __typename: 'UserSummary', id: 'user-other', name: 'Other Shepherd' }
+const ME_SHEPHERD = { __typename: 'UserSummary', id: ME.id, name: ME.name }
 
 function person(shepherds: object[]) {
   return {

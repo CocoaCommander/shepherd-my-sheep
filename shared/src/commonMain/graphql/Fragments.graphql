@@ -3,12 +3,20 @@
 # and for mutations returning a single Person, so only those operations
 # may select PersonDetail. myPeople and contactAlerts select PersonSummary.
 
+# The caller's own account (me, login, register).
 fragment UserFields on User {
   id
   name
   username
   createdAt
   updatedAt
+}
+
+# Every other user (co-shepherds, authors, ...): no account timestamps.
+fragment UserSummaryFields on UserSummary {
+  id
+  name
+  username
 }
 
 fragment PersonSummary on Person {
@@ -64,7 +72,7 @@ fragment CommentFields on Comment {
   createdAt
   updatedAt
   author {
-    ...UserFields
+    ...UserSummaryFields
   }
   prayerBurden {
     id
@@ -83,7 +91,7 @@ fragment MilestonePersonFields on MilestonePerson {
     description
   }
   recordedBy {
-    ...UserFields
+    ...UserSummaryFields
   }
 }
 
@@ -93,14 +101,14 @@ fragment ContactLogFields on ContactLog {
   isFollowUp
   createdAt
   contactedBy {
-    ...UserFields
+    ...UserSummaryFields
   }
 }
 
 fragment PersonDetail on Person {
   ...PersonSummary
   shepherds {
-    ...UserFields
+    ...UserSummaryFields
   }
   milestones {
     ...MilestonePersonFields
