@@ -80,6 +80,16 @@ design decisions first), and the `make reset` note.
   (the executor sends every DTO field, whatever is selected). Switch them
   to `UserSummary` (#111); the KMP `UserFields` fragment and `User` model
   for those fields go with it.
+- [ ] **Composite FK so a comment's burden must match its person.**
+  The security review noted that only the API checks a comment's burden
+  belongs to the same person; the database doesn't enforce it. Add a
+  composite FK on `comment` `(prayer_burden_id, person_id)` referencing
+  `prayer_burden (id, person_id)`, which needs a unique constraint on
+  `prayer_burden (id, person_id)`. Schema is in
+  `db/migrations/V001__initial_schema.sql` (new migration needed).
+  Use `ON DELETE SET NULL (prayer_burden_id)`: a plain `SET NULL` would
+  also null the `NOT NULL` `person_id`, so deleting a burden would fail
+  instead of unlinking its comments.
 
 ## Housekeeping
 
