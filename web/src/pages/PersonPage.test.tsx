@@ -15,7 +15,7 @@ vi.mock('../auth/AuthProvider', () => ({
 
 const PERSON_ID = 'person-1'
 const ME = { __typename: 'User', id: 'user-me', name: 'Me Shepherd', username: 'me' }
-const OTHER = { __typename: 'User', id: 'user-other', name: 'Other Shepherd' }
+const OTHER = { __typename: 'UserSummary', id: 'user-other', name: 'Other Shepherd' }
 
 const MILESTONE_TYPES = [
   { __typename: 'Milestone', id: 'ms-baptised', name: 'baptised', description: 'Was baptised' },
@@ -43,7 +43,7 @@ function comment(
     id,
     content,
     createdAt: '2026-10-14 18:26:10.89+00',
-    author: opts.author ?? { __typename: 'User', id: ME.id, name: ME.name },
+    author: opts.author ?? { __typename: 'UserSummary', id: ME.id, name: ME.name },
     prayerBurden: opts.burdenId ? { __typename: 'PrayerBurden', id: opts.burdenId } : null,
     contactLogId: null,
   }
@@ -816,8 +816,8 @@ describe('PersonPage delete comment confirmation', () => {
 
 describe('PersonPage prayer log', () => {
   const NOT_FOUND = new GraphQLError('gone', { extensions: { code: 'NOT_FOUND' } })
-  const meUser = { __typename: 'User', id: ME.id, name: ME.name }
-  const otherUser = { __typename: 'User', id: OTHER.id, name: OTHER.name }
+  const meUser = { __typename: 'UserSummary', id: ME.id, name: ME.name }
+  const otherUser = { __typename: 'UserSummary', id: OTHER.id, name: OTHER.name }
   const NOW = new Date()
   /** Local time `hour` o'clock, `n` calendar days ago, as an ISO DateTime. */
   const localDay = (n: number, hour = 12) =>

@@ -77,8 +77,9 @@ class UserDto : public oatpp::DTO {
 };
 
 /**
- * Another user as searchUsers returns them: id, name and username, without
- * the account timestamps. The executor serializes every DTO field whatever
+ * Another user (a co-shepherd, author, contactor, search result, ...): id,
+ * name and username, without the account timestamps. Only the caller's own
+ * account (me, AuthPayload.user) is a UserDto. The executor serializes every DTO field whatever
  * the query selects, so leaving fields out of the DTO is what keeps them off
  * the wire.
  */
@@ -127,7 +128,7 @@ class CommentDto : public oatpp::DTO {
 
     DTO_FIELD(String, typename_, "__typename") = "Comment";
     DTO_FIELD(String, id);
-    DTO_FIELD(oatpp::Object<UserDto>, author);
+    DTO_FIELD(oatpp::Object<UserSummaryDto>, author);
     DTO_FIELD(oatpp::Object<PersonRefDto>, person);           // id, name and status only
     DTO_FIELD(oatpp::Object<PrayerBurdenDto>, prayerBurden);  // nullable — null means standalone note
     DTO_FIELD(String, contactLogId);  // nullable — set for a note written when logging a contact
@@ -142,9 +143,9 @@ class MilestonePersonDto : public oatpp::DTO {
     DTO_FIELD(String, typename_, "__typename") = "MilestonePerson";
     DTO_FIELD(String, id);
     DTO_FIELD(oatpp::Object<MilestoneDto>, milestone);
-    DTO_FIELD(String, dateAchieved);                // nullable
-    DTO_FIELD(String, notes);                       // nullable
-    DTO_FIELD(oatpp::Object<UserDto>, recordedBy);  // nullable
+    DTO_FIELD(String, dateAchieved);                       // nullable
+    DTO_FIELD(String, notes);                              // nullable
+    DTO_FIELD(oatpp::Object<UserSummaryDto>, recordedBy);  // nullable
     DTO_FIELD(String, createdAt);
 };
 
@@ -153,7 +154,7 @@ class ContactLogDto : public oatpp::DTO {
 
     DTO_FIELD(String, typename_, "__typename") = "ContactLog";
     DTO_FIELD(String, id);
-    DTO_FIELD(oatpp::Object<UserDto>, contactedBy);  // nullable
+    DTO_FIELD(oatpp::Object<UserSummaryDto>, contactedBy);  // nullable
     DTO_FIELD(String, contactedAt);
     DTO_FIELD(Boolean, isFollowUp);
     DTO_FIELD(String, note);  // nullable
@@ -165,7 +166,7 @@ class PrayerLogDto : public oatpp::DTO {
 
     DTO_FIELD(String, typename_, "__typename") = "PrayerLog";
     DTO_FIELD(String, id);
-    DTO_FIELD(oatpp::Object<UserDto>, prayedBy);  // nullable — the user was deleted
+    DTO_FIELD(oatpp::Object<UserSummaryDto>, prayedBy);  // nullable — the user was deleted
     DTO_FIELD(String, prayedAt);
     DTO_FIELD(String, createdAt);
 };
@@ -199,7 +200,7 @@ class PersonDto : public oatpp::DTO {
     // by the `person` query and mutations returning Person. Each may be
     // empty, never null, when loaded: a new contact has no milestones,
     // burdens or comments.
-    DTO_FIELD(oatpp::Vector<oatpp::Object<UserDto>>, shepherds);
+    DTO_FIELD(oatpp::Vector<oatpp::Object<UserSummaryDto>>, shepherds);
     DTO_FIELD(oatpp::Vector<oatpp::Object<MilestonePersonDto>>, milestones);
     DTO_FIELD(oatpp::Vector<oatpp::Object<PrayerBurdenDto>>, prayerBurdens);
     DTO_FIELD(oatpp::Vector<oatpp::Object<CommentDto>>, comments);

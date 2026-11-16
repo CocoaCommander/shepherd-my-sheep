@@ -8,6 +8,7 @@ import com.shepherdmysheep.graphql.fragment.PersonSummary
 import com.shepherdmysheep.graphql.fragment.PrayerBurdenFields
 import com.shepherdmysheep.graphql.fragment.PrayerListBurden
 import com.shepherdmysheep.graphql.fragment.UserFields
+import com.shepherdmysheep.graphql.fragment.UserSummaryFields
 import com.shepherdmysheep.models.Comment
 import com.shepherdmysheep.models.ContactLog
 import com.shepherdmysheep.models.ContactState
@@ -18,6 +19,7 @@ import com.shepherdmysheep.models.PersonRef
 import com.shepherdmysheep.models.PrayerBurden
 import com.shepherdmysheep.models.Status
 import com.shepherdmysheep.models.User
+import com.shepherdmysheep.models.UserSummary
 import com.shepherdmysheep.graphql.type.ContactState as ApiContactState
 
 // Generated Apollo types → domain models. Kept here so the UI never
@@ -30,6 +32,8 @@ internal fun UserFields.toModel() = User(
     createdAt = createdAt,
     updatedAt = updatedAt,
 )
+
+internal fun UserSummaryFields.toModel() = UserSummary(id = id, name = name, username = username)
 
 /** Nested lists stay empty: myPeople does not load them. */
 internal fun PersonSummary.toModel() = Person(
@@ -63,7 +67,7 @@ internal fun PersonDetail.toModel(): Person {
     val comments = comments.map { it.commentFields.toModel() }
 
     return personSummary.toModel().copy(
-        shepherds = shepherds.map { it.userFields.toModel() },
+        shepherds = shepherds.map { it.userSummaryFields.toModel() },
         milestones = milestones.map { it.milestonePersonFields.toModel() },
         // The API returns comments per person; attach each burden's own.
         prayerBurdens = prayerBurdens.map { burden ->
@@ -78,7 +82,7 @@ internal fun PersonDetail.toModel(): Person {
 
 internal fun ContactLogFields.toModel() = ContactLog(
     id = id,
-    contactedBy = contactedBy?.userFields?.toModel(),
+    contactedBy = contactedBy?.userSummaryFields?.toModel(),
     contactedAt = contactedAt,
     isFollowUp = isFollowUp,
     createdAt = createdAt,
@@ -103,7 +107,7 @@ internal fun PrayerListBurden.toModel() = prayerBurdenFields.toModel().copy(
 
 internal fun CommentFields.toModel() = Comment(
     id = id,
-    author = author.userFields.toModel(),
+    author = author.userSummaryFields.toModel(),
     prayerBurdenId = prayerBurden?.id,
     contactLogId = contactLogId,
     content = content,
@@ -120,6 +124,6 @@ internal fun MilestonePersonFields.toModel() = MilestonePerson(
     ),
     dateAchieved = dateAchieved,
     notes = notes,
-    recordedBy = recordedBy?.userFields?.toModel(),
+    recordedBy = recordedBy?.userSummaryFields?.toModel(),
     createdAt = createdAt,
 )

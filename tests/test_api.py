@@ -2622,3 +2622,143 @@ class TestPrayerLog:
         assert person["lastPrayer"]["id"] == person["prayers"][0]["id"]
         [mine] = gql(MY_PEOPLE_PRAYERS, token=a_token)["myPeople"]
         assert mine["lastPrayer"]["prayedBy"] is None
+
+
+# ── Other users are summaries ────────────────────────────────
+
+USER_SUMMARY_KEYS = {"__typename", "id", "name", "username"}
+
+SUMMARY_PERSON = """
+query P($id: UUID!) {
+  person(id: $id) {
+    shepherds { __typename id name username }
+    comments { author { id } }
+    contacts { contactedBy { id } }
+    prayers { prayedBy { id } }
+    milestones { recordedBy { id } }
+  }
+}"""
+
+SUMMARY_MY_PEOPLE = """
+query {
+  myPeople {
+    shepherds { id }
+    latestComment { author { id } }
+    lastPrayer { prayedBy { id } }
+  }
+}"""
+
+
+def assert_user_summary(obj, user_id=None):
+    """The raw JSON is a UserSummary: no timestamps, even if only `id` was selected."""
+    assert set(obj) == USER_SUMMARY_KEYS, obj
+    assert obj["__typename"] == "UserSummary"
+    if user_id:
+        assert obj["id"] == user_id
+
+
+class TestOtherUsersAreSummaries:
+    @pytest.fixture()
+    def setup(self, make_user, status_id, db_connection):
+        """Two shepherds (a, b) of a person with one of everything recorded by b."""
+        a_token, a_id, _ = make_user()
+        b_token, b_id, _ = make_user()
+        person_id = create_person(a_token, status_id)
+        gql(ASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT id FROM milestone LIMIT 1")
+            milestone_id = str(cur.fetchone()[0])
+        gql(RECORD_MILESTONE, {"input": {"personId": person_id, "milestoneId": milestone_id}}, b_token)
+        gql(LOG_CONTACT, {"input": contact_input(person_id)}, b_token)
+        gql(RECORD_PRAYER, {"personId": person_id}, b_token)
+        gql(CREATE_COMMENT, {"input": {"personId": person_id, "content": "note"}}, b_token)
+        return a_token, a_id, b_token, b_id, person_id
+
+    def test_person_shepherds(self, setup):
+        a_token, a_id, _, b_id, person_id = setup
+        shepherds = gql(SUMMARY_PERSON, {"id": person_id}, a_token)["person"]["shepherds"]
+        assert {s["id"] for s in shepherds} == {a_id, b_id}
+        for s in shepherds:
+            assert_user_summary(s)
+
+    def test_person_comment_authors(self, setup):
+        a_token, _, _, b_id, person_id = setup
+        comments = gql(SUMMARY_PERSON, {"id": person_id}, a_token)["person"]["comments"]
+        assert comments
+        for c in comments:
+            assert_user_summary(c["author"], b_id)
+
+    def test_person_contacted_by(self, setup):
+        a_token, _, _, b_id, person_id = setup
+        [contact] = gql(SUMMARY_PERSON, {"id": person_id}, a_token)["person"]["contacts"]
+        assert_user_summary(contact["contactedBy"], b_id)
+
+    def test_person_prayed_by(self, setup):
+        a_token, _, _, b_id, person_id = setup
+        [prayer] = gql(SUMMARY_PERSON, {"id": person_id}, a_token)["person"]["prayers"]
+        assert_user_summary(prayer["prayedBy"], b_id)
+
+    def test_person_milestone_recorded_by(self, setup):
+        a_token, _, _, b_id, person_id = setup
+        [milestone] = gql(SUMMARY_PERSON, {"id": person_id}, a_token)["person"]["milestones"]
+        assert_user_summary(milestone["recordedBy"], b_id)
+
+    def test_my_people_summaries(self, setup):
+        a_token, _, _, b_id, _ = setup
+        [mine] = gql(SUMMARY_MY_PEOPLE, token=a_token)["myPeople"]
+        assert len(mine["shepherds"]) == 2
+        for s in mine["shepherds"]:
+            assert_user_summary(s)
+        assert_user_summary(mine["latestComment"]["author"])
+        assert_user_summary(mine["lastPrayer"]["prayedBy"], b_id)
+
+    def test_create_comment_author(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, status_id)
+        comment = gql(CREATE_COMMENT, {"input": {"personId": person_id, "content": "hi"}}, token)["createComment"]
+        assert comment["prayerBurden"] is None
+        assert_user_summary(comment["author"], user_id)
+
+    def test_person_without_activity_has_empty_lists(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, status_id)
+        person = gql(SUMMARY_PERSON, {"id": person_id}, token)["person"]
+        assert [s["id"] for s in person["shepherds"]] == [user_id]
+        assert_user_summary(person["shepherds"][0])
+        assert (person["comments"], person["contacts"], person["prayers"], person["milestones"]) == ([], [], [], [])
+
+    def test_user_with_no_people(self, make_user):
+        token, _, _ = make_user()
+        assert gql(SUMMARY_MY_PEOPLE, token=token)["myPeople"] == []
+
+    def test_deleted_user_is_null_not_a_partial_summary(self, setup, db_connection):
+        a_token, _, _, b_id, person_id = setup
+        with db_connection.cursor() as cur:
+            cur.execute('DELETE FROM "user" WHERE id = %s', (b_id,))
+        person = gql(SUMMARY_PERSON, {"id": person_id}, a_token)["person"]
+        assert person["prayers"][0]["prayedBy"] is None
+        assert person["contacts"][0]["contactedBy"] is None
+        assert person["milestones"][0]["recordedBy"] is None
+        [mine] = gql(SUMMARY_MY_PEOPLE, token=a_token)["myPeople"]
+        assert mine["lastPrayer"]["prayedBy"] is None
+
+    def test_login_returns_full_user(self, make_user):
+        _, user_id, username = make_user(password="correct-horse")
+        login = (
+            "mutation L($input: LoginInput!) { login(input: $input) { user { __typename id createdAt updatedAt } } }"
+        )
+        user = gql(login, {"input": {"username": username, "password": "correct-horse"}})["login"]["user"]
+        assert (user["__typename"], user["id"]) == ("User", user_id)
+        assert user["createdAt"] and user["updatedAt"]
+
+    def test_register_returns_full_user(self, db_connection):
+        username = f"apitest_{uuid.uuid4().hex[:12]}"
+        query = "mutation R($input: RegisterInput!) { register(input: $input) { user { __typename id createdAt updatedAt } } }"
+        data = gql(query, {"input": {"name": "Full", "username": username, "password": "correct-horse"}})
+        user = data["register"]["user"]
+        try:
+            assert user["__typename"] == "User"
+            assert user["createdAt"] and user["updatedAt"]
+        finally:
+            with db_connection.cursor() as cur:
+                cur.execute('DELETE FROM "user" WHERE id = %s', (user["id"],))

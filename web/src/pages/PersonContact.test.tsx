@@ -35,7 +35,7 @@ function note(id: string, content: string, contactLogId: string | null = null) {
     content,
     createdAt: at(0),
     contactLogId,
-    author: { __typename: 'User', id: ME.id, name: ME.name },
+    author: { __typename: 'UserSummary', id: ME.id, name: ME.name },
     prayerBurden: null,
   }
 }
@@ -60,7 +60,7 @@ function person(overrides: Record<string, unknown> = {}) {
     activeBurdenCount: 0,
     latestComment: null,
     lastPrayer: null,
-    shepherds: [{ __typename: 'User', id: ME.id, name: ME.name }],
+    shepherds: [{ __typename: 'UserSummary', id: ME.id, name: ME.name }],
     milestones: [],
     prayerBurdens: [],
     comments: [],
@@ -418,8 +418,8 @@ describe('Person page header', () => {
       person({
         yearMet: 2020,
         shepherds: [
-          { __typename: 'User', id: ME.id, name: ME.name },
-          { __typename: 'User', id: 'u-grace', name: 'Grace Lin' },
+          { __typename: 'UserSummary', id: ME.id, name: ME.name },
+          { __typename: 'UserSummary', id: 'u-grace', name: 'Grace Lin' },
         ],
       }),
     )
@@ -453,9 +453,9 @@ describe('Person page header', () => {
     renderPage(
       person({
         shepherds: [
-          { __typename: 'User', id: 'u-grace', name: 'Grace Lin' },
-          { __typename: 'User', id: 'u-sam', name: 'Sam Lee' },
-          { __typename: 'User', id: ME.id, name: ME.name },
+          { __typename: 'UserSummary', id: 'u-grace', name: 'Grace Lin' },
+          { __typename: 'UserSummary', id: 'u-sam', name: 'Sam Lee' },
+          { __typename: 'UserSummary', id: ME.id, name: ME.name },
         ],
       }),
     )

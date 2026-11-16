@@ -13,7 +13,7 @@ vi.mock('../auth/AuthProvider', () => ({
 }))
 
 const ME = { __typename: 'User', id: 'user-me', name: 'Me Shepherd', username: 'me' }
-const OTHER = { __typename: 'User', id: 'user-other', name: 'Olivia Other' }
+const OTHER = { __typename: 'UserSummary', id: 'user-other', name: 'Olivia Other' }
 const FRIENDLY = 'Something went wrong. Please try again.'
 
 const DAY = 24 * 3_600_000
@@ -58,7 +58,11 @@ function comment(id: string, content: string, createdAt: string, author: object)
 
 const B_ZED_NEW = burden('b1', 'Zed new burden', ago(10), 'p-zed', 'Zed Zimmer', {
   comments: [
-    comment('c1', 'Spoke on Sunday', ago(2), { __typename: 'User', id: ME.id, name: ME.name }),
+    comment('c1', 'Spoke on Sunday', ago(2), {
+      __typename: 'UserSummary',
+      id: ME.id,
+      name: ME.name,
+    }),
     comment('c0', 'Older note', ago(8), { ...OTHER }),
   ],
 })
@@ -482,7 +486,7 @@ describe('Prayer list page release', () => {
 const B_MANY = burden('b9', 'Many comments burden', ago(20), 'p-many', 'Mia Many', {
   comments: [
     comment('m5', 'Fifth note', ago(1), { ...OTHER }),
-    comment('m4', 'Fourth note', ago(2), { __typename: 'User', id: ME.id, name: ME.name }),
+    comment('m4', 'Fourth note', ago(2), { __typename: 'UserSummary', id: ME.id, name: ME.name }),
     comment('m3', 'Third note', ago(3), { ...OTHER }),
     comment('m2', 'Second note', ago(4), { ...OTHER }),
     comment('m1', 'First note', ago(5), { ...OTHER }),
@@ -513,7 +517,11 @@ const B_RELEASED_BARE = {
 const B_RELEASED_THREE = {
   ...burden('r3', 'Three released burden', ago(60), 'p-r3', 'Rory Three', {
     comments: [
-      comment('q3', 'Third release note', ago(1), { __typename: 'User', id: ME.id, name: ME.name }),
+      comment('q3', 'Third release note', ago(1), {
+        __typename: 'UserSummary',
+        id: ME.id,
+        name: ME.name,
+      }),
       comment('q2', 'Second release note', ago(2), { ...OTHER }),
       comment('q1', 'First release note', ago(3), { ...OTHER }),
     ],
@@ -679,7 +687,7 @@ describe('Prayer list page comment thread', () => {
   it('posts the trimmed comment, refetches, clears the box and keeps the thread open', async () => {
     const user = userEvent.setup()
     const after = comment('new-c', 'Checked in', ago(0), {
-      __typename: 'User',
+      __typename: 'UserSummary',
       id: ME.id,
       name: ME.name,
     })
@@ -1169,7 +1177,7 @@ describe('Prayer list page prayed', () => {
     createdAt: prayedAt,
     prayedBy: by,
   })
-  const ME_REF = { __typename: 'User', id: ME.id, name: ME.name }
+  const ME_REF = { __typename: 'UserSummary', id: ME.id, name: ME.name }
   const ADA_BY_ME = prayerLog('pr-ada', ago(1), ME_REF)
   const ZED_BY_OTHER = prayerLog('pr-zed', ago(3), { ...OTHER })
   // What myPeople carries: PersonSummary's lastPrayer has no createdAt.
