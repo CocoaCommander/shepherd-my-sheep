@@ -1,6 +1,6 @@
 # Work Log
 
-## 2026-11-16 — PrayerBurden / Comment person
+## 2026-11-16 — PrayerBurden / Comment person; other users as `UserSummary`
 
 - **#124 PrayerBurden / Comment person** (draft, base `main`) — the
   executor sends every DTO field, so `PrayerBurden.person` under
@@ -17,6 +17,18 @@
   - Not done: the DB doesn't enforce that a comment's burden is the same
     person's (only `createComment` checks it); a composite FK would.
 
+**#126 Other users as UserSummary** (draft, base `prayer-burden-person`)
+
+- `Person.shepherds`, `Comment.author`, `ContactLog.contactedBy`,
+  `PrayerLog.prayedBy` and `MilestonePerson.recordedBy` now return
+  `UserSummary` (id, name, username). Every other-user select drops the
+  account timestamps and maps through `rowToUserSummary(row, prefix)`;
+  the shepherd lists use the new `USER_SUMMARY_SELECT`. Only `me` and
+  `AuthPayload.user` still build a full `User`.
+  - KMP: new `UserSummaryFields` fragment; the domain fields are
+    `UserSummary`. Web: test fixtures only (`'UserSummary'` typenames).
+  - pytest `TestOtherUsersAreSummaries` pins the exact keys per field.
+
 ### Moved from the todo list
 
 Completed items as they stood in `todo.md` on 2026-11-16, by section.
@@ -26,6 +38,12 @@ Completed items as they stood in `todo.md` on 2026-11-16, by section.
 - `PrayerBurden.person` is filled (id, name, status only) by every
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`. (#124)
+- `Person.shepherds`, `Comment.author`, `ContactLog.contactedBy`,
+  `PrayerLog.prayedBy` and `MilestonePerson.recordedBy` still return the
+  full `User`, so co-shepherds get each other's `createdAt`/`updatedAt`
+  (the executor sends every DTO field, whatever is selected). Switch them
+  to `UserSummary` (#111); the KMP `UserFields` fragment and `User` model
+  for those fields go with it. (#126)
 
 **Logging follow-ups from #30**:
 

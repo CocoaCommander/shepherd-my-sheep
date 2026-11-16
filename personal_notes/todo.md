@@ -74,12 +74,6 @@ design decisions first), and the `make reset` note.
 
 - [ ] `assignPerson`'s "User not found" lets a caller probe whether a user
   id exists (low).
-- [ ] `Person.shepherds`, `Comment.author`, `ContactLog.contactedBy`,
-  `PrayerLog.prayedBy` and `MilestonePerson.recordedBy` still return the
-  full `User`, so co-shepherds get each other's `createdAt`/`updatedAt`
-  (the executor sends every DTO field, whatever is selected). Switch them
-  to `UserSummary` (#111); the KMP `UserFields` fragment and `User` model
-  for those fields go with it.
 - [ ] **Composite FK so a comment's burden must match its person.**
   The security review noted that only the API checks a comment's burden
   belongs to the same person; the database doesn't enforce it. Add a
