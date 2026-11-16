@@ -49,8 +49,6 @@ design decisions first), and the `make reset` note.
 - [ ] `validateEnv()` runs once per component in `AppComponent.hpp`;
   parse the env once. — *Backend follow-ups, Logging follow-ups from
   #30*
-- [ ] `assignPerson`'s "User not found" lets a caller probe whether a
-  user id exists (low). — *Backend follow-ups*
 - [ ] Remove old worktrees and branches under `.claude/worktrees/`.
   The worktrees are already gone (checked 2026-10-21); the branches
   `auth-middleware` (local and origin), `docker-config`,
@@ -78,8 +76,6 @@ design decisions first), and the `make reset` note.
 
 ## Backend follow-ups (low priority)
 
-- [ ] `assignPerson`'s "User not found" lets a caller probe whether a user
-  id exists (low).
 - [ ] `PrayerBurden.person` is filled (id, name, status only) by every
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`.

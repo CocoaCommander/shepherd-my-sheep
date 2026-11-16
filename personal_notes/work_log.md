@@ -1,5 +1,30 @@
 # Work Log
 
+## 2026-11-16 — `assignPerson` probe accepted
+
+- **#125 assignPerson probe** (draft, base `main`) — accepted risk, no
+  behaviour change. A shepherd who assigns an unknown `userId` still gets
+  NOT_FOUND "User not found", which tells them that no user has that id.
+  That's acceptable: `requireShepherd` runs first, a successful assign
+  reveals the same thing, and user ids are already visible through
+  `searchUsers` and co-shepherd lists.
+  - Comment on the `foreign_key_violation` catch in `resolveAssignPerson`
+    and on `assignPerson` in the schema.
+  - `TestAssignPerson` (6 pytests): unknown user → "User not found" for a
+    shepherd, "Person not found" for anyone else (also with a malformed
+    id); malformed id → BAD_USER_INPUT; assigning a shepherd again →
+    CONFLICT; `unassignPerson` gives an unknown user the same error as a
+    non-shepherd.
+
+### Moved from the todo list
+
+Completed items as they stood in `todo.md` on 2026-11-16, by section.
+
+#### Backend follow-ups (low priority)
+
+- `assignPerson`'s "User not found" lets a caller probe whether a user
+  id exists (low). (#125) (accepted: see comment)
+
 ## 2026-10-21 — Housekeeping; prayer log; sign in screen; rate limiting; drop `lastContactDate`; clear age / year met; `forLog` UTF-8 / DETAIL; `searchUsers` UserSummary; last shepherd DB guard; dark mode; logo
 
 - **#77 Housekeeping** (base `main`) — four of the five Housekeeping
