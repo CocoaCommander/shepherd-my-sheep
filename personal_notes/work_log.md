@@ -1,5 +1,20 @@
 # Work Log
 
+## 2026-11-16 — `assignPerson` probe accepted
+
+- **#125 assignPerson probe** (draft, base `main`) — accepted risk, no
+  behaviour change. A shepherd who assigns an unknown `userId` still gets
+  NOT_FOUND "User not found", which tells them that no user has that id.
+  That's acceptable: `requireShepherd` runs first, a successful assign
+  reveals the same thing, and user ids are already visible through
+  `searchUsers` and co-shepherd lists.
+  - Comment on the `foreign_key_violation` catch in `resolveAssignPerson`
+    and on `assignPerson` in the schema.
+  - `TestAssignPerson` (6 pytests): unknown user → "User not found" for a
+    shepherd, "Person not found" for anyone else (also with a malformed
+    id); malformed id → BAD_USER_INPUT; assigning a shepherd again →
+    CONFLICT; `unassignPerson` gives an unknown user the same error as a
+    non-shepherd.
 ## 2026-11-16 — PrayerBurden / Comment person; other users as `UserSummary`
 
 - **#124 PrayerBurden / Comment person** (draft, base `main`) — the
@@ -35,6 +50,8 @@ Completed items as they stood in `todo.md` on 2026-11-16, by section.
 
 #### Backend follow-ups (low priority)
 
+- `assignPerson`'s "User not found" lets a caller probe whether a user
+  id exists (low). (#125) (accepted: see comment)
 - `PrayerBurden.person` is filled (id, name, status only) by every
   root burden field (#52); still unset under `Person.prayerBurdens` and
   inside a `Comment`. (#124)

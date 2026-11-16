@@ -296,6 +296,12 @@ private:
         } catch (const pqxx::unique_violation&) {
             throw Conflict("User is already assigned to this person");
         } catch (const pqxx::foreign_key_violation&) {
+            // This tells the caller whether a user id exists. Accepted: only
+            // a shepherd of this person gets here (requireShepherd runs
+            // first), a successful assign would reveal the same thing, and
+            // user ids are already visible through searchUsers (to anyone
+            // signed in) and co-shepherd lists. A malformed id fails earlier,
+            // at the uuid cast (22P02 → BAD_USER_INPUT).
             throw NotFound("User not found");
         }
 

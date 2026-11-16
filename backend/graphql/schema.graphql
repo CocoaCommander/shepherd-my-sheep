@@ -191,6 +191,8 @@ type Mutation {
   # CONFLICT if the person has moved or been promoted since, or was never moved.
   undoStatusChange(personId: UUID!, statusId: UUID!, statusChangedAt: DateTime!): Person!
   deletePerson(id: UUID!): Boolean!
+  # NOT_FOUND if the person isn't yours, or no user has that id; CONFLICT if
+  # they already shepherd this person.
   assignPerson(personId: UUID!, userId: UUID!): Person!
   unassignPerson(personId: UUID!, userId: UUID!): Person!
 

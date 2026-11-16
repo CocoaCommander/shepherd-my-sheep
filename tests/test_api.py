@@ -502,6 +502,67 @@ class TestUnassignAndDelete:
         assert gql(PERSON, {"id": person_id}, a_token)["person"] is not None
 
 
+class TestAssignPerson:
+    """
+    An unknown userId tells a shepherd that no such user exists. That is an
+    accepted risk (see resolveAssignPerson); these pin it, and that only a
+    shepherd of the person ever reaches the user check.
+    """
+
+    def test_shepherd_assigning_unknown_user_is_not_found(self, make_user, status_id):
+        token, user_id, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(ASSIGN, {"personId": person_id, "userId": str(uuid.uuid4())}, token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "User not found"
+        shepherds = gql(PERSON, {"id": person_id}, token)["person"]["shepherds"]
+        assert [s["id"] for s in shepherds] == [user_id]
+
+    def test_non_shepherd_assigning_unknown_user_gets_person_not_found(self, make_user, status_id):
+        owner_token, owner_id, _ = make_user()
+        stranger_token, _, _ = make_user()
+        person_id = create_person(owner_token, status_id)
+        error = gql_error_full(ASSIGN, {"personId": person_id, "userId": str(uuid.uuid4())}, stranger_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Person not found"
+        shepherds = gql(PERSON, {"id": person_id}, owner_token)["person"]["shepherds"]
+        assert [s["id"] for s in shepherds] == [owner_id]
+
+    def test_malformed_user_id_is_bad_input(self, make_user, status_id):
+        token, _, _ = make_user()
+        person_id = create_person(token, status_id)
+        error = gql_error_full(ASSIGN, {"personId": person_id, "userId": "not-a-uuid"}, token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+
+    def test_non_shepherd_with_malformed_user_id_gets_person_not_found(self, make_user, status_id):
+        owner_token, _, _ = make_user()
+        stranger_token, _, _ = make_user()
+        person_id = create_person(owner_token, status_id)
+        error = gql_error_full(ASSIGN, {"personId": person_id, "userId": "not-a-uuid"}, stranger_token)
+        assert error["extensions"]["code"] == "NOT_FOUND"
+        assert error["message"] == "Person not found"
+
+    def test_unassign_unknown_user_looks_like_unassign_non_shepherd(self, make_user, status_id):
+        token, _, _ = make_user()
+        _, outsider_id, _ = make_user()
+        person_id = create_person(token, status_id)
+        unknown = gql_error_full(UNASSIGN, {"personId": person_id, "userId": str(uuid.uuid4())}, token)
+        outsider = gql_error_full(UNASSIGN, {"personId": person_id, "userId": outsider_id}, token)
+        assert unknown["extensions"]["code"] == outsider["extensions"]["code"] == "NOT_FOUND"
+        assert unknown["message"] == outsider["message"]
+
+    def test_assigning_an_existing_shepherd_is_conflict(self, make_user, status_id):
+        a_token, a_id, _ = make_user()
+        _, b_id, _ = make_user()
+        person_id = create_person(a_token, status_id)
+        gql(ASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        error = gql_error_full(ASSIGN, {"personId": person_id, "userId": b_id}, a_token)
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == "User is already assigned to this person"
+        shepherds = gql(PERSON, {"id": person_id}, a_token)["person"]["shepherds"]
+        assert sorted(s["id"] for s in shepherds) == sorted([a_id, b_id])
+
+
 # ── Authorization: you only see and change your own people ───
 
 
