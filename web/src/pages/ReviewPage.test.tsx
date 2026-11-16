@@ -22,9 +22,9 @@ const at = (offsetMs: number) => new Date(NOW.getTime() + offsetMs).toISOString(
 const ACTIVE = { __typename: 'Status', id: 'st-active', name: 'active' }
 const NEW = { __typename: 'Status', id: 'st-new', name: 'new contact' }
 const ME = { __typename: 'User', id: 'u-me', name: 'Daniel Okafor', username: 'daniel' }
-const MENTOR = { __typename: 'User', id: 'u-2', name: 'Grace Lim' }
-const MENTOR2 = { __typename: 'User', id: 'u-3', name: 'Paul Reyes' }
-const ME_SHEPHERD = { __typename: 'User', id: ME.id, name: ME.name }
+const MENTOR = { __typename: 'UserSummary', id: 'u-2', name: 'Grace Lim' }
+const MENTOR2 = { __typename: 'UserSummary', id: 'u-3', name: 'Paul Reyes' }
+const ME_SHEPHERD = { __typename: 'UserSummary', id: ME.id, name: ME.name }
 
 type Person = Record<string, unknown> & { id: string; name: string }
 

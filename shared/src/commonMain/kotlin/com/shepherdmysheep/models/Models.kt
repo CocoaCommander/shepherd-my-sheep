@@ -11,7 +11,7 @@ package com.shepherdmysheep.models
 
 data class User(val id: String, val name: String, val username: String, val createdAt: String, val updatedAt: String)
 
-/** A user as search results show them, without timestamps. */
+/** Another user (co-shepherd, author, search result, ...), without timestamps. */
 data class UserSummary(val id: String, val name: String, val username: String)
 
 /** Just enough of a person to label a row on the prayer list, with their status pill. */
@@ -37,7 +37,7 @@ data class Person(
     /** Null until a contact is logged. */
     val lastContactedAt: String? = null,
     val createdAt: String,
-    val shepherds: List<User> = emptyList(),
+    val shepherds: List<UserSummary> = emptyList(),
     val milestones: List<MilestonePerson> = emptyList(),
     val prayerBurdens: List<PrayerBurden> = emptyList(),
     val comments: List<Comment> = emptyList(),
@@ -55,7 +55,7 @@ enum class ContactState { OVERDUE, DUE_SOON, ON_TRACK, NOT_TRACKED }
 data class ContactLog(
     val id: String,
     /** Null for imported history, or once that user is deleted. */
-    val contactedBy: User? = null,
+    val contactedBy: UserSummary? = null,
     val contactedAt: String,
     /** True for the contact that followed up a new contact (and moved them to active). */
     val isFollowUp: Boolean,
@@ -71,7 +71,7 @@ data class MilestonePerson(
     val milestone: Milestone,
     val dateAchieved: String? = null,
     val notes: String? = null,
-    val recordedBy: User? = null,
+    val recordedBy: UserSummary? = null,
     val createdAt: String,
 )
 
@@ -89,7 +89,7 @@ data class PrayerBurden(
 
 data class Comment(
     val id: String,
-    val author: User,
+    val author: UserSummary,
     val prayerBurdenId: String? = null,
     /** Set when the note was written by logging that contact; shown as "Logged contact". */
     val contactLogId: String? = null,

@@ -182,11 +182,11 @@ inline UserDto::Wrapper rowToUser(const pqxx::row& row, const std::string& prefi
     return dto;
 }
 
-inline UserSummaryDto::Wrapper rowToUserSummary(const pqxx::row& row) {
+inline UserSummaryDto::Wrapper rowToUserSummary(const pqxx::row& row, const std::string& prefix = "") {
     auto dto      = UserSummaryDto::createShared();
-    dto->id       = row["id"].c_str();
-    dto->name     = row["name"].c_str();
-    dto->username = row["username"].c_str();
+    dto->id       = row[prefix + "id"].c_str();
+    dto->name     = row[prefix + "name"].c_str();
+    dto->username = row[prefix + "username"].c_str();
     return dto;
 }
 
@@ -221,9 +221,10 @@ inline const char* PERSON_SELECT =
     "    SELECT c.id AS lc_id, c.content AS lc_content, c.created_at AS lc_created_at, c.updated_at AS lc_updated_at, "
     "           c.contact_log_id AS lc_contact_log_id, "
     "           u.id AS lc_author_id, u.name AS lc_author_name, u.username AS lc_author_username, "
-    "           u.created_at AS lc_author_created_at, u.updated_at AS lc_author_updated_at, "
     "           pb.id AS lc_pb_id, pb.content AS lc_pb_content, pb.released_date AS lc_pb_released_date, "
-    "           pb.created_at AS lc_pb_created_at, pb.updated_at AS lc_pb_updated_at "
+    "           pb.created_at AS lc_pb_created_at, pb.updated_at AS lc_pb_updated_at, "
+    "           p.id AS lc_person_id, p.name AS lc_person_name, "
+    "           s.id AS lc_person_status_id, s.name AS lc_person_status_name "
     "    FROM comment c "
     "    JOIN \"user\" u ON u.id = c.user_id "
     "    LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id "
@@ -232,8 +233,7 @@ inline const char* PERSON_SELECT =
     ") lc ON true "
     "LEFT JOIN LATERAL ("
     "    SELECT pl.id AS lp_id, pl.prayed_at AS lp_prayed_at, pl.created_at AS lp_created_at, "
-    "           u.id AS lp_prayer_id, u.name AS lp_prayer_name, u.username AS lp_prayer_username, "
-    "           u.created_at AS lp_prayer_created_at, u.updated_at AS lp_prayer_updated_at "
+    "           u.id AS lp_prayer_id, u.name AS lp_prayer_name, u.username AS lp_prayer_username "
     "    FROM prayer_log pl "
     "    LEFT JOIN \"user\" u ON u.id = pl.user_id "
     "    WHERE pl.person_id = p.id "
@@ -280,14 +280,26 @@ inline PersonDto::Wrapper rowToPerson(const pqxx::row& row) {
     return dto;
 }
 
-inline const char* USER_SELECT = "SELECT u.id, u.name, u.username, u.created_at, u.updated_at FROM \"user\" u ";
+// USER_SELECT is the caller's own account (me, auth); every other user is a
+// USER_SUMMARY_SELECT, without the account timestamps.
+inline const char* USER_SELECT         = "SELECT u.id, u.name, u.username, u.created_at, u.updated_at FROM \"user\" u ";
+inline const char* USER_SUMMARY_SELECT = "SELECT u.id, u.name, u.username FROM \"user\" u ";
 
-inline const char* PRAYER_BURDEN_SELECT =
-    "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at "
-    "FROM prayer_burden pb ";
+/** A person ref (id, name and status) from `<prefix>person_id`, `<prefix>person_name` and `<prefix>person_status_*`. */
+inline PersonRefDto::Wrapper rowToPersonRef(const pqxx::row& row, const std::string& prefix = "") {
+    auto person  = PersonRefDto::createShared();
+    person->id   = row[prefix + "person_id"].c_str();
+    person->name = row[prefix + "person_name"].c_str();
 
-// A burden a root field returns, with its person's name and status so a list
-// across people can say whose each one is and show their status.
+    auto status    = StatusDto::createShared();
+    status->id     = row[prefix + "person_status_id"].c_str();
+    status->name   = row[prefix + "person_status_name"].c_str();
+    person->status = status;
+    return person;
+}
+
+// A burden with its person's name and status, so a list across people can
+// say whose each one is and show their status.
 inline const char* BURDEN_SELECT =
     "SELECT pb.id, pb.person_id, pb.content, pb.released_date, pb.created_at, pb.updated_at, "
     "       p.name AS person_name, s.id AS person_status_id, s.name AS person_status_name "
@@ -297,18 +309,8 @@ inline const char* BURDEN_SELECT =
 
 /** A BURDEN_SELECT row, with `person` set (id, name and status only). */
 inline PrayerBurdenDto::Wrapper rowToBurdenWithPerson(const pqxx::row& row) {
-    auto burden = rowToPrayerBurden(row);
-
-    auto person  = PersonRefDto::createShared();
-    person->id   = row["person_id"].c_str();
-    person->name = row["person_name"].c_str();
-
-    auto status    = StatusDto::createShared();
-    status->id     = row["person_status_id"].c_str();
-    status->name   = row["person_status_name"].c_str();
-    person->status = status;
-
-    burden->person = person;
+    auto burden    = rowToPrayerBurden(row);
+    burden->person = rowToPersonRef(row);
     return burden;
 }
 
@@ -316,8 +318,7 @@ inline PrayerBurdenDto::Wrapper rowToBurdenWithPerson(const pqxx::row& row) {
 inline const char* MILESTONE_PERSON_SELECT =
     "SELECT mp.id, mp.date_achieved, mp.notes, mp.created_at, "
     "       m.id AS milestone_id, m.name AS milestone_name, m.description AS milestone_description, "
-    "       u.id AS recorder_id, u.name AS recorder_name, u.username AS recorder_username, "
-    "       u.created_at AS recorder_created_at, u.updated_at AS recorder_updated_at "
+    "       u.id AS recorder_id, u.name AS recorder_name, u.username AS recorder_username "
     "FROM milestone_person mp "
     "JOIN milestone m ON m.id = mp.milestone_id "
     "LEFT JOIN \"user\" u ON u.id = mp.recorded_by ";
@@ -336,20 +337,24 @@ inline MilestonePersonDto::Wrapper rowToMilestonePerson(const pqxx::row& row) {
     dto->milestone         = milestone;
 
     if (!row["recorder_id"].is_null()) {
-        dto->recordedBy = rowToUser(row, "recorder_");
+        dto->recordedBy = rowToUserSummary(row, "recorder_");
     }
     return dto;
 }
 
-// Prefixes: "author_" for the writer, "pb_" for the linked burden (may be null).
+// Prefixes: "author_" for the writer, "pb_" for the linked burden (may be null),
+// "person_" for the person. A comment's burden is always the same person's
+// (createComment checks it), so those columns serve the burden's person too.
 inline const char* COMMENT_SELECT =
     "SELECT c.id, c.content, c.created_at, c.updated_at, c.contact_log_id, "
+    "       p.id AS person_id, p.name AS person_name, s.id AS person_status_id, s.name AS person_status_name, "
     "       u.id AS author_id, u.name AS author_name, u.username AS author_username, "
-    "       u.created_at AS author_created_at, u.updated_at AS author_updated_at, "
     "       pb.id AS pb_id, pb.content AS pb_content, pb.released_date AS pb_released_date, "
     "       pb.created_at AS pb_created_at, pb.updated_at AS pb_updated_at "
     "FROM comment c "
     "JOIN \"user\" u ON u.id = c.user_id "
+    "JOIN person p ON p.id = c.person_id "
+    "JOIN status s ON s.id = p.status_id "
     "LEFT JOIN prayer_burden pb ON pb.id = c.prayer_burden_id ";
 
 inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string& prefix) {
@@ -359,9 +364,11 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string&
     dto->createdAt    = row[prefix + "created_at"].c_str();
     dto->updatedAt    = row[prefix + "updated_at"].c_str();
     dto->contactLogId = textOrNull(row[prefix + "contact_log_id"]);
-    dto->author       = rowToUser(row, prefix + "author_");
+    dto->author       = rowToUserSummary(row, prefix + "author_");
+    dto->person       = rowToPersonRef(row, prefix);
     if (!row[prefix + "pb_id"].is_null()) {
-        dto->prayerBurden = rowToPrayerBurden(row, prefix + "pb_");
+        dto->prayerBurden         = rowToPrayerBurden(row, prefix + "pb_");
+        dto->prayerBurden->person = rowToPersonRef(row, prefix);
     }
     return dto;
 }
@@ -369,7 +376,8 @@ inline CommentDto::Wrapper rowToComment(const pqxx::row& row, const std::string&
 /**
  * Fills `comments` on a list of burdens with one query, newest first. Empty,
  * not null, for a burden with none (business rule 4). The comments' own
- * `prayerBurden` stays shallow, so there is no burden → comments → burden cycle.
+ * `prayerBurden` has its person but no comments, so there is no
+ * burden → comments → burden cycle.
  */
 inline void loadBurdenComments(pqxx::work& txn, const oatpp::Vector<oatpp::Object<PrayerBurdenDto>>& burdens) {
     if (burdens->empty()) return;
@@ -401,21 +409,21 @@ inline void loadShepherds(pqxx::work& txn, const oatpp::Vector<oatpp::Object<Per
     if (people->empty()) return;
 
     // libpqxx 6 can't bind a container, so the ids go as one array literal.
-    std::unordered_map<std::string, oatpp::Vector<oatpp::Object<UserDto>>> byPerson;
-    std::string                                                            ids = "{";
+    std::unordered_map<std::string, oatpp::Vector<oatpp::Object<UserSummaryDto>>> byPerson;
+    std::string                                                                   ids = "{";
     for (const auto& person : *people) {
-        person->shepherds = oatpp::Vector<oatpp::Object<UserDto>>::createShared();
+        person->shepherds = oatpp::Vector<oatpp::Object<UserSummaryDto>>::createShared();
         byPerson.emplace(*person->id, person->shepherds);
         if (ids.size() > 1) ids += ",";
         ids += *person->id;
     }
     ids += "}";
 
-    for (const auto& row : txn.exec_params("SELECT u.id, u.name, u.username, u.created_at, u.updated_at, up.person_id "
+    for (const auto& row : txn.exec_params("SELECT u.id, u.name, u.username, up.person_id "
                                            "FROM user_person up JOIN \"user\" u ON u.id = up.user_id "
                                            "WHERE up.person_id = ANY($1::uuid[]) ORDER BY u.name",
                                            ids)) {
-        byPerson.at(row["person_id"].c_str())->push_back(rowToUser(row));
+        byPerson.at(row["person_id"].c_str())->push_back(rowToUserSummary(row));
     }
 }
 
@@ -423,8 +431,7 @@ inline void loadShepherds(pqxx::work& txn, const oatpp::Vector<oatpp::Object<Per
 // The note is the standalone comment written with the contact, if any.
 inline const char* CONTACT_LOG_SELECT =
     "SELECT cl.id, cl.person_id, cl.contacted_at, cl.is_follow_up, n.content AS note, cl.created_at, "
-    "       u.id AS contactor_id, u.name AS contactor_name, u.username AS contactor_username, "
-    "       u.created_at AS contactor_created_at, u.updated_at AS contactor_updated_at "
+    "       u.id AS contactor_id, u.name AS contactor_name, u.username AS contactor_username "
     "FROM contact_log cl "
     "LEFT JOIN \"user\" u ON u.id = cl.user_id "
     "LEFT JOIN comment n ON n.contact_log_id = cl.id ";
@@ -437,18 +444,16 @@ inline ContactLogDto::Wrapper rowToContactLog(const pqxx::row& row) {
     dto->note        = textOrNull(row["note"]);
     dto->createdAt   = row["created_at"].c_str();
     if (!row["contactor_id"].is_null()) {
-        dto->contactedBy = rowToUser(row, "contactor_");
+        dto->contactedBy = rowToUserSummary(row, "contactor_");
     }
     return dto;
 }
 
 // Prefix: "prayer_" for the user who prayed (null if they were deleted).
-inline const char* PRAYER_LOG_SELECT =
-    "SELECT pl.id, pl.person_id, pl.prayed_at, pl.created_at, "
-    "       u.id AS prayer_id, u.name AS prayer_name, u.username AS prayer_username, "
-    "       u.created_at AS prayer_created_at, u.updated_at AS prayer_updated_at "
-    "FROM prayer_log pl "
-    "LEFT JOIN \"user\" u ON u.id = pl.user_id ";
+inline const char* PRAYER_LOG_SELECT = "SELECT pl.id, pl.person_id, pl.prayed_at, pl.created_at, "
+                                       "       u.id AS prayer_id, u.name AS prayer_name, u.username AS prayer_username "
+                                       "FROM prayer_log pl "
+                                       "LEFT JOIN \"user\" u ON u.id = pl.user_id ";
 
 // Newest first by when they prayed; a back-dated record sorts by its day.
 inline const char* PRAYER_LOG_ORDER = "ORDER BY pl.prayed_at DESC, pl.created_at DESC, pl.id DESC";
@@ -459,7 +464,7 @@ inline PrayerLogDto::Wrapper rowToPrayerLog(const pqxx::row& row, const std::str
     dto->prayedAt  = row[prefix + "prayed_at"].c_str();
     dto->createdAt = row[prefix + "created_at"].c_str();
     if (!row[prefix + "prayer_id"].is_null()) {
-        dto->prayedBy = rowToUser(row, prefix + "prayer_");
+        dto->prayedBy = rowToUserSummary(row, prefix + "prayer_");
     }
     return dto;
 }
@@ -477,12 +482,12 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     }
     auto person = rowToPerson(rows[0]);
 
-    person->shepherds = oatpp::Vector<oatpp::Object<UserDto>>::createShared();
+    person->shepherds = oatpp::Vector<oatpp::Object<UserSummaryDto>>::createShared();
     for (const auto& row :
-         txn.exec_params(std::string(USER_SELECT)
+         txn.exec_params(std::string(USER_SUMMARY_SELECT)
                              + "JOIN user_person up ON up.user_id = u.id WHERE up.person_id = $1 ORDER BY u.name",
                          personId)) {
-        person->shepherds->push_back(rowToUser(row));
+        person->shepherds->push_back(rowToUserSummary(row));
     }
 
     person->milestones = oatpp::Vector<oatpp::Object<MilestonePersonDto>>::createShared();
@@ -496,10 +501,10 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     // Active burdens first, newest first within each group.
     person->prayerBurdens = oatpp::Vector<oatpp::Object<PrayerBurdenDto>>::createShared();
     for (const auto& row :
-         txn.exec_params(std::string(PRAYER_BURDEN_SELECT)
+         txn.exec_params(std::string(BURDEN_SELECT)
                              + "WHERE pb.person_id = $1 ORDER BY pb.released_date IS NOT NULL, pb.created_at DESC",
                          personId)) {
-        person->prayerBurdens->push_back(rowToPrayerBurden(row));
+        person->prayerBurdens->push_back(rowToBurdenWithPerson(row));
     }
 
     person->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
@@ -509,7 +514,7 @@ inline PersonDto::Wrapper fetchPersonDetail(pqxx::work& txn, const std::string& 
     }
 
     // Each burden gets its own comments from the list just loaded, newest
-    // first, with no extra query. Its person is the parent, so left unset.
+    // first, with no extra query.
     std::unordered_map<std::string, oatpp::Vector<oatpp::Object<CommentDto>>> byBurden;
     for (const auto& burden : *person->prayerBurdens) {
         burden->comments = oatpp::Vector<oatpp::Object<CommentDto>>::createShared();
