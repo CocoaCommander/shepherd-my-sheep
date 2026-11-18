@@ -414,11 +414,14 @@ private:
      */
     template <typename Write>
     static void writeMilestoneName(pqxx::work& txn, const std::string& name, Write write) {
+        // Plain SAVEPOINT statements: pqxx 6.4's subtransaction left the
+        // transaction aborted when the catch below ran (25P02).
+        txn.exec("SAVEPOINT milestone_name");
         try {
-            pqxx::subtransaction savepoint(txn, "milestone_name");
-            write(savepoint);
-            savepoint.commit();
+            write(txn);
+            txn.exec("RELEASE SAVEPOINT milestone_name");
         } catch (const pqxx::unique_violation&) {
+            txn.exec("ROLLBACK TO SAVEPOINT milestone_name");
             auto existing = txn.exec_params(
                 "SELECT name FROM milestone WHERE lower(name) = lower($1) AND deleted_at IS NULL", name);
             std::string shown = existing.empty() ? name : existing[0]["name"].c_str();
@@ -442,7 +445,7 @@ private:
         pqxx::work       txn(*conn);
 
         std::string id;
-        writeMilestoneName(txn, name, [&](pqxx::transaction_base& write) {
+        writeMilestoneName(txn, name, [&](pqxx::work& write) {
             id = write.exec_params("SELECT id FROM create_milestone($1, $2)", name, nullable(description))[0]["id"]
                      .c_str();
         });
@@ -470,7 +473,7 @@ private:
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
 
-        auto update = [&](pqxx::transaction_base& write) {
+        auto update = [&](pqxx::work& write) {
             write.exec_params("SELECT 1 FROM update_milestone("
                               "p_id                := $1::uuid, "
                               "p_name              := $2::varchar, "
@@ -512,9 +515,8 @@ private:
         auto deleted = txn.exec_params("SELECT name FROM milestone WHERE id = $1 AND deleted_at IS NOT NULL", id);
         if (deleted.empty()) throw NotFound("Milestone not found");
 
-        writeMilestoneName(txn, deleted[0]["name"].c_str(), [&](pqxx::transaction_base& write) {
-            write.exec_params("SELECT 1 FROM restore_milestone($1)", id);
-        });
+        writeMilestoneName(txn, deleted[0]["name"].c_str(),
+                           [&](pqxx::work& write) { write.exec_params("SELECT 1 FROM restore_milestone($1)", id); });
 
         auto milestone = fetchMilestone(txn, id);
         txn.commit();

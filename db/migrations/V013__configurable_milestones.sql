@@ -120,6 +120,11 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION delete_milestone(p_id UUID)
 RETURNS BOOLEAN AS $$
 BEGIN
+    -- Locked in id order first, so two deletes purging at once can't deadlock.
+    PERFORM 1 FROM milestone
+    WHERE deleted_at < now() - INTERVAL '1 hour'
+    ORDER BY id
+    FOR UPDATE;
     DELETE FROM milestone WHERE deleted_at < now() - INTERVAL '1 hour';
 
     UPDATE milestone SET deleted_at = now()
