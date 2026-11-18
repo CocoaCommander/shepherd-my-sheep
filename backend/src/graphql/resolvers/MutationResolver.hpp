@@ -50,6 +50,10 @@ public:
         if (field == "unassignPerson") return resolveUnassignPerson(args, userId);
         if (field == "recordMilestone") return resolveRecordMilestone(args, userId);
         if (field == "removeMilestone") return resolveRemoveMilestone(args, userId);
+        if (field == "createMilestone") return resolveCreateMilestone(args);
+        if (field == "updateMilestone") return resolveUpdateMilestone(args);
+        if (field == "deleteMilestone") return resolveDeleteMilestone(args);
+        if (field == "restoreMilestone") return resolveRestoreMilestone(args);
         if (field == "createPrayerBurden") return resolveCreatePrayerBurden(args, userId);
         if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
         if (field == "unreleasePrayerBurden") return resolveUnreleasePrayerBurden(args, userId);
@@ -375,6 +379,148 @@ private:
         txn.commit();
 
         return oatpp::Boolean(true);
+    }
+
+    // ── The shared milestone list (business rule 7) ─────────
+    // Global, not person-scoped: any signed-in user may change it, so there
+    // is no requireShepherd. Deleted milestones are NOT_FOUND throughout.
+
+    static constexpr std::size_t MAX_MILESTONE_NAME        = 100;
+    static constexpr std::size_t MAX_MILESTONE_DESCRIPTION = 1000;
+
+    /** A milestone name, trimmed: 1-100 characters. */
+    static std::string requireMilestoneName(const std::string& raw) {
+        auto name = trim(raw);
+        if (name.empty()) throw BadInput("Enter a name for the milestone.");
+        if (charLength(name) > MAX_MILESTONE_NAME) throw BadInput("Use 100 characters or fewer.");
+        return name;
+    }
+
+    /** A description, trimmed, or nullopt when absent or blank. */
+    static std::optional<std::string> milestoneDescription(const std::optional<std::string>& raw) {
+        if (!raw || isBlank(*raw)) return std::nullopt;
+        auto description = trim(*raw);
+        if (charLength(description) > MAX_MILESTONE_DESCRIPTION) {
+            throw BadInput("Use 1000 characters or fewer for the description.");
+        }
+        return description;
+    }
+
+    /**
+     * Runs a write that may take a name another live milestone has (the
+     * index ignores case) in a savepoint, so the transaction survives the
+     * unique violation and the CONFLICT can name the existing milestone
+     * with its own casing. `name` is the name being taken.
+     */
+    template <typename Write>
+    static void writeMilestoneName(pqxx::work& txn, const std::string& name, Write write) {
+        // Plain SAVEPOINT statements: pqxx 6.4's subtransaction left the
+        // transaction aborted when the catch below ran (25P02).
+        txn.exec("SAVEPOINT milestone_name");
+        try {
+            write(txn);
+            txn.exec("RELEASE SAVEPOINT milestone_name");
+        } catch (const pqxx::unique_violation&) {
+            txn.exec("ROLLBACK TO SAVEPOINT milestone_name");
+            auto existing = txn.exec_params(
+                "SELECT name FROM milestone WHERE lower(name) = lower($1) AND deleted_at IS NULL", name);
+            std::string shown = existing.empty() ? name : existing[0]["name"].c_str();
+            throw Conflict("A milestone called “" + shown + "” already exists.");
+        }
+    }
+
+    /** A live milestone as the mutations return it, with its current count. */
+    static MilestoneDto::Wrapper fetchMilestone(pqxx::work& txn, const std::string& id) {
+        auto rows = txn.exec_params(std::string(MILESTONE_SELECT) + "AND m.id = $1", id);
+        if (rows.empty()) throw NotFound("Milestone not found");
+        return rowToMilestone(rows[0]);
+    }
+
+    oatpp::Any resolveCreateMilestone(const Args& args) {
+        auto input       = args.object("input");
+        auto name        = requireMilestoneName(input.req("name"));
+        auto description = milestoneDescription(input.opt("description"));
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        std::string id;
+        writeMilestoneName(txn, name, [&](pqxx::work& write) {
+            id = write.exec_params("SELECT id FROM create_milestone($1, $2)", name, nullable(description))[0]["id"]
+                     .c_str();
+        });
+
+        auto milestone = fetchMilestone(txn, id);
+        txn.commit();
+        return milestone;
+    }
+
+    /**
+     * Only the fields present in `input` change. `description: null` or a
+     * blank one clears it; `name: null` is rejected. A rename that changes
+     * only the case of the milestone's own name is allowed.
+     */
+    oatpp::Any resolveUpdateMilestone(const Args& args) {
+        auto id    = args.req("id");
+        auto input = args.object("input");
+        if (input.isNull("name")) throw BadInput("Name can't be cleared");
+        auto name = input.opt("name");
+        if (name) name = requireMilestoneName(*name);
+        auto rawDescription   = input.opt("description");
+        auto description      = milestoneDescription(rawDescription);
+        bool clearDescription = input.isNull("description") || (rawDescription && !description);
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto update = [&](pqxx::work& write) {
+            write.exec_params("SELECT 1 FROM update_milestone("
+                              "p_id                := $1::uuid, "
+                              "p_name              := $2::varchar, "
+                              "p_description       := $3::text, "
+                              "p_clear_description := $4::boolean)",
+                              id, nullable(name), nullable(description), clearDescription);
+        };
+        if (name) {
+            writeMilestoneName(txn, *name, update);
+        } else {
+            update(txn);
+        }
+
+        auto milestone = fetchMilestone(txn, id);
+        txn.commit();
+        return milestone;
+    }
+
+    /** Hides it and every record of it, for everyone; restoreMilestone undoes it. */
+    oatpp::Any resolveDeleteMilestone(const Args& args) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        txn.exec_params("SELECT * FROM delete_milestone($1)", id);
+        txn.commit();
+
+        return oatpp::Boolean(true);
+    }
+
+    /** Undo of a delete, within the hour, with every record it had. */
+    oatpp::Any resolveRestoreMilestone(const Args& args) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto deleted = txn.exec_params("SELECT name FROM milestone WHERE id = $1 AND deleted_at IS NOT NULL", id);
+        if (deleted.empty()) throw NotFound("Milestone not found");
+
+        writeMilestoneName(txn, deleted[0]["name"].c_str(),
+                           [&](pqxx::work& write) { write.exec_params("SELECT 1 FROM restore_milestone($1)", id); });
+
+        auto milestone = fetchMilestone(txn, id);
+        txn.commit();
+        return milestone;
     }
 
     // ── Prayer Burdens ──────────────────────────────────────

@@ -438,10 +438,17 @@ class TestMilestones:
             )
             assert cur.fetchone()[0] is True
 
-    def test_remove_nonexistent_milestone_raises(self, db):
+    def test_remove_unrecorded_milestone_raises(self, db):
+        with db.cursor() as cur:
+            person_row = sp_create_person(cur)
+            milestone_id = get_milestone_id(cur)
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone record not found"):
+                cur.execute("SELECT * FROM remove_milestone(%s, %s)", (person_row[0], milestone_id))
+
+    def test_remove_with_unknown_milestone_raises(self, db):
         with db.cursor() as cur:
             fake_uuid = "00000000-0000-0000-0000-000000000000"
-            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone record not found"):
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
                 cur.execute("SELECT * FROM remove_milestone(%s, %s)", (fake_uuid, fake_uuid))
 
     def test_person_with_no_milestones(self, db):
@@ -453,6 +460,182 @@ class TestMilestones:
                 (person_row[0],),
             )
             assert cur.fetchone()[0] == 0
+
+
+# ── Configurable milestones (create / update / delete / restore) ──
+
+NO_SUCH_ID = "00000000-0000-0000-0000-000000000000"
+
+
+def sp_create_milestone(cur, name, description=None):
+    cur.execute("SELECT * FROM create_milestone(%s, %s)", (name, description))
+    return cur.fetchone()
+
+
+class TestMilestoneList:
+    def test_create(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed", "Confirmation")
+            cur.execute("SELECT name, description, deleted_at FROM milestone WHERE id = %s", (row[0],))
+            assert cur.fetchone() == ("Confirmed", "Confirmation", None)
+
+    def test_create_without_description(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT description FROM milestone WHERE id = %s", (row[0],))
+            assert cur.fetchone()[0] is None
+
+    def test_duplicate_name_ignoring_case_rejected(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.UniqueViolation):
+                sp_create_milestone(cur, "BAPTISED")
+
+    def test_update_changes_name_and_description(self, db):
+        with db.cursor() as cur:
+            milestone_id = get_milestone_id(cur)
+            cur.execute("SELECT name, description FROM update_milestone(%s, %s, %s)", (milestone_id, "Baptised", "Wet"))
+            assert cur.fetchone() == ("Baptised", "Wet")
+
+    def test_update_null_arguments_leave_fields_unchanged(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed", "Confirmation")
+            cur.execute("SELECT name, description FROM update_milestone(%s)", (row[0],))
+            assert cur.fetchone() == ("Confirmed", "Confirmation")
+
+    def test_update_clear_flag_empties_description(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed", "Confirmation")
+            cur.execute(
+                "SELECT name, description FROM update_milestone(p_id := %s, p_clear_description := TRUE)", (row[0],)
+            )
+            assert cur.fetchone() == ("Confirmed", None)
+
+    def test_update_clear_flag_with_value_raises(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed", "Confirmation")
+            with pytest.raises(psycopg2.errors.InvalidParameterValue):
+                cur.execute(
+                    "SELECT * FROM update_milestone(p_id := %s, p_description := 'x', p_clear_description := TRUE)",
+                    (row[0],),
+                )
+
+    def test_update_missing_raises(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
+                cur.execute("SELECT * FROM update_milestone(%s, 'x')", (NO_SUCH_ID,))
+
+    def test_update_deleted_raises(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
+                cur.execute("SELECT * FROM update_milestone(%s, 'Other')", (row[0],))
+
+    def test_delete_sets_deleted_at(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            assert cur.fetchone()[0] is True
+            cur.execute("SELECT deleted_at IS NOT NULL FROM milestone WHERE id = %s", (row[0],))
+            assert cur.fetchone()[0] is True
+
+    def test_delete_twice_raises(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
+                cur.execute("SELECT delete_milestone(%s)", (row[0],))
+
+    def test_delete_missing_raises(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
+                cur.execute("SELECT delete_milestone(%s)", (NO_SUCH_ID,))
+
+    def test_deleted_milestone_cannot_be_recorded(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            person_row = sp_create_person(cur)
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
+                cur.execute("SELECT * FROM record_milestone(%s, %s, %s)", (person_row[0], row[0], user_row[0]))
+
+    def test_deleted_milestone_cannot_be_removed(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            person_row = sp_create_person(cur)
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT * FROM record_milestone(%s, %s, %s)", (person_row[0], row[0], user_row[0]))
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            with pytest.raises(psycopg2.errors.RaiseException, match="Milestone not found"):
+                cur.execute("SELECT * FROM remove_milestone(%s, %s)", (person_row[0], row[0]))
+
+    def test_delete_keeps_records_and_restore_brings_them_back(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            person_row = sp_create_person(cur)
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute(
+                "SELECT * FROM record_milestone(%s, %s, %s, %s, %s)",
+                (person_row[0], row[0], user_row[0], "2024-06-15", "Big day!"),
+            )
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            cur.execute("SELECT COUNT(*) FROM milestone_person WHERE milestone_id = %s", (row[0],))
+            assert cur.fetchone()[0] == 1  # kept while hidden
+
+            cur.execute("SELECT id, deleted_at FROM restore_milestone(%s)", (row[0],))
+            assert cur.fetchone() == (row[0], None)
+            cur.execute(
+                "SELECT person_id, to_char(date_achieved, 'YYYY-MM-DD'), notes, recorded_by "
+                "FROM milestone_person WHERE milestone_id = %s",
+                (row[0],),
+            )
+            assert cur.fetchone() == (person_row[0], "2024-06-15", "Big day!", user_row[0])
+
+    def test_restore_live_milestone_raises(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed")
+            with pytest.raises(psycopg2.errors.RaiseException, match="not found"):
+                cur.execute("SELECT * FROM restore_milestone(%s)", (row[0],))
+
+    def test_restore_after_an_hour_raises(self, db):
+        with db.cursor() as cur:
+            row = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT delete_milestone(%s)", (row[0],))
+            cur.execute("UPDATE milestone SET deleted_at = now() - interval '61 minutes' WHERE id = %s", (row[0],))
+            with pytest.raises(psycopg2.errors.RaiseException, match="not found"):
+                cur.execute("SELECT * FROM restore_milestone(%s)", (row[0],))
+
+    def test_delete_purges_milestones_deleted_over_an_hour_ago(self, db):
+        with db.cursor() as cur:
+            user_row = sp_create_user(cur)
+            person_row = sp_create_person(cur)
+            old = sp_create_milestone(cur, "Old")
+            recent = sp_create_milestone(cur, "Recent")
+            trigger = sp_create_milestone(cur, "Trigger")
+            for milestone in (old, recent):
+                cur.execute("SELECT * FROM record_milestone(%s, %s, %s)", (person_row[0], milestone[0], user_row[0]))
+                cur.execute("SELECT delete_milestone(%s)", (milestone[0],))
+            cur.execute("UPDATE milestone SET deleted_at = now() - interval '2 hours' WHERE id = %s", (old[0],))
+
+            cur.execute("SELECT delete_milestone(%s)", (trigger[0],))
+
+            cur.execute("SELECT COUNT(*) FROM milestone WHERE id = %s", (old[0],))
+            assert cur.fetchone()[0] == 0
+            cur.execute("SELECT COUNT(*) FROM milestone_person WHERE milestone_id = %s", (old[0],))
+            assert cur.fetchone()[0] == 0
+            cur.execute("SELECT COUNT(*) FROM milestone WHERE id = %s", (recent[0],))
+            assert cur.fetchone()[0] == 1
+            cur.execute("SELECT COUNT(*) FROM milestone_person WHERE milestone_id = %s", (recent[0],))
+            assert cur.fetchone()[0] == 1
+
+    def test_name_reusable_after_delete_then_restore_conflicts(self, db):
+        with db.cursor() as cur:
+            first = sp_create_milestone(cur, "Confirmed")
+            cur.execute("SELECT delete_milestone(%s)", (first[0],))
+            sp_create_milestone(cur, "confirmed")  # the name is free again
+            with pytest.raises(psycopg2.errors.UniqueViolation):
+                cur.execute("SELECT * FROM restore_milestone(%s)", (first[0],))
 
 
 # ── create_prayer_burden / release_prayer_burden ─────────────
