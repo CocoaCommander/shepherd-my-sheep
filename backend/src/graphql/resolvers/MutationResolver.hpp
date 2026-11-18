@@ -52,6 +52,8 @@ public:
         if (field == "removeMilestone") return resolveRemoveMilestone(args, userId);
         if (field == "createMilestone") return resolveCreateMilestone(args);
         if (field == "updateMilestone") return resolveUpdateMilestone(args);
+        if (field == "deleteMilestone") return resolveDeleteMilestone(args);
+        if (field == "restoreMilestone") return resolveRestoreMilestone(args);
         if (field == "createPrayerBurden") return resolveCreatePrayerBurden(args, userId);
         if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
         if (field == "unreleasePrayerBurden") return resolveUnreleasePrayerBurden(args, userId);
@@ -484,6 +486,37 @@ private:
         } else {
             update(txn);
         }
+
+        auto milestone = fetchMilestone(txn, id);
+        txn.commit();
+        return milestone;
+    }
+
+    /** Hides it and every record of it, for everyone; restoreMilestone undoes it. */
+    oatpp::Any resolveDeleteMilestone(const Args& args) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        txn.exec_params("SELECT * FROM delete_milestone($1)", id);
+        txn.commit();
+
+        return oatpp::Boolean(true);
+    }
+
+    /** Undo of a delete, within the hour, with every record it had. */
+    oatpp::Any resolveRestoreMilestone(const Args& args) {
+        auto id = args.req("id");
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto deleted = txn.exec_params("SELECT name FROM milestone WHERE id = $1 AND deleted_at IS NOT NULL", id);
+        if (deleted.empty()) throw NotFound("Milestone not found");
+
+        writeMilestoneName(txn, deleted[0]["name"].c_str(),
+                           [&](pqxx::work& write) { write.exec_params("SELECT 1 FROM restore_milestone($1)", id); });
 
         auto milestone = fetchMilestone(txn, id);
         txn.commit();

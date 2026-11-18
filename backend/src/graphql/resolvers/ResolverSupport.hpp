@@ -211,7 +211,7 @@ inline PrayerBurdenDto::Wrapper rowToPrayerBurden(const pqxx::row& row, const st
 }
 
 // Contact columns come from the person_contact_state view (business rule 6).
-// The recorded milestones, the active burden count and the latest comment
+// The recorded milestones (live ones only), the active burden count and the latest comment
 // ("lc_" prefix, null when there are no comments) and the last prayer
 // ("lp_" prefix, null when no one has prayed yet) are summaries, so list
 // queries can show them without loading the nested lists.
@@ -221,7 +221,8 @@ inline const char* PERSON_SELECT =
     "       cs.last_contacted_at, "
     "       cs.contact_due_at, cs.contact_clock_start, cs.contact_state, "
     "       (SELECT string_agg(mp.milestone_id::text, ',' ORDER BY mp.milestone_id) "
-    "          FROM milestone_person mp WHERE mp.person_id = p.id) AS milestone_ids, "
+    "          FROM milestone_person mp JOIN milestone m ON m.id = mp.milestone_id "
+    "         WHERE mp.person_id = p.id AND m.deleted_at IS NULL) AS milestone_ids, "
     "       (SELECT count(*) FROM prayer_burden pb "
     "         WHERE pb.person_id = p.id AND pb.released_date IS NULL) AS active_burden_count, "
     "       lc.*, lp.* "
@@ -345,7 +346,7 @@ inline MilestoneDto::Wrapper rowToMilestone(const pqxx::row& row, const std::str
 }
 
 // Prefixes: "milestone_" for the milestone, "recorder_" for the user who
-// logged it (may be null).
+// logged it (may be null). Records of a deleted milestone are left out.
 inline const char* MILESTONE_PERSON_SELECT =
     "SELECT mp.id, mp.date_achieved, mp.notes, mp.created_at, "
     "       m.id AS milestone_id, m.name AS milestone_name, m.description AS milestone_description, "
@@ -353,7 +354,7 @@ inline const char* MILESTONE_PERSON_SELECT =
     "       (SELECT count(*) FROM milestone_person r WHERE r.milestone_id = m.id) AS milestone_recorded_count, "
     "       u.id AS recorder_id, u.name AS recorder_name, u.username AS recorder_username "
     "FROM milestone_person mp "
-    "JOIN milestone m ON m.id = mp.milestone_id "
+    "JOIN milestone m ON m.id = mp.milestone_id AND m.deleted_at IS NULL "
     "LEFT JOIN \"user\" u ON u.id = mp.recorded_by ";
 
 inline MilestonePersonDto::Wrapper rowToMilestonePerson(const pqxx::row& row) {
