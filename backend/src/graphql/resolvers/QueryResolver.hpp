@@ -70,20 +70,17 @@ private:
         return list;
     }
 
+    /** Live milestones, A to Z ignoring case. May be empty (business rule 7). */
     oatpp::Any resolveMilestones() {
         PooledConnection conn(m_dbPool);
         pqxx::work       txn(*conn);
 
-        auto result = txn.exec("SELECT id, name, description FROM milestone ORDER BY name");
+        auto result = txn.exec(std::string(MILESTONE_SELECT) + "ORDER BY lower(m.name), m.id");
         txn.commit();
 
         auto list = oatpp::Vector<oatpp::Object<MilestoneDto>>::createShared();
         for (const auto& row : result) {
-            auto dto         = MilestoneDto::createShared();
-            dto->id          = row["id"].c_str();
-            dto->name        = row["name"].c_str();
-            dto->description = textOrNull(row["description"]);
-            list->push_back(dto);
+            list->push_back(rowToMilestone(row));
         }
         return list;
     }
