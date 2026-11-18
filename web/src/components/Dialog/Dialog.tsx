@@ -22,6 +22,7 @@ export function Dialog({
   title,
   children,
   footer,
+  alert = false,
   className,
 }: {
   open: boolean
@@ -31,12 +32,18 @@ export function Dialog({
   children: ReactNode
   /** The action buttons, e.g. Cancel then a primary Save. */
   footer?: ReactNode
+  /**
+   * For a confirmation of something destructive: role alertdialog, and the body is its
+   * description, so screen readers read the warning with the title.
+   */
+  alert?: boolean
   className?: string
 }) {
   const ref = useRef<HTMLDialogElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
+  const bodyId = useId()
 
   useEffect(() => {
     const dialog = ref.current
@@ -64,7 +71,13 @@ export function Dialog({
   }, [onClose])
 
   return (
-    <dialog ref={ref} aria-labelledby={titleId} className={cx(styles.dialog, className)}>
+    <dialog
+      ref={ref}
+      role={alert ? 'alertdialog' : undefined}
+      aria-labelledby={titleId}
+      aria-describedby={alert && open ? bodyId : undefined}
+      className={cx(styles.dialog, className)}
+    >
       {open && (
         <>
           <div className={styles.header}>
@@ -81,7 +94,7 @@ export function Dialog({
               <CloseIcon />
             </button>
           </div>
-          <div ref={bodyRef} className={styles.body}>
+          <div ref={bodyRef} id={bodyId} className={styles.body}>
             {children}
           </div>
           {footer && <div className={styles.footer}>{footer}</div>}

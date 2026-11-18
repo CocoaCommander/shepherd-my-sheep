@@ -144,11 +144,18 @@ query Statuses {
   }
 }
 
+# The shared list (business rule 7), A to Z: the steps on every milestone bar
+# and the person page. May be empty.
+fragment MilestoneFields on Milestone {
+  id
+  name
+  description
+  recordedCount
+}
+
 query Milestones {
   milestones {
-    id
-    name
-    description
+    ...MilestoneFields
   }
 }
 
@@ -191,6 +198,28 @@ mutation RecordMilestone($input: RecordMilestoneInput!) {
 # milestoneId is the milestone type's id, not the MilestonePerson row's.
 mutation RemoveMilestone($personId: UUID!, $milestoneId: UUID!) {
   removeMilestone(personId: $personId, milestoneId: $milestoneId)
+}
+
+mutation CreateMilestone($input: CreateMilestoneInput!) {
+  createMilestone(input: $input) {
+    ...MilestoneFields
+  }
+}
+
+mutation UpdateMilestone($id: UUID!, $input: UpdateMilestoneInput!) {
+  updateMilestone(id: $id, input: $input) {
+    ...MilestoneFields
+  }
+}
+
+mutation DeleteMilestone($id: UUID!) {
+  deleteMilestone(id: $id)
+}
+
+mutation RestoreMilestone($id: UUID!) {
+  restoreMilestone(id: $id) {
+    ...MilestoneFields
+  }
 }
 
 mutation CreatePrayerBurden($input: CreatePrayerBurdenInput!) {

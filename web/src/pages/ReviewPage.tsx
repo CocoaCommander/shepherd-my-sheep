@@ -30,6 +30,7 @@ import {
   useContactAlertsQuery,
   useDeleteContactMutation,
   useMeQuery,
+  useMilestonesQuery,
   usePersonQuery,
   type ContactAlertsQuery,
   type PersonQuery,
@@ -58,9 +59,6 @@ type Logged = {
  * move), so neither logged nor skipped. Undo clears the outcome.
  */
 type Outcome = Logged | { kind: 'skipped' } | { kind: 'stale' }
-
-/** The card's milestone order (todo decision 2026-10-16). The API sorts them by name. */
-const MILESTONE_ORDER = ['baptised', 'joined small group', 'serving', 'leading']
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const countOf = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -583,6 +581,8 @@ const METER_TONE: Partial<Record<ContactState, MeterTone>> = {
 /** The meter, last note, newest burden and milestones, from the Person query. */
 function PersonDetails({ person, now }: { person: Person; now: Date }) {
   const milestonesId = useId()
+  // Every milestone A to Z (business rule 7); one deleted since isn't in it, so isn't shown.
+  const milestones = useMilestonesQuery().data?.milestones ?? []
   // An untracked person (moved to inactive mid-review) has no contact window to show.
   const tracked = person.contactState !== ContactState.NotTracked
   const care = tracked ? careDetails(person, 'overdue', now) : undefined
@@ -594,7 +594,8 @@ function PersonDetails({ person, now }: { person: Person; now: Date }) {
   const burdens = person.prayerBurdens
     .filter((b) => !b.releasedDate)
     .sort((a, b) => parseDateTime(b.createdAt).getTime() - parseDateTime(a.createdAt).getTime())
-  const recorded = new Set(person.milestones.map((m) => m.milestone.name))
+  const recordedIds = new Set(person.milestones.map((m) => m.milestone.id))
+  const recorded = new Set(milestones.filter((m) => recordedIds.has(m.id)).map((m) => m.id))
 
   // A person may have no notes, burdens or milestones (business rules 2, 3 and 5).
   return (
@@ -639,9 +640,9 @@ function PersonDetails({ person, now }: { person: Person; now: Date }) {
             Milestones
           </h3>
           <div className={styles.tags}>
-            {MILESTONE_ORDER.map((name) => (
-              <MilestoneTag key={name} done={recorded.has(name)}>
-                {capitalize(name)}
+            {milestones.map((m) => (
+              <MilestoneTag key={m.id} done={recorded.has(m.id)}>
+                {m.name}
               </MilestoneTag>
             ))}
           </div>

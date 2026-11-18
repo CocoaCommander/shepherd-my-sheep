@@ -1,0 +1,290 @@
+/*
+ * Edit milestones: the list card beside the Add form and "How milestones work". The aside
+ * wraps under the list when there's no room for both; below 720px everything stacks and each
+ * row's buttons fill the width.
+ */
+.page {
+  min-height: 100vh;
+  background: var(--sms-bg);
+  color: var(--sms-ink);
+  font-family: var(--sms-font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.main {
+  max-width: var(--sms-size-content);
+  margin: 0 auto;
+  padding: var(--sms-space-24) var(--sms-space-32) var(--sms-space-56);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-20);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sms-space-6);
+  align-self: flex-start;
+  min-height: var(--sms-size-touch);
+  color: var(--sms-brand-strong);
+  font-weight: 600;
+  text-decoration: none;
+}
+.back:hover {
+  text-decoration: underline;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+.lead {
+  margin: 4px 0 0;
+  max-width: 720px;
+  color: var(--sms-muted);
+}
+.muted {
+  margin: 0;
+  color: var(--sms-muted);
+}
+
+.layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sms-space-24);
+}
+.listCard,
+.card {
+  background: var(--sms-surface);
+  border: 1px solid var(--sms-border);
+  border-radius: var(--sms-radius-2xl);
+  padding: var(--sms-space-18);
+}
+.listCard {
+  flex: 999 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-14);
+}
+.aside {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-16);
+}
+
+.listHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sms-space-12);
+}
+.cardTitle {
+  margin: 0;
+  font-size: 18px;
+}
+/* Focus lands here after a delete; it isn't a control, so no ring. */
+.cardTitle:focus {
+  outline: none;
+}
+.sorted {
+  color: var(--sms-muted);
+  font-size: 13px;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-4);
+  border: 1.5px dashed var(--sms-border-dashed);
+  border-radius: var(--sms-radius-xl);
+  padding: var(--sms-space-28) var(--sms-space-16);
+  text-align: center;
+  color: var(--sms-muted);
+}
+.empty strong {
+  color: var(--sms-ink);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  padding: var(--sms-space-14) 0;
+}
+.row + .row {
+  border-top: 1px solid var(--sms-border);
+}
+
+.view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sms-space-14);
+}
+.icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--sms-radius-circle);
+  background: var(--sms-brand-tint);
+  color: var(--sms-brand-strong);
+}
+.what {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.name {
+  font-weight: 600;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.description {
+  color: var(--sms-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.count {
+  font-size: 13px;
+  color: var(--sms-ink-2);
+  white-space: nowrap;
+}
+.rowActions {
+  display: flex;
+  gap: var(--sms-space-8);
+}
+.rowActions > * {
+  min-height: var(--sms-size-touch);
+}
+.deleteButton {
+  color: var(--sms-danger-text);
+}
+
+/* Phones: the words on top, the two buttons side by side under them. */
+.viewNarrow {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sms-space-8);
+}
+.viewNarrow .what {
+  flex: none;
+}
+.viewNarrow .count {
+  margin-top: 2px;
+  font-size: 12px;
+  white-space: normal;
+}
+.viewNarrow .rowActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-14);
+}
+.editForm {
+  background: var(--sms-bg);
+  border-radius: var(--sms-radius-xl);
+  padding: var(--sms-space-14);
+  gap: var(--sms-space-12);
+}
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sms-space-12);
+}
+.formActions > * {
+  min-height: var(--sms-size-touch);
+}
+/* Phones: stacked full width, the primary on top. */
+.editNarrow .formActions {
+  flex-direction: column-reverse;
+}
+
+.how {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-6);
+  background: var(--sms-brand-tint);
+  border-radius: var(--sms-radius-xl);
+  padding: var(--sms-space-14) var(--sms-space-16);
+  font-size: 13px;
+}
+.how strong {
+  font-size: 14px;
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sms-space-10);
+}
+.dialogText {
+  margin: 0;
+  color: var(--sms-ink-2);
+}
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sms-space-8);
+  margin: 0;
+  padding: var(--sms-space-10) var(--sms-space-12);
+  border: 1px solid var(--sms-danger-border);
+  border-radius: var(--sms-radius-lg);
+  background: var(--sms-danger-tint);
+  color: var(--sms-danger-text);
+  font-weight: 600;
+}
+.warningIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+@media (max-width: 719px) {
+  .main {
+    padding: var(--sms-space-16) var(--sms-space-16) 40px;
+    gap: var(--sms-space-16);
+  }
+  .layout,
+  .aside {
+    gap: var(--sms-space-16);
+  }
+  .listCard,
+  .card {
+    padding: var(--sms-space-16);
+  }
+  .listCard {
+    gap: var(--sms-space-6);
+  }
+  .title {
+    font-size: 24px;
+  }
+  .cardTitle {
+    font-size: 17px;
+  }
+  .sorted {
+    font-size: 12px;
+  }
+  .row {
+    padding: var(--sms-space-12) 0;
+  }
+  .toast {
+    left: var(--sms-space-16);
+    right: var(--sms-space-16);
+  }
+}

@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './auth/RequireAuth'
 import { AddPersonPage } from './pages/AddPersonPage'
+import { EditMilestonesPage } from './pages/EditMilestonesPage'
 import { HomePage } from './pages/HomePage'
 import { LoginPage } from './pages/LoginPage'
 import { PeoplePage } from './pages/PeoplePage'
@@ -42,6 +43,15 @@ export default function App() {
         element={
           <RequireAuth>
             <PersonPage />
+          </RequireAuth>
+        }
+      />
+      {/* The Milestones view will take /milestones; until then the person page links here. */}
+      <Route
+        path="/milestones/edit"
+        element={
+          <RequireAuth>
+            <EditMilestonesPage />
           </RequireAuth>
         }
       />

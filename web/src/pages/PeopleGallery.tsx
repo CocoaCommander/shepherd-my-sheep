@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AddPersonTile,
@@ -42,6 +42,7 @@ export function PeopleGallery({
   now: Date
   narrow: boolean
 }) {
+  const milestoneSteps = useMemo(() => [...milestoneNames.values()], [milestoneNames])
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
 
@@ -92,6 +93,7 @@ export function PeopleGallery({
                 person.lastContactedAt ? timeAgo(person.lastContactedAt, now) : undefined
               }
               milestones={milestoneLabels(person.recordedMilestoneIds, milestoneNames)}
+              milestoneSteps={milestoneSteps}
               prayerCount={person.activeBurdenCount}
               compact={narrow}
               avatarTint={tints.get(person.id)}
