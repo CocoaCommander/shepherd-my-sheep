@@ -26,8 +26,9 @@ erDiagram
     }
     milestone {
         uuid id PK
-        varchar name UK
+        varchar name UK "unique among live, ignoring case"
         text description
+        timestamptz deleted_at "null = live"
     }
     user {
         uuid id PK
