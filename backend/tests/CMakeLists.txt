@@ -24,6 +24,7 @@ add_executable(unit_tests
     RateLimiterTest.cpp
     LogTest.cpp
     ArgsTest.cpp
+    CharLengthTest.cpp
 )
 
 target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)

@@ -36,6 +36,62 @@ class TestSeedData:
         assert names == ["baptised", "joined small group", "leading", "serving"]
 
 
+# ── Milestone list constraints ───────────────────────────────
+
+
+class TestMilestoneConstraints:
+    def test_deleted_at_column_exists_and_seeds_are_live(self, db):
+        with db.cursor() as cur:
+            cur.execute(
+                """SELECT data_type, is_nullable FROM information_schema.columns
+                   WHERE table_name = 'milestone' AND column_name = 'deleted_at'"""
+            )
+            assert cur.fetchone() == ("timestamp with time zone", "YES")
+            cur.execute("SELECT COUNT(*) FROM milestone WHERE name = 'baptised' AND deleted_at IS NOT NULL")
+            assert cur.fetchone()[0] == 0
+
+    def test_partial_unique_index_on_lower_name(self, db):
+        with db.cursor() as cur:
+            cur.execute("SELECT indexdef FROM pg_indexes WHERE indexname = 'milestone_live_name_key'")
+            indexdef = cur.fetchone()[0]
+            assert "UNIQUE" in indexdef
+            assert "lower(" in indexdef
+            assert "deleted_at IS NULL" in indexdef
+
+    def test_old_name_constraint_is_gone(self, db):
+        with db.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM pg_constraint WHERE conname = 'milestone_name_key'")
+            assert cur.fetchone()[0] == 0
+
+    @pytest.mark.parametrize("name", [" padded", "padded ", "", " "])
+    def test_untrimmed_or_empty_name_rejected(self, db, name):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute("INSERT INTO milestone (name) VALUES (%s)", (name,))
+
+    @pytest.mark.parametrize("description", ["", " ", " padded", "padded "])
+    def test_empty_or_untrimmed_description_rejected(self, db, description):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.CheckViolation):
+                cur.execute("INSERT INTO milestone (name, description) VALUES ('Fresh', %s)", (description,))
+
+    def test_null_description_allowed(self, db):
+        with db.cursor() as cur:
+            cur.execute("INSERT INTO milestone (name, description) VALUES ('Fresh', NULL)")
+
+    def test_duplicate_name_ignoring_case_rejected(self, db):
+        with db.cursor() as cur:
+            with pytest.raises(psycopg2.errors.UniqueViolation):
+                cur.execute("INSERT INTO milestone (name) VALUES ('Baptised')")
+
+    def test_duplicate_allowed_once_the_other_is_deleted(self, db):
+        with db.cursor() as cur:
+            cur.execute("UPDATE milestone SET deleted_at = now() WHERE name = 'baptised'")
+            cur.execute("INSERT INTO milestone (name) VALUES ('Baptised')")
+            cur.execute("SELECT COUNT(*) FROM milestone WHERE lower(name) = 'baptised'")
+            assert cur.fetchone()[0] == 2
+
+
 # ── Foreign Key Constraints ──────────────────────────────────
 
 
