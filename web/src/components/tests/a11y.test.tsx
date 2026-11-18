@@ -5,6 +5,8 @@ import { Link, MemoryRouter, NavLink } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import * as C from '..'
 
+const STEPS = ['Baptised', 'Leading', 'Serving', 'Small group']
+
 /**
  * Runs axe-core's WCAG 2.2 A/AA and best-practice rules over every component and variant.
  * Colour contrast can't be measured in jsdom (no layout), so it isn't covered here; it is checked
@@ -100,8 +102,9 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             label="21 days since last contact"
             goal="Goal: every 7 days"
           />
-          <C.Milestones recorded={['Baptised']} />
-          <C.Milestones recorded={[]} compact />
+          <C.Milestones steps={STEPS} recorded={['Baptised']} />
+          <C.Milestones steps={STEPS} recorded={[]} compact />
+          <C.Milestones steps={[]} recorded={[]} />
           <C.Stepper current={2} total={4} />
           <C.InsetNote label="Last note, 3 weeks ago">Text her.</C.InsetNote>
           <C.MilestoneTag done>Serving</C.MilestoneTag>
@@ -216,6 +219,7 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             status="active"
             lastContact="1 week ago"
             milestones={['Baptised', 'Serving']}
+            milestoneSteps={STEPS}
             shepherds={{ names: ['Daniel Okafor'], label: 'Shepherded by you' }}
             prayerCount={1}
           />
@@ -227,6 +231,7 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             subtitle="52 years old · Met 2016"
             lastContact="3 weeks ago"
             milestones={['Baptised']}
+            milestoneSteps={STEPS}
             prayerCount={0}
           />
           <C.PersonCard
@@ -236,6 +241,7 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             status="active"
             tag={<C.DueTag tone="ok">On track</C.DueTag>}
             milestones={['Baptised', 'Serving']}
+            milestoneSteps={STEPS}
             prayerCount={2}
           />
           <C.PersonCard
@@ -243,6 +249,7 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
             headingLevel={2}
             status="new"
             milestones={[]}
+            milestoneSteps={STEPS}
             prayerCount={0}
           />
           <C.CareCard
@@ -263,6 +270,7 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
               overdue
               prayerCount={1}
               milestones={[]}
+              milestoneSteps={STEPS}
             />
           </C.BoardColumn>
           <C.BoardColumn status="lost" count={0} />
@@ -277,6 +285,7 @@ describe('accessibility (axe-core, WCAG 2.2 A/AA)', () => {
               lastContact="3 days ago"
               prayerCount={1}
               milestones={['Baptised']}
+              milestoneSteps={STEPS}
               grip
               draggable
               tag={<C.DueTag tone="soon">Due today</C.DueTag>}

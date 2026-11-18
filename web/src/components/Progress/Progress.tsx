@@ -51,27 +51,36 @@ export function Meter({
   )
 }
 
-/** The milestones every person can record, in the order the bar shows them. */
-export const MILESTONES = ['Baptised', 'Small group', 'Serving', 'Leading'] as const
-
 /**
- * The milestone bar. A person may have recorded none (business rule 2), so an empty list is
- * a normal state. The caption names what's recorded so the bar isn't the only signal.
+ * The milestone bar: a segment per milestone, A to Z, filled when recorded. The list may be
+ * empty (business rule 7) and so may a person's records (rule 2). The caption names what's
+ * recorded so the bar isn't the only signal.
  */
 export function Milestones({
   recorded,
-  steps = MILESTONES,
+  steps,
   compact = false,
   showCaption = !compact,
   className,
 }: {
+  /** Recorded milestone names; any not in `steps` is ignored. */
   recorded: readonly string[]
-  steps?: readonly string[]
+  /** Every milestone's name, in the order the bar shows them (the API's, A to Z). */
+  steps: readonly string[]
   /** The 5px bar used in mini cards. */
   compact?: boolean
   showCaption?: boolean
   className?: string
 }) {
+  // No milestones set up: nothing to fill. Compact cards have no room for the words.
+  if (steps.length === 0) {
+    if (compact) return null
+    return (
+      <div className={cx(styles.milestones, className)}>
+        {showCaption && <p className={styles.caption}>No milestones set up</p>}
+      </div>
+    )
+  }
   const done = steps.filter((step) => recorded.includes(step))
   const summary =
     done.length === 0

@@ -50,7 +50,7 @@ const TYPES = [
   ['ms-group', 'joined small group'],
   ['ms-serving', 'serving'],
   ['ms-leading', 'leading'],
-].map(([id, name]) => ({ __typename: 'Milestone', id, name, description: name }))
+].map(([id, name]) => ({ __typename: 'Milestone', id, name, description: name, recordedCount: 0 }))
 
 async function violations(p: object, before?: () => Promise<void>) {
   const mocks: MockedResponse[] = [

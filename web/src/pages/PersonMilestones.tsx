@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
-import { Alert, Button, CheckIcon, DateField, Dialog, MILESTONES, TextArea } from '../components'
+import { Link } from 'react-router-dom'
+import { Alert, Button, CheckIcon, DateField, Dialog, TextArea } from '../components'
 import { cx } from '../components/utils'
 import { friendlyMessage } from '../errors'
 import { dateAgo, formatDate, todayIsoDate } from '../format'
@@ -10,7 +11,6 @@ import {
   type PersonQuery,
 } from '../generated/graphql'
 import { ConfirmButton } from './ConfirmButton'
-import { milestoneLabel } from './peopleBoard'
 import styles from './PersonMilestones.module.css'
 import section from './PersonSection.module.css'
 import { refetchPerson } from './refetchPerson'
@@ -18,69 +18,35 @@ import { refetchPerson } from './refetchPerson'
 type Person = NonNullable<PersonQuery['person']>
 type Recorded = Person['milestones'][number]
 
-/** A step's full name: the dialog title, and the label on phones. */
-const FULL_NAMES: Record<(typeof MILESTONES)[number], string> = {
-  Baptised: 'Baptised',
-  'Small group': 'Joined small group',
-  Serving: 'Serving',
-  Leading: 'Leading',
-}
-
 type Step = {
-  key: string
-  label: string
-  /** Full name, for the Record dialog's title. */
+  /** The milestone's id, to record it. */
+  id: string
   name: string
-  /** The milestone type to record; unknown until the Milestones query loads. */
-  typeId: string | undefined
   record: Recorded | undefined
 }
 
 /** The milestone being recorded in the dialog. */
 type Recording = { id: string; name: string }
 
+/** Where the shared list is edited (business rule 7). */
+export const EDIT_MILESTONES_PATH = '/milestones/edit'
+
 /**
- * The Milestones section: the four steps in fixed order, recorded in any order, and any other
- * milestone the API has listed below them. A person may have recorded none (business rule 2).
+ * The Milestones section: every milestone, A to Z as the API lists them, recorded in any
+ * order. The list may be empty (business rule 7) and so may the person's records (rule 2).
+ * A record of a milestone that isn't in the list (deleted since) isn't shown.
  */
 export function PersonMilestones({ person, narrow }: { person: Person; narrow: boolean }) {
   const { data } = useMilestonesQuery()
-  const types = data?.milestones ?? []
   const [recording, setRecording] = useState<Recording | null>(null)
   const headingId = useId()
 
-  const steps: Step[] = MILESTONES.map((label) => ({
-    key: label,
-    label: narrow ? FULL_NAMES[label] : label,
-    name: FULL_NAMES[label],
-    typeId: types.find((t) => milestoneLabel(t.name) === label)?.id,
-    record: person.milestones.find((m) => milestoneLabel(m.milestone.name) === label),
+  const steps: Step[] | undefined = data?.milestones.map((m) => ({
+    id: m.id,
+    name: m.name,
+    record: person.milestones.find((r) => r.milestone.id === m.id),
   }))
-  const done = steps.filter((s) => s.record).length
-
-  // Not one of the four (configurable milestones are a later change): listed, not dropped.
-  const otherNames = new Map<string, string>()
-  for (const t of types) if (!milestoneLabel(t.name)) otherNames.set(t.id, t.name)
-  for (const m of person.milestones) {
-    if (!milestoneLabel(m.milestone.name)) otherNames.set(m.milestone.id, m.milestone.name)
-  }
-  const others: Step[] = [...otherNames].map(([id, name]) => ({
-    key: id,
-    label: name,
-    name,
-    typeId: id,
-    record: person.milestones.find((m) => m.milestone.id === id),
-  }))
-
-  const item = (step: Step) => (
-    <StepItem
-      key={step.key}
-      step={step}
-      personId={person.id}
-      narrow={narrow}
-      onRecord={(id) => setRecording({ id, name: step.name })}
-    />
-  )
+  const done = steps?.filter((s) => s.record).length ?? 0
 
   return (
     <section className={section.card} aria-labelledby={headingId}>
@@ -88,17 +54,34 @@ export function PersonMilestones({ person, narrow }: { person: Person; narrow: b
         <h2 id={headingId} className={section.title}>
           Milestones
         </h2>
-        <span className={section.count}>
-          {done} of {MILESTONES.length}
-        </span>
+        <div className={styles.headEnd}>
+          {/* Nothing until the list loads, rather than "0 of 0". */}
+          {steps && steps.length > 0 && (
+            <span className={section.count}>
+              {done} of {steps.length}
+            </span>
+          )}
+          <Link to={EDIT_MILESTONES_PATH} className={styles.edit}>
+            Edit milestones
+          </Link>
+        </div>
       </div>
-      <ol className={narrow ? styles.timeline : styles.journey}>{steps.map(item)}</ol>
-      {others.length > 0 && (
-        <>
-          <h3 className={styles.othersTitle}>Other milestones</h3>
-          <ul className={styles.others}>{others.map(item)}</ul>
-        </>
-      )}
+      {steps &&
+        (steps.length === 0 ? (
+          <p className={styles.empty}>No milestones set up yet.</p>
+        ) : (
+          <ol className={narrow ? styles.timeline : styles.journey}>
+            {steps.map((step) => (
+              <StepItem
+                key={step.id}
+                step={step}
+                personId={person.id}
+                narrow={narrow}
+                onRecord={() => setRecording({ id: step.id, name: step.name })}
+              />
+            ))}
+          </ol>
+        ))}
       <RecordMilestoneDialog
         personId={person.id}
         milestone={recording}
@@ -117,9 +100,9 @@ function StepItem({
   step: Step
   personId: string
   narrow: boolean
-  onRecord: (typeId: string) => void
+  onRecord: () => void
 }) {
-  const { record, typeId } = step
+  const { record, name } = step
   return (
     <li className={cx(styles.step, record !== undefined && styles.done)}>
       {/* A bar segment on the web, a dot on phones' timeline; the words carry the state. */}
@@ -127,7 +110,7 @@ function StepItem({
         {record && <CheckIcon size={12} className={styles.tick} />}
       </span>
       <div className={styles.body}>
-        <div className={styles.label}>{step.label}</div>
+        <div className={styles.label}>{name}</div>
         {record ? (
           <>
             <div className={styles.when}>
@@ -140,23 +123,17 @@ function StepItem({
               )}
             </div>
             {record.notes && <p className={styles.note}>{record.notes}</p>}
-            <RemoveMilestoneButton
-              personId={personId}
-              milestoneId={record.milestone.id}
-              label={step.label}
-            />
+            <RemoveMilestoneButton personId={personId} milestoneId={step.id} label={name} />
           </>
         ) : (
-          typeId && (
-            <Button
-              variant="secondary"
-              className={styles.record}
-              aria-label={narrow ? `Record milestone: ${step.label}` : `Record ${step.label}`}
-              onClick={() => onRecord(typeId)}
-            >
-              {narrow ? 'Record milestone' : 'Record'}
-            </Button>
-          )
+          <Button
+            variant="secondary"
+            className={styles.record}
+            aria-label={narrow ? `Record milestone: ${name}` : `Record ${name}`}
+            onClick={onRecord}
+          >
+            {narrow ? 'Record milestone' : 'Record'}
+          </Button>
         )}
       </div>
     </li>

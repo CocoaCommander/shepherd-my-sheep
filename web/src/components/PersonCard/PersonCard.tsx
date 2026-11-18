@@ -38,6 +38,7 @@ export function PersonCard({
   tag,
   lastContact,
   milestones,
+  milestoneSteps,
   shepherds,
   prayerCount,
   compact = false,
@@ -54,6 +55,8 @@ export function PersonCard({
   lastContact?: ReactNode
   /** Recorded milestone names; may be empty (business rule 2). */
   milestones: readonly string[]
+  /** Every milestone's name, A to Z: the bar's segments. May be empty (business rule 7). */
+  milestoneSteps: readonly string[]
   /** The shepherd stack beside the name; omitted when there's no one to show. */
   shepherds?: { names: string[]; label: string }
   /** Active prayer burdens; may be zero (business rule 3). */
@@ -69,7 +72,12 @@ export function PersonCard({
         <Name name={name} renderName={renderName} headingLevel={headingLevel} />
         <StatusPill status={status} />
         {tag}
-        <Milestones recorded={milestones} compact className={styles.compactBar} />
+        <Milestones
+          recorded={milestones}
+          steps={milestoneSteps}
+          compact
+          className={styles.compactBar}
+        />
       </article>
     )
   }
@@ -90,7 +98,7 @@ export function PersonCard({
         <StatusPill status={status} />
         {tag}
       </div>
-      <Milestones recorded={milestones} />
+      <Milestones recorded={milestones} steps={milestoneSteps} />
       <div className={styles.foot}>
         <span className={cx(styles.sub, styles.lastContact)}>
           <ClockIcon />
@@ -179,6 +187,7 @@ export function MiniPersonCard({
   overdue = false,
   prayerCount,
   milestones,
+  milestoneSteps,
   tag,
   actions,
   grip = false,
@@ -197,6 +206,8 @@ export function MiniPersonCard({
     overdue?: boolean
     prayerCount: number
     milestones: readonly string[]
+    /** Every milestone's name, A to Z; may be empty (business rule 7). */
+    milestoneSteps: readonly string[]
     /** The contact tag under the milestones, typically a DueTag. */
     tag?: ReactNode
     /** Beside the tag, e.g. a "Move to" select. */
@@ -225,7 +236,7 @@ export function MiniPersonCard({
         </div>
         <PrayerCount count={prayerCount} hiddenSuffix=" praying" className={styles.miniPray} />
       </div>
-      <Milestones recorded={milestones} compact />
+      <Milestones recorded={milestones} steps={milestoneSteps} compact />
       {(tag || actions) && (
         <div className={styles.miniFoot}>
           {tag ?? <span />}

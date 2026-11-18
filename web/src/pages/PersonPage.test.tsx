@@ -167,11 +167,11 @@ async function openAddDialog(user: ReturnType<typeof userEvent.setup>) {
 describe('PersonPage empty states', () => {
   it('shows empty messages, the Add burden button and the note box for a brand new person', async () => {
     renderPage(person())
-    expect(await screen.findByText('0 of 4')).toBeInTheDocument()
+    expect(await screen.findByText('0 of 3')).toBeInTheDocument()
     expect(screen.getByText(EMPTY_BURDENS)).toBeInTheDocument()
     expect(screen.getByText(EMPTY_NOTES)).toBeInTheDocument()
 
-    expect(await screen.findByRole('button', { name: 'Record Baptised' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Record baptised' })).toBeInTheDocument()
     expect(
       section('Prayer burdens').getByRole('button', { name: 'Add burden' }),
     ).toBeInTheDocument()

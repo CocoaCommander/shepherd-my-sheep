@@ -97,25 +97,25 @@ describe('contactTag', () => {
 })
 
 describe('milestoneLabels', () => {
+  // The API's order: A to Z.
   const names = new Map([
     ['m1', 'baptised'],
+    ['m5', 'Hosting a group'],
     ['m2', 'joined small group'],
-    ['m3', 'serving'],
     ['m4', 'leading'],
-    ['m5', 'something else'],
+    ['m3', 'serving'],
   ])
 
-  it('maps ids to the bar labels', () => {
-    expect(milestoneLabels(['m1', 'm2', 'm3', 'm4'], names)).toEqual([
-      'Baptised',
-      'Small group',
-      'Serving',
-      'Leading',
+  it('names the recorded milestones verbatim, in the map order whatever the ids order', () => {
+    expect(milestoneLabels(['m3', 'm5', 'm1'], names)).toEqual([
+      'baptised',
+      'Hosting a group',
+      'serving',
     ])
   })
 
-  it('drops unknown ids and names', () => {
-    expect(milestoneLabels(['m1', 'm5', 'nope'], names)).toEqual(['Baptised'])
+  it('drops ids that are not in the list', () => {
+    expect(milestoneLabels(['m1', 'nope'], names)).toEqual(['baptised'])
   })
 
   it('is empty for no milestones (business rule 2) or before they load', () => {

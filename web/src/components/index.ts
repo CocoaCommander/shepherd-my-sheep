@@ -35,7 +35,6 @@ export {
 export {
   Meter,
   meterPercent,
-  MILESTONES,
   Milestones,
   Stepper,
   type MeterTone,

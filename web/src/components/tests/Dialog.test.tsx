@@ -113,3 +113,26 @@ describe('Dialog', () => {
     expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveValue('')
   })
 })
+
+describe('Dialog alert', () => {
+  it('is a plain dialog without describedby by default', async () => {
+    render(
+      <Dialog open onClose={() => {}} title="Log contact">
+        <p>Body text</p>
+      </Dialog>,
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Log contact' })
+    expect(dialog).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('becomes an alertdialog described by its body', async () => {
+    render(
+      <Dialog open alert onClose={() => {}} title="Delete “serving”?">
+        <p>Recorded for 3 people.</p>
+      </Dialog>,
+    )
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete “serving”?' })
+    expect(dialog).toHaveAccessibleDescription('Recorded for 3 people.')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})

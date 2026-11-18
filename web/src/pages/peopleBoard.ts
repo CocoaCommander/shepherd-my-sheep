@@ -1,10 +1,4 @@
-import {
-  MILESTONES,
-  STATUS_LABELS,
-  type DueTone,
-  type PersonStatus,
-  type ViewMode,
-} from '../components'
+import { STATUS_LABELS, type DueTone, type PersonStatus, type ViewMode } from '../components'
 import { contactDueLabel, parseDateTime } from '../format'
 import { ContactState, type MyPeopleQuery } from '../generated/graphql'
 import { STATUS_BY_NAME } from './personStatus'
@@ -28,28 +22,15 @@ export const isTracked = (status: PersonStatus) => status === 'new' || status ==
 export const statusOf = (person: Pick<Person, 'status'>): PersonStatus =>
   STATUS_BY_NAME[person.status.name] ?? 'active'
 
-/** The API's milestone names → the milestone bar's (MILESTONES). */
-const MILESTONE_LABELS: Record<string, (typeof MILESTONES)[number]> = {
-  baptised: 'Baptised',
-  'joined small group': 'Small group',
-  serving: 'Serving',
-  leading: 'Leading',
-}
-
 /**
- * The bar's names for a person's recorded milestones. `names` maps milestone id → API name
- * (the Milestones query); until it loads the bar is empty. A person may have none (rule 2).
+ * The names of a person's recorded milestones, in the list's order. `names` maps milestone
+ * id → name, A to Z (the Milestones query); an id not in it is ignored (a milestone deleted
+ * since the people loaded), and until it loads the result is empty. Either may be empty
+ * (business rules 2 and 7).
  */
 export function milestoneLabels(ids: readonly string[], names: ReadonlyMap<string, string>) {
-  return ids.flatMap((id) => {
-    const label = milestoneLabel(names.get(id) ?? '')
-    return label ? [label] : []
-  })
-}
-
-/** An API milestone name → its step in MILESTONES, or undefined for any other milestone. */
-export function milestoneLabel(name: string): (typeof MILESTONES)[number] | undefined {
-  return Object.hasOwn(MILESTONE_LABELS, name) ? MILESTONE_LABELS[name] : undefined
+  const recorded = new Set(ids)
+  return [...names].flatMap(([id, name]) => (recorded.has(id) ? [name] : []))
 }
 
 /**

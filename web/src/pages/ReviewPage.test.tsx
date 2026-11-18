@@ -135,9 +135,19 @@ interface Setup {
   alerts: Person[][]
   details?: Record<string, unknown>
   mocks?: MockedResponse[]
+  /** The shared milestone list, A to Z; defaults to the four seeded ones. */
+  milestones?: { id: string; name: string }[]
 }
 
-function renderReview({ alerts, details = {}, mocks = [] }: Setup) {
+const MILESTONE_LIST = ['baptised', 'joined small group', 'leading', 'serving'].map((name) => ({
+  __typename: 'Milestone',
+  id: `m-${name}`,
+  name,
+  description: '',
+  recordedCount: 0,
+}))
+
+function renderReview({ alerts, details = {}, mocks = [], milestones = MILESTONE_LIST }: Setup) {
   const personMocks: MockedResponse[] = alerts.flat().map((p) => ({
     request: { query: G.PersonDocument, variables: { id: p.id } },
     result: { data: { person: details[p.id] ?? detail(p) } },
@@ -145,6 +155,20 @@ function renderReview({ alerts, details = {}, mocks = [] }: Setup) {
   }))
   const alertsResult = sequence(alerts.map((a) => ({ data: { contactAlerts: a } })))
   const list: MockedResponse[] = [
+    {
+      request: { query: G.MilestonesDocument },
+      result: {
+        data: {
+          milestones: milestones.map((m) => ({
+            __typename: 'Milestone',
+            description: '',
+            recordedCount: 0,
+            ...m,
+          })),
+        },
+      },
+      maxUsageCount: Number.POSITIVE_INFINITY,
+    },
     {
       request: { query: G.ContactAlertsDocument },
       result: alertsResult,
@@ -358,9 +382,39 @@ describe('ReviewPage', () => {
     expect(screen.getByText('Her mother is ill')).toBeInTheDocument()
     expect(screen.queryByText('Released one')).not.toBeInTheDocument()
     expect(screen.getByText('+1 more')).toBeInTheDocument()
-    for (const t of ['Baptised', 'Joined small group', 'Serving', 'Leading'])
-      expect(screen.getByText(t)).toBeInTheDocument()
+    // Every milestone, verbatim and in the list's order; done by id.
+    const tags = ['baptised', 'joined small group', 'leading', 'serving']
+    for (const t of tags) expect(screen.getByText(t)).toBeInTheDocument()
     expect(screen.queryByText('None recorded yet.')).not.toBeInTheDocument()
+    const heading = screen.getByRole('heading', { level: 3, name: 'Milestones' })
+    const shown = Array.from(heading.nextElementSibling?.children ?? []).map((c) => c.textContent)
+    expect(shown.map((t) => tags.find((n) => t?.includes(n)))).toEqual(tags)
+  })
+
+  it('shows a custom milestone and ignores a record of one no longer in the list', async () => {
+    renderReview({
+      alerts: [[ELENA]],
+      milestones: [
+        { id: 'm-baptised', name: 'baptised' },
+        { id: 'm-mentoring', name: 'Mentoring' },
+      ],
+      details: {
+        'p-elena': detail(ELENA, {
+          milestones: [milestone('mentoring'), milestone('deleted-one')],
+        }),
+      },
+    })
+    expect(await screen.findByText('Mentoring')).toBeInTheDocument()
+    expect(screen.getByText('baptised')).toBeInTheDocument()
+    expect(screen.queryByText('deleted-one')).not.toBeInTheDocument()
+    expect(screen.queryByText('None recorded yet.')).not.toBeInTheDocument()
+  })
+
+  it('handles an empty milestone list (rule 7)', async () => {
+    renderReview({ alerts: [[ELENA]], milestones: [] })
+    expect(await screen.findByText('No notes yet.')).toBeInTheDocument()
+    expect(screen.getByText('None recorded yet.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Milestones' })).not.toBeInTheDocument()
   })
 
   it('handles zero notes, burdens and milestones', async () => {
@@ -369,7 +423,7 @@ describe('ReviewPage', () => {
     expect(screen.getByText('No active prayer burdens yet.')).toBeInTheDocument()
     expect(screen.getByText('Milestones')).toBeInTheDocument()
     expect(screen.getByText('None recorded yet.')).toBeInTheDocument()
-    expect(screen.queryByText('Baptised')).not.toBeInTheDocument()
+    expect(screen.queryByText('baptised')).not.toBeInTheDocument()
     expect(screen.queryByText(/more$/)).not.toBeInTheDocument()
   })
 

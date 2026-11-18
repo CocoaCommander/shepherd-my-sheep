@@ -1,7 +1,9 @@
-/* The Person page's Milestones section: four columns on the web, a vertical timeline on phones. */
+/*
+ * The Person page's Milestones section: a column per milestone on the web (wrapping onto more
+ * rows when there are many), a vertical timeline on phones.
+ */
 .journey,
-.timeline,
-.others {
+.timeline {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -34,10 +36,26 @@
   margin-top: var(--sms-space-4);
 }
 
+.headEnd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: var(--sms-space-4) var(--sms-space-12);
+}
+.edit {
+  color: var(--sms-brand-strong);
+  font-weight: 600;
+}
+.empty {
+  margin: 0;
+  color: var(--sms-muted);
+}
+
 /* Web: each step is a column under its own bar segment. */
 .journey {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: var(--sms-space-12);
 }
 .journey .step {
@@ -100,20 +118,6 @@
 }
 .timeline .body {
   padding-bottom: var(--sms-space-14);
-}
-
-/* Milestones that aren't one of the four. */
-.othersTitle {
-  margin: 0;
-  font-size: 15px;
-}
-.others {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sms-space-12);
-}
-.others .marker {
-  display: none;
 }
 
 .form {

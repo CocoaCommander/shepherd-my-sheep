@@ -39,7 +39,7 @@
   background: var(--sms-warn);
 }
 
-/* Milestones: four segments in fixed order. */
+/* Milestones: a segment per milestone, A to Z; any number, so they shrink to fit. */
 .milestones {
   composes: base from '../shared.module.css';
 }

@@ -76,6 +76,7 @@ export function PeoplePage() {
     () => new Map((milestoneData?.milestones ?? []).map((m) => [m.id, m.name])),
     [milestoneData],
   )
+  const milestoneSteps = useMemo(() => [...milestoneNames.values()], [milestoneNames])
   const columns = useMemo(() => {
     const byStatus = new Map<PersonStatus, Person[]>(STATUS_ORDER.map((s) => [s, []]))
     for (const p of people) byStatus.get(statusOf(p))!.push(p)
@@ -115,6 +116,7 @@ export function PeoplePage() {
       key={person.id}
       person={person}
       milestones={milestoneLabels(person.recordedMilestoneIds, milestoneNames)}
+      milestoneSteps={milestoneSteps}
       tint={tints.get(person.id)}
       now={now}
       narrow={narrow}
@@ -358,6 +360,7 @@ function StatusTabs({
 function BoardCard({
   person,
   milestones,
+  milestoneSteps,
   tint,
   now,
   narrow,
@@ -367,6 +370,7 @@ function BoardCard({
 }: {
   person: Person
   milestones: string[]
+  milestoneSteps: readonly string[]
   tint?: ReturnType<typeof avatarTint>
   now: Date
   narrow: boolean
@@ -388,6 +392,7 @@ function BoardCard({
       lastContact={when && narrow ? `Last contact: ${when}` : when}
       prayerCount={person.activeBurdenCount}
       milestones={milestones}
+      milestoneSteps={milestoneSteps}
       avatarTint={tint}
       className={narrow ? styles.narrowCard : undefined}
       tag={<DueTag tone={tag.tone}>{tag.label}</DueTag>}
