@@ -2776,6 +2776,9 @@ UPDATE_MILESTONE = (
     + MILESTONE_FIELDS
     + " } }"
 )
+DELETE_MILESTONE = "mutation D($id: UUID!) { deleteMilestone(id: $id) }"
+RESTORE_MILESTONE = "mutation R($id: UUID!) { restoreMilestone(id: $id) { " + MILESTONE_FIELDS + " } }"
+REMOVE_MILESTONE = "mutation R($personId: UUID!, $milestoneId: UUID!) { removeMilestone(personId: $personId, milestoneId: $milestoneId) }"
 PERSON_MILESTONES = """
 query P($id: UUID!) {
   person(id: $id) {
@@ -2990,6 +2993,83 @@ class TestMilestoneList:
     def test_update_missing_is_not_found(self, ms):
         assert error_code(UPDATE_MILESTONE, {"id": NO_SUCH_ID, "input": {"description": "x"}}, ms.token) == "NOT_FOUND"
 
+    def test_update_deleted_is_not_found(self, ms):
+        milestone = ms.create("Doomed")
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        variables = {"id": milestone["id"], "input": {"description": "x"}}
+        assert error_code(UPDATE_MILESTONE, variables, ms.token) == "NOT_FOUND"
+
+    # ── delete / restore ──
+
+    def test_delete_returns_true_and_hides_from_list(self, ms):
+        milestone = ms.create("Doomed")
+        assert gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)["deleteMilestone"] is True
+        assert milestone["id"] not in [m["id"] for m in gql(MILESTONES, token=ms.token)["milestones"]]
+
+    def test_delete_is_a_soft_delete(self, ms, db_connection):
+        milestone = ms.create("Doomed")
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT deleted_at IS NOT NULL FROM milestone WHERE id = %s", (milestone["id"],))
+            assert cur.fetchone() == (True,)
+
+    def test_delete_missing_is_not_found(self, ms):
+        assert error_code(DELETE_MILESTONE, {"id": NO_SUCH_ID}, ms.token) == "NOT_FOUND"
+
+    def test_delete_twice_is_not_found(self, ms):
+        milestone = ms.create("Doomed")
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        assert error_code(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token) == "NOT_FOUND"
+
+    def test_restore_brings_back_with_same_data(self, ms):
+        milestone = ms.create("Phoenix", "rises")
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        restored = gql(RESTORE_MILESTONE, {"id": milestone["id"]}, ms.token)["restoreMilestone"]
+        assert (restored["id"], restored["name"], restored["description"]) == (
+            milestone["id"],
+            milestone["name"],
+            "rises",
+        )
+        assert milestone["id"] in [m["id"] for m in gql(MILESTONES, token=ms.token)["milestones"]]
+
+    def test_restore_live_milestone_is_not_found(self, ms):
+        milestone = ms.create("Alive")
+        assert error_code(RESTORE_MILESTONE, {"id": milestone["id"]}, ms.token) == "NOT_FOUND"
+
+    def test_restore_unknown_is_not_found(self, ms):
+        assert error_code(RESTORE_MILESTONE, {"id": NO_SUCH_ID}, ms.token) == "NOT_FOUND"
+
+    def test_restore_after_an_hour_is_not_found(self, ms, db_connection):
+        milestone = ms.create("Stale")
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        with db_connection.cursor() as cur:
+            cur.execute(
+                "UPDATE milestone SET deleted_at = now() - interval '61 minutes' WHERE id = %s", (milestone["id"],)
+            )
+        assert error_code(RESTORE_MILESTONE, {"id": milestone["id"]}, ms.token) == "NOT_FOUND"
+
+    def test_delete_purges_milestones_deleted_over_an_hour_ago(self, ms, db_connection):
+        old = ms.create("Old")
+        other = ms.create("Other")
+        gql(DELETE_MILESTONE, {"id": old["id"]}, ms.token)
+        with db_connection.cursor() as cur:
+            cur.execute("UPDATE milestone SET deleted_at = now() - interval '2 hours' WHERE id = %s", (old["id"],))
+        gql(DELETE_MILESTONE, {"id": other["id"]}, ms.token)
+        with db_connection.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM milestone WHERE id = %s", (old["id"],))
+            assert cur.fetchone()[0] == 0
+            cur.execute("SELECT COUNT(*) FROM milestone WHERE id = %s", (other["id"],))
+            assert cur.fetchone()[0] == 1
+
+    def test_name_reusable_after_delete_then_restore_conflicts(self, ms):
+        first = ms.create("Reused")
+        gql(DELETE_MILESTONE, {"id": first["id"]}, ms.token)
+        second = gql(CREATE_MILESTONE, {"input": {"name": first["name"].lower()}}, ms.token)["createMilestone"]
+        ms.track(second["id"])
+        error = gql_error_full(RESTORE_MILESTONE, {"id": first["id"]}, ms.token)
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == f"A milestone called {LDQUO}{first['name'].lower()}{RDQUO} already exists."
+
     # ── recorded counts and people ──
 
     def test_new_milestone_with_no_records_counts_zero(self, ms, status_id):
@@ -3022,6 +3102,66 @@ class TestMilestoneList:
         assert recorded["milestone"]["createdAt"] == milestone["createdAt"]
         assert recorded["milestone"]["updatedAt"] == milestone["updatedAt"]
 
+    def test_delete_hides_records_and_restore_brings_them_back(self, ms, status_id):
+        milestone = ms.create("Hidden")
+        person_id = create_person(ms.token, status_id)
+        record(ms.token, person_id, milestone["id"], dateAchieved="2026-04-05", notes="a note")
+        before = gql(PERSON_MILESTONES, {"id": person_id}, ms.token)["person"]
+        assert before["recordedMilestoneIds"] == [milestone["id"]]
+
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        person = gql(PERSON_MILESTONES, {"id": person_id}, ms.token)["person"]
+        assert person["recordedMilestoneIds"] == []
+        assert person["milestones"] == []
+        [mine] = gql(MY_PEOPLE_SUMMARY, token=ms.token)["myPeople"]
+        assert mine["recordedMilestoneIds"] == []
+
+        restored = gql(RESTORE_MILESTONE, {"id": milestone["id"]}, ms.token)["restoreMilestone"]
+        assert restored["recordedCount"] == 1
+        after = gql(PERSON_MILESTONES, {"id": person_id}, ms.token)["person"]
+        assert after["recordedMilestoneIds"] == [milestone["id"]]
+        [recorded] = after["milestones"]
+        assert (recorded["notes"], recorded["dateAchieved"], recorded["recordedBy"]["id"]) == (
+            "a note",
+            "2026-04-05",
+            ms.user_id,
+        )
+        [mine] = gql(MY_PEOPLE_SUMMARY, token=ms.token)["myPeople"]
+        assert mine["recordedMilestoneIds"] == [milestone["id"]]
+
+    def test_record_on_deleted_milestone_is_not_found(self, ms, status_id):
+        milestone = ms.create("Gone")
+        person_id = create_person(ms.token, status_id)
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        variables = {"input": {"personId": person_id, "milestoneId": milestone["id"]}}
+        assert error_code(RECORD_MILESTONE, variables, ms.token) == "NOT_FOUND"
+
+    def test_remove_on_deleted_milestone_is_not_found(self, ms, status_id):
+        milestone = ms.create("Gone")
+        person_id = create_person(ms.token, status_id)
+        record(ms.token, person_id, milestone["id"])
+        gql(DELETE_MILESTONE, {"id": milestone["id"]}, ms.token)
+        variables = {"personId": person_id, "milestoneId": milestone["id"]}
+        assert error_code(REMOVE_MILESTONE, variables, ms.token) == "NOT_FOUND"
+
+    # ── empty list ──
+
+    def test_empty_list_is_valid_and_people_still_work(self, ms, status_id):
+        person_id = create_person(ms.token, status_id)
+        live = [m["id"] for m in gql(MILESTONES, token=ms.token)["milestones"]]
+        for milestone_id in live:
+            gql(DELETE_MILESTONE, {"id": milestone_id}, ms.token)
+        assert gql(MILESTONES, token=ms.token)["milestones"] == []
+        [mine] = gql(MY_PEOPLE_SUMMARY, token=ms.token)["myPeople"]
+        assert mine["recordedMilestoneIds"] == []
+        person = gql(PERSON_MILESTONES, {"id": person_id}, ms.token)["person"]
+        assert person["recordedMilestoneIds"] == []
+        assert person["milestones"] == []
+        # Undo works for all of them (the fixture would also put them back).
+        for milestone_id in live:
+            gql(RESTORE_MILESTONE, {"id": milestone_id}, ms.token)
+        assert set(live) <= {m["id"] for m in gql(MILESTONES, token=ms.token)["milestones"]}
+
     # ── authentication ──
 
     @pytest.mark.parametrize(
@@ -3029,6 +3169,8 @@ class TestMilestoneList:
         [
             (CREATE_MILESTONE, {"input": {"name": "Anon"}}),
             (UPDATE_MILESTONE, {"id": NO_SUCH_ID, "input": {"description": "x"}}),
+            (DELETE_MILESTONE, {"id": NO_SUCH_ID}),
+            (RESTORE_MILESTONE, {"id": NO_SUCH_ID}),
         ],
     )
     def test_mutations_require_a_token(self, query, variables):
@@ -3040,3 +3182,12 @@ class TestMilestoneList:
         status, body = post(MILESTONES)
         assert status == 401
         assert body["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+    def test_any_signed_in_user_can_edit_delete_and_restore(self, ms, make_user):
+        other_token, _, _ = make_user()
+        milestone = ms.create("Shared")
+        updated = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"description": "by other"}}, other_token)
+        assert updated["updateMilestone"]["description"] == "by other"
+        assert gql(DELETE_MILESTONE, {"id": milestone["id"]}, other_token)["deleteMilestone"] is True
+        restored = gql(RESTORE_MILESTONE, {"id": milestone["id"]}, other_token)["restoreMilestone"]
+        assert restored["id"] == milestone["id"]
