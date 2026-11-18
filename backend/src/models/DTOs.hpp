@@ -63,6 +63,9 @@ class MilestoneDto : public oatpp::DTO {
     DTO_FIELD(String, id);
     DTO_FIELD(String, name);
     DTO_FIELD(String, description);
+    DTO_FIELD(Int32, recordedCount);  // everyone's people, not just the caller's; may be 0
+    DTO_FIELD(String, createdAt);
+    DTO_FIELD(String, updatedAt);
 };
 
 class UserDto : public oatpp::DTO {
