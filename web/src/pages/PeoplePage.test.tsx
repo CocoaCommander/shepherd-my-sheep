@@ -25,10 +25,16 @@ const INACTIVE = { __typename: 'Status', id: 'st-inactive', name: 'inactive' }
 const LOST = { __typename: 'Status', id: 'st-lost', name: 'lost contact' }
 const STATUSES = [NEW, ACTIVE, INACTIVE, LOST]
 const MILESTONES = [
-  { __typename: 'Milestone', id: 'ms-1', name: 'baptised', description: '' },
-  { __typename: 'Milestone', id: 'ms-2', name: 'joined small group', description: '' },
-  { __typename: 'Milestone', id: 'ms-3', name: 'serving', description: '' },
-  { __typename: 'Milestone', id: 'ms-4', name: 'leading', description: '' },
+  { __typename: 'Milestone', id: 'ms-1', name: 'baptised', description: '', recordedCount: 0 },
+  {
+    __typename: 'Milestone',
+    id: 'ms-2',
+    name: 'joined small group',
+    description: '',
+    recordedCount: 0,
+  },
+  { __typename: 'Milestone', id: 'ms-3', name: 'serving', description: '', recordedCount: 0 },
+  { __typename: 'Milestone', id: 'ms-4', name: 'leading', description: '', recordedCount: 0 },
 ]
 
 type P = ReturnType<typeof person>
@@ -149,6 +155,7 @@ function setup(
   people: P[],
   extra: (server: { people: P[] }) => MockedResponse[] = () => [],
   statusesDelay?: number,
+  milestones: readonly object[] = MILESTONES,
 ) {
   const server = { people }
   const peopleResult = vi.fn(() => ({ data: { myPeople: server.people } }))
@@ -172,7 +179,7 @@ function setup(
     },
     {
       request: { query: G.MilestonesDocument },
-      result: { data: { milestones: MILESTONES } },
+      result: { data: { milestones } },
       ...forever,
     },
     ...extra(server),
@@ -263,9 +270,36 @@ describe('PeoplePage (wide)', () => {
     expect(cardOf('Maria Santos')).toHaveTextContent('3 days ago')
     expect(cardOf('Maria Santos')).toHaveTextContent('2 praying')
     expect(
-      card.getByRole('img', { name: 'Milestones: 2 of 4: Baptised, Small group' }),
+      card.getByRole('img', { name: 'Milestones: 2 of 4: baptised, joined small group' }),
     ).toBeInTheDocument()
     expect(cardOf('Maria Santos')).toHaveTextContent('On track')
+  })
+
+  it('names recorded milestones verbatim in the list order, counting custom ones', async () => {
+    const custom = [
+      ...MILESTONES,
+      { __typename: 'Milestone', id: 'ms-5', name: 'Mentoring', description: '', recordedCount: 0 },
+    ]
+    setup(
+      [{ ...MARIA, recordedMilestoneIds: ['ms-5', 'ms-gone', 'ms-1'] }],
+      undefined,
+      undefined,
+      custom,
+    )
+    await ready()
+    expect(
+      within(cardOf('Maria Santos')).getByRole('img', {
+        name: 'Milestones: 2 of 5: baptised, Mentoring',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows no milestone bar on the board card when no milestones are set up (rule 7)', async () => {
+    setup([MARIA], undefined, undefined, [])
+    await ready()
+    const card = cardOf('Maria Santos')
+    expect(within(card).queryByRole('img', { name: /Milestones/ })).not.toBeInTheDocument()
+    expect(card).not.toHaveTextContent('No milestones yet')
   })
 
   it('renders a person with no contact, milestones or prayer burdens (rules 2 and 3)', async () => {
@@ -912,7 +946,7 @@ describe('PeopleGallery (wide)', () => {
     expect(maria).toHaveTextContent('Last contact: 3 days ago')
     expect(maria).toHaveTextContent('2 praying')
     expect(
-      within(maria).getByRole('img', { name: 'Milestones: 2 of 4: Baptised, Small group' }),
+      within(maria).getByRole('img', { name: 'Milestones: 2 of 4: baptised, joined small group' }),
     ).toBeInTheDocument()
     expect(cardOf('Elena Petrova')).toHaveTextContent('14 days overdue')
     expect(cardOf('Tom Becker')).toHaveTextContent('New contact')
@@ -1052,7 +1086,7 @@ describe('PeopleGallery (narrow)', () => {
     expect(card).not.toHaveTextContent('Met 2010')
     expect(card).not.toHaveTextContent('Last contact')
     expect(card).not.toHaveTextContent('praying')
-    expect(card.textContent).not.toMatch(/Baptised/)
+    expect(card.textContent).not.toMatch(/baptised/)
   })
 
   it('has no Add someone new tile, but Add person stays in the header', async () => {

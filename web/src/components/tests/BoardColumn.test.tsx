@@ -4,11 +4,18 @@ import { BoardColumn } from '../BoardColumn/BoardColumn'
 import styles from '../BoardColumn/BoardColumn.module.css'
 import { MiniPersonCard } from '../PersonCard/PersonCard'
 
+const STEPS = ['Baptised', 'Leading', 'Serving', 'Small group']
+
 describe('BoardColumn', () => {
   it('titles the column by status with a count and holds cards', () => {
     render(
       <BoardColumn status="active" count={1}>
-        <MiniPersonCard name="Elena Petrova" prayerCount={1} milestones={['Small group']} />
+        <MiniPersonCard
+          name="Elena Petrova"
+          prayerCount={1}
+          milestones={['Small group']}
+          milestoneSteps={STEPS}
+        />
       </BoardColumn>,
     )
     const heading = screen.getByRole('heading', { name: 'Active' })
@@ -50,7 +57,7 @@ describe('BoardColumn', () => {
     expect(screen.getByText('Drop someone here')).toHaveClass(styles.empty)
     rerender(
       <BoardColumn status="lost" count={1} empty="Drop someone here">
-        <MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />
+        <MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} milestoneSteps={STEPS} />
       </BoardColumn>,
     )
     expect(screen.queryByText('Drop someone here')).not.toBeInTheDocument()

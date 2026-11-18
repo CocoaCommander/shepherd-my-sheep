@@ -184,10 +184,8 @@ export function EditMilestonesPage() {
 
       <DeleteMilestoneDialog
         milestone={deleting}
-        onClose={() => {
-          if (deleting) setRefocus(deleting.id)
-          setDeleting(null)
-        }}
+        // The dialog gives focus back to the Delete button on Cancel.
+        onClose={() => setDeleting(null)}
         onDeleted={deleted}
         onGone={() => void refetch()}
       />

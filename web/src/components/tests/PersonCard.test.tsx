@@ -7,6 +7,8 @@ import styles from '../PersonCard/PersonCard.module.css'
 import progress from '../Progress/Progress.module.css'
 import shared from '../shared.module.css'
 
+const STEPS = ['Baptised', 'Leading', 'Serving', 'Small group']
+
 describe('PersonCard', () => {
   it('shows everything about one person', () => {
     render(
@@ -18,6 +20,7 @@ describe('PersonCard', () => {
           status="active"
           lastContact="1 week ago"
           milestones={['Baptised', 'Serving', 'Leading']}
+          milestoneSteps={STEPS}
           shepherds={{
             names: ['Daniel Okafor', 'Grace Lin'],
             label: 'Shepherded by you and one other',
@@ -35,7 +38,7 @@ describe('PersonCard', () => {
     expect(card).toHaveTextContent('Active')
     expect(card).toHaveTextContent('Last contact: 1 week ago')
     expect(
-      within(card).getByRole('img', { name: /3 of 4: Baptised, Serving, Leading/ }),
+      within(card).getByRole('img', { name: /3 of 4: Baptised, Leading, Serving/ }),
     ).toBeInTheDocument()
     expect(
       within(card).getByRole('img', { name: 'Shepherded by you and one other' }),
@@ -44,7 +47,15 @@ describe('PersonCard', () => {
   })
 
   it('renders someone just met: no milestones, contact, shepherds or prayer burdens', () => {
-    render(<PersonCard name="Tom Becker" status="new" milestones={[]} prayerCount={0} />)
+    render(
+      <PersonCard
+        name="Tom Becker"
+        status="new"
+        milestones={[]}
+        milestoneSteps={STEPS}
+        prayerCount={0}
+      />,
+    )
     const card = screen.getByRole('article')
     expect(within(card).getByRole('heading', { name: 'Tom Becker' })).toBeInTheDocument()
     expect(card).toHaveTextContent('No contact yet')
@@ -61,6 +72,7 @@ describe('PersonCard', () => {
         status="active"
         tag={<span>14 days overdue</span>}
         milestones={[]}
+        milestoneSteps={STEPS}
         prayerCount={0}
       />,
     )
@@ -69,7 +81,15 @@ describe('PersonCard', () => {
   })
 
   it('reads the prayer count bare, with " praying" for screen readers only', () => {
-    render(<PersonCard name="Ann Lee" status="active" milestones={[]} prayerCount={3} />)
+    render(
+      <PersonCard
+        name="Ann Lee"
+        status="active"
+        milestones={[]}
+        milestoneSteps={STEPS}
+        prayerCount={3}
+      />,
+    )
     const hidden = screen.getByText('praying')
     expect(hidden).toHaveClass(shared.srOnly)
     expect(hidden.parentElement).toHaveTextContent('3 praying')
@@ -81,6 +101,7 @@ describe('PersonCard', () => {
         name="Ann Lee"
         status="active"
         milestones={[]}
+        milestoneSteps={STEPS}
         prayerCount={0}
         shepherds={{ names: ['Grace Lin'], label: 'Shepherded by Grace Lin' }}
       />,
@@ -100,6 +121,7 @@ describe('PersonCard compact', () => {
         tag={<span>On track</span>}
         lastContact="1 week ago"
         milestones={['Baptised', 'Serving']}
+        milestoneSteps={STEPS}
         shepherds={{ names: ['Grace Lin'], label: 'Shepherded by Grace Lin' }}
         prayerCount={2}
       />,
@@ -120,13 +142,74 @@ describe('PersonCard compact', () => {
   })
 
   it('is not compact by default', () => {
-    render(<PersonCard name="Ann Lee" status="active" milestones={[]} prayerCount={0} />)
+    render(
+      <PersonCard
+        name="Ann Lee"
+        status="active"
+        milestones={[]}
+        milestoneSteps={STEPS}
+        prayerCount={0}
+      />,
+    )
     expect(screen.getByRole('article')).not.toHaveClass(styles.compact)
   })
 
   it('renders someone with no milestones (rule 2)', () => {
-    render(<PersonCard compact name="Tom Becker" status="new" milestones={[]} prayerCount={0} />)
+    render(
+      <PersonCard
+        compact
+        name="Tom Becker"
+        status="new"
+        milestones={[]}
+        milestoneSteps={STEPS}
+        prayerCount={0}
+      />,
+    )
     expect(screen.getByRole('img', { name: /No milestones yet/ })).toBeInTheDocument()
+  })
+
+  it('renders no bar when no milestones are set up (rule 7)', () => {
+    render(
+      <PersonCard
+        compact
+        name="Tom Becker"
+        status="new"
+        milestones={[]}
+        milestoneSteps={[]}
+        prayerCount={0}
+      />,
+    )
+    expect(screen.queryByRole('img', { name: /Milestones/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('PersonCard milestone steps', () => {
+  it('draws a segment per configured milestone, verbatim, including custom ones', () => {
+    render(
+      <PersonCard
+        name="Ann Lee"
+        status="active"
+        milestones={['baptised', 'Hosting a group']}
+        milestoneSteps={['baptised', 'Hosting a group', 'serving', 'leading', 'mentoring']}
+        prayerCount={0}
+      />,
+    )
+    expect(
+      screen.getByRole('img', { name: 'Milestones: 2 of 5: baptised, Hosting a group' }),
+    ).toBeInTheDocument()
+  })
+
+  it('says no milestones are set up when the list is empty', () => {
+    render(
+      <PersonCard
+        name="Ann Lee"
+        status="active"
+        milestones={[]}
+        milestoneSteps={[]}
+        prayerCount={0}
+      />,
+    )
+    expect(screen.getByText('No milestones set up')).toBeInTheDocument()
   })
 })
 
@@ -201,6 +284,7 @@ describe('MiniPersonCard', () => {
         lastContact="3 days ago"
         prayerCount={1}
         milestones={['Baptised', 'Small group', 'Serving']}
+        milestoneSteps={STEPS}
       />,
     )
     const card = screen.getByRole('article')
@@ -220,6 +304,7 @@ describe('MiniPersonCard', () => {
         overdue
         prayerCount={0}
         milestones={[]}
+        milestoneSteps={STEPS}
       />,
     )
     const line = screen.getByText('Overdue:').parentElement!
@@ -235,6 +320,7 @@ describe('MiniPersonCard', () => {
         lastContact="3 days ago"
         prayerCount={0}
         milestones={[]}
+        milestoneSteps={STEPS}
       />,
     )
     expect(screen.queryByText('Overdue:')).not.toBeInTheDocument()
@@ -248,6 +334,7 @@ describe('MiniPersonCard on the board', () => {
         name="Maria Santos"
         prayerCount={0}
         milestones={[]}
+        milestoneSteps={STEPS}
         tag={<span>On track</span>}
         actions={
           <select aria-label="Move Maria Santos to another status">
@@ -264,14 +351,20 @@ describe('MiniPersonCard on the board', () => {
   })
 
   it('has no footer without a tag or actions', () => {
-    const { container } = render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    const { container } = render(
+      <MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} milestoneSteps={STEPS} />,
+    )
     expect(container.querySelector(`.${styles.miniFoot}`)).not.toBeInTheDocument()
   })
 
   it('shows grip dots only when asked, hidden from assistive tech', () => {
-    const { rerender } = render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    const { rerender } = render(
+      <MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} milestoneSteps={STEPS} />,
+    )
     expect(screen.getByRole('article').querySelector(`.${styles.grip}`)).not.toBeInTheDocument()
-    rerender(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} grip />)
+    rerender(
+      <MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} milestoneSteps={STEPS} grip />,
+    )
     expect(screen.getByRole('article').querySelector(`.${styles.grip}`)).toHaveAttribute(
       'aria-hidden',
       'true',
@@ -285,6 +378,7 @@ describe('MiniPersonCard on the board', () => {
         name="Ann Lee"
         prayerCount={0}
         milestones={[]}
+        milestoneSteps={STEPS}
         draggable
         onDragStart={onDragStart}
       />,
@@ -296,14 +390,22 @@ describe('MiniPersonCard on the board', () => {
   })
 
   it('is not draggable by default', () => {
-    render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} />)
+    render(<MiniPersonCard name="Ann Lee" prayerCount={0} milestones={[]} milestoneSteps={STEPS} />)
     expect(screen.getByRole('article')).not.toHaveAttribute('draggable')
   })
 })
 
 describe('heading levels', () => {
   it('defaults card names to h3', () => {
-    render(<PersonCard name="Ann Lee" status="active" milestones={[]} prayerCount={0} />)
+    render(
+      <PersonCard
+        name="Ann Lee"
+        status="active"
+        milestones={[]}
+        milestoneSteps={STEPS}
+        prayerCount={0}
+      />,
+    )
     expect(screen.getByRole('heading', { level: 3, name: 'Ann Lee' })).toBeInTheDocument()
   })
 
@@ -314,6 +416,7 @@ describe('heading levels', () => {
           name="Ann Lee"
           status="active"
           milestones={[]}
+          milestoneSteps={STEPS}
           prayerCount={0}
           headingLevel={2}
         />
@@ -325,7 +428,13 @@ describe('heading levels', () => {
           meter={{ value: 1, max: 7, label: '1 day' }}
           headingLevel={4}
         />
-        <MiniPersonCard name="Cy Ng" prayerCount={0} milestones={[]} headingLevel={5} />
+        <MiniPersonCard
+          name="Cy Ng"
+          prayerCount={0}
+          milestones={[]}
+          milestoneSteps={STEPS}
+          headingLevel={5}
+        />
       </>,
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Ann Lee' })).toBeInTheDocument()

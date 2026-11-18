@@ -233,7 +233,7 @@ describe('Person page details', () => {
     expect(section('Contact rule')).toHaveTextContent(
       'A new contact needs a follow-up within 72 hours of being added. When you log it, they become Active.',
     )
-    expect(screen.getByText('0 of 4')).toBeInTheDocument()
+    expect(await screen.findByText('No milestones set up yet.')).toBeInTheDocument()
     expect(
       screen.getByText('No prayer burdens yet. Add one here, or when you log a contact.'),
     ).toBeInTheDocument()

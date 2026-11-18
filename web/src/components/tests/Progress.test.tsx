@@ -39,30 +39,50 @@ describe('Meter', () => {
 })
 
 describe('Milestones', () => {
-  it('marks recorded milestones in the fixed order and names them', () => {
-    render(<Milestones recorded={['Leading', 'Baptised', 'Serving']} />)
-    const bar = screen.getByRole('img', { name: 'Milestones: 3 of 4: Baptised, Serving, Leading' })
+  const steps = ['baptised', 'Hosting a group', 'leading', 'serving', 'small group']
+
+  it('marks recorded milestones in the given order and names them verbatim', () => {
+    render(<Milestones steps={steps} recorded={['serving', 'baptised', 'leading']} />)
+    const bar = screen.getByRole('img', { name: 'Milestones: 3 of 5: baptised, leading, serving' })
     const segments = Array.from(bar.children)
-    expect(segments.map((s) => s.classList.contains(styles.on))).toEqual([true, false, true, true])
-    expect(screen.getByText('3 of 4: Baptised, Serving, Leading')).toBeInTheDocument()
+    expect(segments).toHaveLength(5)
+    expect(segments.map((s) => s.classList.contains(styles.on))).toEqual([
+      true,
+      false,
+      true,
+      true,
+      false,
+    ])
+    expect(screen.getByText('3 of 5: baptised, leading, serving')).toBeInTheDocument()
   })
 
   it('renders a person with no milestones (business rule 2)', () => {
-    render(<Milestones recorded={[]} />)
+    render(<Milestones steps={steps} recorded={[]} />)
     const bar = screen.getByRole('img', { name: 'Milestones: No milestones yet' })
     expect(bar.querySelectorAll(`.${styles.on}`)).toHaveLength(0)
     expect(screen.getByText('No milestones yet')).toBeInTheDocument()
   })
 
-  it('ignores names that are not milestones', () => {
-    render(<Milestones recorded={['Unknown']} />)
+  it('ignores recorded names that are not in the list', () => {
+    render(<Milestones steps={steps} recorded={['Unknown']} />)
     expect(screen.getByRole('img', { name: 'Milestones: No milestones yet' })).toBeInTheDocument()
   })
 
+  it('draws no bar and says so when no milestones are set up (business rule 7)', () => {
+    render(<Milestones steps={[]} recorded={[]} />)
+    expect(screen.getByText('No milestones set up')).toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+  })
+
+  it('renders nothing in the compact bar when no milestones are set up', () => {
+    const { container } = render(<Milestones steps={[]} recorded={[]} compact />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('hides the caption in the compact bar', () => {
-    const { container } = render(<Milestones recorded={['Baptised']} compact />)
+    const { container } = render(<Milestones steps={steps} recorded={['baptised']} compact />)
     expect(container.firstElementChild).toHaveClass(styles.compact)
-    expect(screen.queryByText('1 of 4: Baptised')).not.toBeInTheDocument()
+    expect(screen.queryByText('1 of 5: baptised')).not.toBeInTheDocument()
   })
 })
 
