@@ -5,6 +5,7 @@
 
 #include <pqxx/pqxx>
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <stdexcept>
@@ -164,6 +165,15 @@ inline bool isBlank(const std::string& value) {
     return trim(value).empty();
 }
 
+/**
+ * Length in characters (UTF-8 code points), as Postgres char_length counts
+ * it: every byte except a continuation byte (10xxxxxx) starts a character.
+ */
+inline std::size_t charLength(const std::string& value) {
+    return static_cast<std::size_t>(std::count_if(
+        value.begin(), value.end(), [](char c) { return (static_cast<unsigned char>(c) & 0xC0) != 0x80; }));
+}
+
 inline oatpp::String textOrNull(const pqxx::field& field) {
     return field.is_null() ? oatpp::String(nullptr) : oatpp::String(field.c_str());
 }
@@ -314,10 +324,33 @@ inline PrayerBurdenDto::Wrapper rowToBurdenWithPerson(const pqxx::row& row) {
     return burden;
 }
 
-// Prefixes: "recorder_" for the user who logged it (may be null).
+// A live milestone with how many people have it recorded: anyone's people,
+// not just the caller's, and UNIQUE(person_id, milestone_id) makes it a
+// count of people. Deleted milestones are never returned (business rule 7).
+// Ends in a WHERE: append "AND ..." and any ORDER BY.
+inline const char* MILESTONE_SELECT =
+    "SELECT m.id, m.name, m.description, m.created_at, m.updated_at, "
+    "       (SELECT count(*) FROM milestone_person mp WHERE mp.milestone_id = m.id) AS recorded_count "
+    "FROM milestone m WHERE m.deleted_at IS NULL ";
+
+inline MilestoneDto::Wrapper rowToMilestone(const pqxx::row& row, const std::string& prefix = "") {
+    auto dto           = MilestoneDto::createShared();
+    dto->id            = row[prefix + "id"].c_str();
+    dto->name          = row[prefix + "name"].c_str();
+    dto->description   = textOrNull(row[prefix + "description"]);
+    dto->recordedCount = row[prefix + "recorded_count"].as<int>();
+    dto->createdAt     = row[prefix + "created_at"].c_str();
+    dto->updatedAt     = row[prefix + "updated_at"].c_str();
+    return dto;
+}
+
+// Prefixes: "milestone_" for the milestone, "recorder_" for the user who
+// logged it (may be null).
 inline const char* MILESTONE_PERSON_SELECT =
     "SELECT mp.id, mp.date_achieved, mp.notes, mp.created_at, "
     "       m.id AS milestone_id, m.name AS milestone_name, m.description AS milestone_description, "
+    "       m.created_at AS milestone_created_at, m.updated_at AS milestone_updated_at, "
+    "       (SELECT count(*) FROM milestone_person r WHERE r.milestone_id = m.id) AS milestone_recorded_count, "
     "       u.id AS recorder_id, u.name AS recorder_name, u.username AS recorder_username "
     "FROM milestone_person mp "
     "JOIN milestone m ON m.id = mp.milestone_id "
@@ -329,12 +362,7 @@ inline MilestonePersonDto::Wrapper rowToMilestonePerson(const pqxx::row& row) {
     dto->dateAchieved = textOrNull(row["date_achieved"]);
     dto->notes        = textOrNull(row["notes"]);
     dto->createdAt    = row["created_at"].c_str();
-
-    auto milestone         = MilestoneDto::createShared();
-    milestone->id          = row["milestone_id"].c_str();
-    milestone->name        = row["milestone_name"].c_str();
-    milestone->description = textOrNull(row["milestone_description"]);
-    dto->milestone         = milestone;
+    dto->milestone    = rowToMilestone(row, "milestone_");
 
     if (!row["recorder_id"].is_null()) {
         dto->recordedBy = rowToUserSummary(row, "recorder_");

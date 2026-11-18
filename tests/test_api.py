@@ -2762,3 +2762,206 @@ class TestOtherUsersAreSummaries:
         finally:
             with db_connection.cursor() as cur:
                 cur.execute('DELETE FROM "user" WHERE id = %s', (user["id"],))
+
+
+# ── Configurable milestones ──────────────────────────────────
+
+MILESTONE_FIELDS = "id name description recordedCount createdAt updatedAt"
+MILESTONES = "query { milestones { " + MILESTONE_FIELDS + " } }"
+CREATE_MILESTONE = (
+    "mutation C($input: CreateMilestoneInput!) { createMilestone(input: $input) { " + MILESTONE_FIELDS + " } }"
+)
+PERSON_MILESTONES = """
+query P($id: UUID!) {
+  person(id: $id) {
+    recordedMilestoneIds
+    milestones { id notes dateAchieved recordedBy { id } milestone { id name recordedCount createdAt updatedAt } }
+  }
+}"""
+LDQUO, RDQUO = "“", "”"
+
+
+class MilestoneHelper:
+    def __init__(self, token, user_id, created, db_connection):
+        self.token = token
+        self.user_id = user_id
+        self.suffix = uuid.uuid4().hex[:8]
+        self._created = created
+
+    def name(self, label):
+        return f"{label} {self.suffix}"
+
+    def track(self, milestone_id):
+        self._created.append(milestone_id)
+
+    def create(self, label, description=None, exact=False):
+        """Creates a milestone named `label` plus a per-run suffix (unless exact)."""
+        input_ = {"name": label if exact else self.name(label)}
+        if description is not None:
+            input_["description"] = description
+        milestone = gql(CREATE_MILESTONE, {"input": input_}, self.token)["createMilestone"]
+        self.track(milestone["id"])
+        return milestone
+
+
+@pytest.fixture()
+def ms(db_connection, make_user):
+    """
+    Helpers for the shared milestone list. Every milestone created through
+    it is hard-deleted afterwards, and every milestone that was live at the
+    start is made live again, so tests may delete the seeds.
+    """
+    with db_connection.cursor() as cur:
+        cur.execute("SELECT id FROM milestone WHERE deleted_at IS NULL")
+        live_before = [str(r[0]) for r in cur.fetchall()]
+    token, user_id, _ = make_user()
+    created = []
+    try:
+        yield MilestoneHelper(token, user_id, created, db_connection)
+    finally:
+        with db_connection.cursor() as cur:
+            cur.execute("DELETE FROM milestone WHERE id = ANY(%s::uuid[])", (created,))
+            cur.execute("UPDATE milestone SET deleted_at = NULL WHERE id = ANY(%s::uuid[])", (live_before,))
+
+
+def record(token, person_id, milestone_id, **fields):
+    return gql(RECORD_MILESTONE, {"input": {"personId": person_id, "milestoneId": milestone_id, **fields}}, token)
+
+
+def error_code(query, variables, token):
+    return gql_error_full(query, variables, token)["extensions"]["code"]
+
+
+class TestMilestoneList:
+    def test_list_returns_seeds_with_timestamps(self, ms):
+        by_name = {m["name"]: m for m in gql(MILESTONES, token=ms.token)["milestones"]}
+        assert {"baptised", "joined small group", "serving", "leading"} <= set(by_name)
+        assert by_name["baptised"]["createdAt"] and by_name["baptised"]["updatedAt"]
+
+    def test_list_for_a_user_with_no_people(self, ms):
+        assert gql(MY_PEOPLE, token=ms.token)["myPeople"] == []
+        assert gql(MILESTONES, token=ms.token)["milestones"]
+
+    def test_ordered_by_name_ignoring_case(self, ms):
+        # Created out of order and in mixed case; the suffix is shared so
+        # "a" < "B" < "c" decides the order.
+        c = ms.create("c")
+        b = ms.create("B")
+        a = ms.create("a")
+        listed = gql(MILESTONES, token=ms.token)["milestones"]
+        mine = [m["id"] for m in listed if m["id"] in (a["id"], b["id"], c["id"])]
+        assert mine == [a["id"], b["id"], c["id"]]
+        names = [m["name"].lower() for m in listed]
+        assert names == sorted(names)
+
+    def test_create_returns_milestone_with_zero_recorded(self, ms):
+        milestone = ms.create("Confirmed", "  Confirmation  ")
+        assert milestone["name"] == ms.name("Confirmed")
+        assert milestone["description"] == "Confirmation"
+        assert milestone["recordedCount"] == 0
+        assert milestone["createdAt"] and milestone["updatedAt"]
+        assert milestone["id"] in [m["id"] for m in gql(MILESTONES, token=ms.token)["milestones"]]
+
+    def test_create_trims_name_and_blank_description_is_null(self, ms):
+        label = ms.name("Trimmed")
+        input_ = {"name": f"  {label}  ", "description": "   "}
+        milestone = gql(CREATE_MILESTONE, {"input": input_}, ms.token)["createMilestone"]
+        ms.track(milestone["id"])
+        assert milestone["name"] == label
+        assert milestone["description"] is None
+
+    def test_create_without_description(self, ms):
+        assert ms.create("Plain")["description"] is None
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    def test_create_blank_name_is_bad_user_input(self, ms, blank):
+        error = gql_error_full(CREATE_MILESTONE, {"input": {"name": blank}}, ms.token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Enter a name for the milestone."
+
+    def test_name_of_101_characters_rejected(self, ms):
+        error = gql_error_full(CREATE_MILESTONE, {"input": {"name": "a" * 101}}, ms.token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Use 100 characters or fewer."
+
+    def test_name_of_100_characters_accepted(self, ms):
+        name = (ms.suffix + "a" * 100)[:100]
+        assert ms.create(name, exact=True)["name"] == name
+
+    def test_name_of_100_multibyte_characters_accepted(self, ms):
+        name = ms.suffix + "é" * 92  # 100 characters, 192 bytes
+        assert len(name) == 100
+        assert ms.create(name, exact=True)["name"] == name
+
+    def test_emoji_name_counts_characters_not_bytes(self, ms):
+        name = ms.suffix + "\U0001f64f" * 92  # 100 characters, 392 bytes
+        assert ms.create(name, exact=True)["name"] == name
+        error = gql_error_full(CREATE_MILESTONE, {"input": {"name": name + "\U0001f64f" * 9}}, ms.token)
+        assert error["message"] == "Use 100 characters or fewer."
+
+    def test_description_of_1001_characters_rejected(self, ms):
+        input_ = {"name": ms.name("Long"), "description": "d" * 1001}
+        error = gql_error_full(CREATE_MILESTONE, {"input": input_}, ms.token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Use 1000 characters or fewer for the description."
+
+    def test_description_of_1000_multibyte_characters_accepted(self, ms):
+        assert len(ms.create("Long", "é" * 1000)["description"]) == 1000
+
+    def test_duplicate_name_ignoring_case_is_conflict_with_existing_casing(self, ms):
+        error = gql_error_full(CREATE_MILESTONE, {"input": {"name": "BAPTISED"}}, ms.token)
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == f"A milestone called {LDQUO}baptised{RDQUO} already exists."
+
+    def test_duplicate_name_is_compared_after_trimming(self, ms):
+        assert error_code(CREATE_MILESTONE, {"input": {"name": "  serving "}}, ms.token) == "CONFLICT"
+
+    # ── recorded counts and people ──
+
+    def test_new_milestone_with_no_records_counts_zero(self, ms, status_id):
+        milestone = ms.create("Unused")
+        create_person(ms.token, status_id)  # a person with no milestones (rule 2)
+        listed = {m["id"]: m for m in gql(MILESTONES, token=ms.token)["milestones"]}
+        assert listed[milestone["id"]]["recordedCount"] == 0
+
+    def test_recorded_count_includes_other_shepherds_people(self, ms, make_user, status_id):
+        milestone = ms.create("Counted")
+        other_token, _, _ = make_user()
+        mine = create_person(ms.token, status_id, "Mine")
+        theirs = create_person(other_token, status_id, "Theirs")
+        record(ms.token, mine, milestone["id"])
+        record(other_token, theirs, milestone["id"])
+        for token in (ms.token, other_token):
+            listed = {m["id"]: m for m in gql(MILESTONES, token=token)["milestones"]}
+            assert listed[milestone["id"]]["recordedCount"] == 2
+
+    def test_nested_milestone_carries_recorded_count_and_timestamps(self, ms, make_user, status_id):
+        milestone = ms.create("Nested")
+        other_token, _, _ = make_user()
+        mine = create_person(ms.token, status_id)
+        theirs = create_person(other_token, status_id)
+        record(ms.token, mine, milestone["id"], notes="n")
+        record(other_token, theirs, milestone["id"])
+        [recorded] = gql(PERSON_MILESTONES, {"id": mine}, ms.token)["person"]["milestones"]
+        assert recorded["milestone"]["id"] == milestone["id"]
+        assert recorded["milestone"]["recordedCount"] == 2
+        assert recorded["milestone"]["createdAt"] == milestone["createdAt"]
+        assert recorded["milestone"]["updatedAt"] == milestone["updatedAt"]
+
+    # ── authentication ──
+
+    @pytest.mark.parametrize(
+        "query,variables",
+        [
+            (CREATE_MILESTONE, {"input": {"name": "Anon"}}),
+        ],
+    )
+    def test_mutations_require_a_token(self, query, variables):
+        status, body = post(query, variables)
+        assert status == 401
+        assert body["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
+
+    def test_list_requires_a_token(self):
+        status, body = post(MILESTONES)
+        assert status == 401
+        assert body["errors"][0]["extensions"]["code"] == "UNAUTHENTICATED"
