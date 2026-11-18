@@ -2771,6 +2771,11 @@ MILESTONES = "query { milestones { " + MILESTONE_FIELDS + " } }"
 CREATE_MILESTONE = (
     "mutation C($input: CreateMilestoneInput!) { createMilestone(input: $input) { " + MILESTONE_FIELDS + " } }"
 )
+UPDATE_MILESTONE = (
+    "mutation U($id: UUID!, $input: UpdateMilestoneInput!) { updateMilestone(id: $id, input: $input) { "
+    + MILESTONE_FIELDS
+    + " } }"
+)
 PERSON_MILESTONES = """
 query P($id: UUID!) {
   person(id: $id) {
@@ -2779,6 +2784,7 @@ query P($id: UUID!) {
   }
 }"""
 LDQUO, RDQUO = "“", "”"
+NO_SUCH_ID = "00000000-0000-0000-0000-000000000000"
 
 
 class MilestoneHelper:
@@ -2916,6 +2922,74 @@ class TestMilestoneList:
     def test_duplicate_name_is_compared_after_trimming(self, ms):
         assert error_code(CREATE_MILESTONE, {"input": {"name": "  serving "}}, ms.token) == "CONFLICT"
 
+    # ── update ──
+
+    def test_update_name_and_description(self, ms):
+        milestone = ms.create("Before", "old")
+        input_ = {"name": ms.name("After"), "description": " new "}
+        updated = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": input_}, ms.token)["updateMilestone"]
+        assert updated["id"] == milestone["id"]
+        assert (updated["name"], updated["description"]) == (ms.name("After"), "new")
+
+    def test_update_absent_fields_unchanged_and_updated_at_moves(self, ms):
+        milestone = ms.create("Stable", "keep me")
+        time.sleep(0.05)
+        same = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": {}}, ms.token)["updateMilestone"]
+        assert (same["name"], same["description"]) == (milestone["name"], "keep me")
+        assert same["createdAt"] == milestone["createdAt"]
+        renamed = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"name": ms.name("Moved")}}, ms.token)
+        renamed = renamed["updateMilestone"]
+        assert parse_time(renamed["updatedAt"]) > parse_time(milestone["updatedAt"])
+        assert renamed["description"] == "keep me"
+
+    def test_update_only_description_keeps_name(self, ms):
+        milestone = ms.create("Named", "x")
+        updated = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"description": "y"}}, ms.token)
+        assert (updated["updateMilestone"]["name"], updated["updateMilestone"]["description"]) == (
+            milestone["name"],
+            "y",
+        )
+
+    @pytest.mark.parametrize("cleared", [None, "", "   "])
+    def test_update_null_or_blank_description_clears_it(self, ms, cleared):
+        milestone = ms.create("Clearing", "something")
+        updated = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"description": cleared}}, ms.token)
+        assert updated["updateMilestone"]["description"] is None
+        assert updated["updateMilestone"]["name"] == milestone["name"]
+
+    def test_update_name_null_is_bad_user_input(self, ms):
+        milestone = ms.create("Keep")
+        error = gql_error_full(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"name": None}}, ms.token)
+        assert error["extensions"]["code"] == "BAD_USER_INPUT"
+        assert error["message"] == "Name can't be cleared"
+
+    def test_update_validation_messages(self, ms):
+        milestone = ms.create("Valid")
+
+        def message(input_):
+            return gql_error_full(UPDATE_MILESTONE, {"id": milestone["id"], "input": input_}, ms.token)
+
+        assert message({"name": "  "})["message"] == "Enter a name for the milestone."
+        assert message({"name": "n" * 101})["message"] == "Use 100 characters or fewer."
+        too_long = message({"description": "d" * 1001})
+        assert too_long["message"] == "Use 1000 characters or fewer for the description."
+        assert too_long["extensions"]["code"] == "BAD_USER_INPUT"
+
+    def test_update_to_another_milestones_name_is_conflict(self, ms):
+        milestone = ms.create("Mine")
+        error = gql_error_full(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"name": "SERVING"}}, ms.token)
+        assert error["extensions"]["code"] == "CONFLICT"
+        assert error["message"] == f"A milestone called {LDQUO}serving{RDQUO} already exists."
+
+    def test_rename_to_own_name_in_different_case_is_allowed(self, ms):
+        milestone = ms.create("baptised thing")
+        flipped = milestone["name"].replace("baptised", "Baptised")
+        updated = gql(UPDATE_MILESTONE, {"id": milestone["id"], "input": {"name": flipped}}, ms.token)
+        assert updated["updateMilestone"]["name"] == flipped
+
+    def test_update_missing_is_not_found(self, ms):
+        assert error_code(UPDATE_MILESTONE, {"id": NO_SUCH_ID, "input": {"description": "x"}}, ms.token) == "NOT_FOUND"
+
     # ── recorded counts and people ──
 
     def test_new_milestone_with_no_records_counts_zero(self, ms, status_id):
@@ -2954,6 +3028,7 @@ class TestMilestoneList:
         "query,variables",
         [
             (CREATE_MILESTONE, {"input": {"name": "Anon"}}),
+            (UPDATE_MILESTONE, {"id": NO_SUCH_ID, "input": {"description": "x"}}),
         ],
     )
     def test_mutations_require_a_token(self, query, variables):

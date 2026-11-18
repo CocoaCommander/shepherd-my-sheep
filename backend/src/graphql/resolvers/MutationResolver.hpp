@@ -51,6 +51,7 @@ public:
         if (field == "recordMilestone") return resolveRecordMilestone(args, userId);
         if (field == "removeMilestone") return resolveRemoveMilestone(args, userId);
         if (field == "createMilestone") return resolveCreateMilestone(args);
+        if (field == "updateMilestone") return resolveUpdateMilestone(args);
         if (field == "createPrayerBurden") return resolveCreatePrayerBurden(args, userId);
         if (field == "releasePrayerBurden") return resolveReleasePrayerBurden(args, userId);
         if (field == "unreleasePrayerBurden") return resolveUnreleasePrayerBurden(args, userId);
@@ -446,6 +447,43 @@ private:
             id = write.exec_params("SELECT id FROM create_milestone($1, $2)", name, nullable(description))[0]["id"]
                      .c_str();
         });
+
+        auto milestone = fetchMilestone(txn, id);
+        txn.commit();
+        return milestone;
+    }
+
+    /**
+     * Only the fields present in `input` change. `description: null` or a
+     * blank one clears it; `name: null` is rejected. A rename that changes
+     * only the case of the milestone's own name is allowed.
+     */
+    oatpp::Any resolveUpdateMilestone(const Args& args) {
+        auto id    = args.req("id");
+        auto input = args.object("input");
+        if (input.isNull("name")) throw BadInput("Name can't be cleared");
+        auto name = input.opt("name");
+        if (name) name = requireMilestoneName(*name);
+        auto rawDescription   = input.opt("description");
+        auto description      = milestoneDescription(rawDescription);
+        bool clearDescription = input.isNull("description") || (rawDescription && !description);
+
+        PooledConnection conn(m_dbPool);
+        pqxx::work       txn(*conn);
+
+        auto update = [&](pqxx::work& write) {
+            write.exec_params("SELECT 1 FROM update_milestone("
+                              "p_id                := $1::uuid, "
+                              "p_name              := $2::varchar, "
+                              "p_description       := $3::text, "
+                              "p_clear_description := $4::boolean)",
+                              id, nullable(name), nullable(description), clearDescription);
+        };
+        if (name) {
+            writeMilestoneName(txn, *name, update);
+        } else {
+            update(txn);
+        }
 
         auto milestone = fetchMilestone(txn, id);
         txn.commit();
